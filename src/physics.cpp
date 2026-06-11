@@ -1,4 +1,5 @@
 #include "physics.h"
+#include "map.h"
 #include <cmath>
 
 bool aabbHit(glm::vec3 p, glm::vec3 playerPos) {
@@ -17,6 +18,31 @@ glm::vec3 dirFromYawPitch(float yaw, float pitch) {
     ));
 }
 
+static bool pointInBox(glm::vec3 p, const Box& b) {
+    return fabsf(p.x - b.center.x) < b.half.x &&
+           fabsf(p.y - b.center.y) < b.half.y &&
+           fabsf(p.z - b.center.z) < b.half.z;
+}
+
+// Push the player's XZ footprint (half extent 0.4) out of every map box,
+// along the axis of least overlap. Player is grounded, boxes sit on the
+// ground, so Y never separates them — XZ only.
+static void collideWithMap(Player& p) {
+    constexpr float R = 0.4f;
+    for (int i = 0; i < MAP_BOX_COUNT; i++) {
+        const Box& b = MAP_BOXES[i];
+        float dx = (b.half.x + R) - fabsf(p.pos.x - b.center.x);
+        float dz = (b.half.z + R) - fabsf(p.pos.z - b.center.z);
+        if (dx <= 0.0f || dz <= 0.0f) continue;
+        if (dx < dz) p.pos.x += (p.pos.x < b.center.x) ? -dx : dx;
+        else         p.pos.z += (p.pos.z < b.center.z) ? -dz : dz;
+    }
+    if (p.pos.x >  ARENA_HALF) p.pos.x =  ARENA_HALF;
+    if (p.pos.x < -ARENA_HALF) p.pos.x = -ARENA_HALF;
+    if (p.pos.z >  ARENA_HALF) p.pos.z =  ARENA_HALF;
+    if (p.pos.z < -ARENA_HALF) p.pos.z = -ARENA_HALF;
+}
+
 void movePlayer(Player& p, const InputState& in, float dt) {
     glm::vec3 forward = glm::normalize(glm::vec3(
         cos(glm::radians(in.yaw)), 0, sin(glm::radians(in.yaw))));
@@ -27,6 +53,7 @@ void movePlayer(Player& p, const InputState& in, float dt) {
     if (in.d) p.pos += right   * MOVE_SPEED * dt;
     p.pos.y = 0.0f; // lock to ground
     p.yaw = in.yaw;
+    collideWithMap(p);
 }
 
 bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, int ownerID) {
@@ -56,6 +83,12 @@ void updateBullets(GameState& gs, float dt) {
         b.pos      += b.vel * dt;
         b.lifetime -= dt;
         if (b.lifetime <= 0.0f) { b.active = false; continue; }
+        if (b.pos.y <= 0.0f) { b.active = false; continue; }  // hit the ground
+
+        for (int m = 0; m < MAP_BOX_COUNT; m++) {
+            if (pointInBox(b.pos, MAP_BOXES[m])) { b.active = false; break; }
+        }
+        if (!b.active) continue;
 
         for (int pid = 0; pid < MAX_PLAYERS; pid++) {
             if (pid == b.ownerID) continue;

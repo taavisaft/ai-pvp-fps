@@ -3,7 +3,7 @@
 Barebones 3D first-person free-for-all shooter, built from scratch in C++17.
 No game engine, no physics library, no networking library — just SDL2, OpenGL 3.3, GLM, and raw UDP sockets.
 
-Up to 16 players drop in and out of a dedicated server, run around a flat arena, and shoot each other. Bullets have travel time and gravity, each life carries 20 rounds, 4 hits kill, and you respawn after 3 seconds.
+Up to 16 players drop in and out of a dedicated server, fight around the cover boxes of a small arena, and shoot each other. Bullets have travel time and gravity and stop on cover, each life carries 20 rounds, 4 hits kill, and you respawn after 3 seconds at a random spawn point.
 
 ## Build
 

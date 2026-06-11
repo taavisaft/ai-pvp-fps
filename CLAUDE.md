@@ -18,6 +18,11 @@ No game engine. No physics library. No networking library.
 - Extra files: `src/game.h` (shared structs/constants), `src/gl_loader.h/.cpp` (GL 3.3
   function loading on Linux/Windows via SDL_GL_GetProcAddress; macOS uses the framework),
   `src/net_common.h/.cpp` (shared UDP helpers), `src/server_main.cpp` (server entry).
+- **Arena obstacles** (`src/map.h`, shared server+client): static cover boxes — center
+  pillar, axis walls, low crates (shootable over), outer pillars. Players push out of
+  boxes (XZ least-overlap, in `movePlayer`), bullets stop on boxes and the ground.
+  Players clamped to ±45 on X/Z. Obstacles ≥1 m thick so bullets can't tunnel.
+  Death respawn picks a random spawn point; joining uses your slot's point.
 - HUD (colored quads, no text): crosshair, HP bar, ammo bar, hit flash, death overlay.
 - Offline practice mode: client starts vs a stationary respawning dummy until connected;
   ammo auto-refills offline.

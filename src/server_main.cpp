@@ -3,8 +3,10 @@
 #include <chrono>
 #include <thread>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cmath>
+#include <ctime>
 #include "platform.h"
 #include "net_common.h"
 #include "protocol.h"
@@ -24,20 +26,22 @@ static GameState  game;
 static ClientSlot clients[MAX_PLAYERS];
 static bool       prevAlive[MAX_PLAYERS];
 
-// Spawn points on a circle, facing the center
-static glm::vec3 spawnPos(int id) {
-    float a = glm::radians(id * (360.0f / MAX_PLAYERS));
+// Spawn points on a circle, facing the center. Random point per respawn
+// so deaths don't return you to a campable fixed spot.
+static glm::vec3 spawnPos(int point) {
+    float a = glm::radians(point * (360.0f / MAX_PLAYERS));
     return {15.0f * cosf(a), 0.0f, 15.0f * sinf(a)};
 }
-static float spawnYaw(int id) {
-    return id * (360.0f / MAX_PLAYERS) + 180.0f;  // look toward center
+static float spawnYaw(int point) {
+    return point * (360.0f / MAX_PLAYERS) + 180.0f;  // look toward center
 }
 
-static void respawn(int id) {
+static void respawn(int id, bool randomPoint) {
+    int point = randomPoint ? rand() % MAX_PLAYERS : id;
     Player& p = game.players[id];
     p = Player{};
-    p.pos = spawnPos(id);
-    p.yaw = spawnYaw(id);
+    p.pos = spawnPos(point);
+    p.yaw = spawnYaw(point);
     prevAlive[id] = true;
 }
 
@@ -69,7 +73,7 @@ static void handlePackets(int fd) {
                 clients[id].addr = from;
                 clients[id].silence = 0.0f;
                 game.usedMask |= (1u << id);
-                respawn(id);
+                respawn(id, false);  // joining: your slot's point (deterministic)
                 int online = 0;
                 for (int i = 0; i < MAX_PLAYERS; i++) online += clients[i].used;
                 printf("server: player %d joined (%d online)\n", id, online);
@@ -106,7 +110,7 @@ static void tick(float dt) {
             c.pendingShoot = false;
             p.respawnTimer -= dt;
             if (p.respawnTimer <= 0.0f) {
-                respawn(i);
+                respawn(i, true);
                 printf("server: player %d respawned\n", i);
             }
             continue;
@@ -158,6 +162,7 @@ static void broadcast(int fd, uint32_t seq) {
 
 int main() {
     setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffered even when piped to a log
+    srand((unsigned)time(nullptr));
     platformSocketInit();
     int fd = -1;
     if (!netOpen(fd) || !netBind(fd, UDP_PORT)) {

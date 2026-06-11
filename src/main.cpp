@@ -8,6 +8,7 @@
 #include "input.h"
 #include "physics.h"
 #include "network.h"
+#include "map.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
@@ -53,6 +54,10 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     r.beginFrame(cam.view(), cam.proj(r.aspect()));
     r.drawGround();
 
+    for (int i = 0; i < MAP_BOX_COUNT; i++) {
+        const Box& b = MAP_BOXES[i];
+        r.drawCube(b.center, b.half * 2.0f, {0.45f, 0.45f, 0.52f});
+    }
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (i == localID) continue;
         if (!(gs.usedMask & (1u << i))) continue;
