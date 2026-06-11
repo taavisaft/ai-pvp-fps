@@ -1,0 +1,10 @@
+# Build output
+build/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store
