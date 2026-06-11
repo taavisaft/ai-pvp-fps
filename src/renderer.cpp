@@ -50,6 +50,7 @@ bool Renderer::init(const char* title, int w, int h) {
 
     if (!createUnitCube(cube)) return false;
     if (!createGroundQuad(ground)) return false;
+    if (!createQuad2D(quad2d)) return false;
     return true;
 }
 
@@ -62,6 +63,31 @@ void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj) {
     shader.use();
     shader.setMat4(shader.locView, view);
     shader.setMat4(shader.locProj, proj);
+    shader.setFloat(shader.locAlpha, 1.0f);
+}
+
+void Renderer::beginHUD() {
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    shader.setMat4(shader.locView, glm::mat4(1.0f));
+    shader.setMat4(shader.locProj, glm::mat4(1.0f));
+}
+
+void Renderer::drawRect(const glm::vec2& center, const glm::vec2& size,
+                        const glm::vec3& color, float alpha) {
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(center, 0.0f));
+    model = glm::scale(model, glm::vec3(size, 1.0f));
+    shader.setMat4(shader.locModel, model);
+    shader.setVec3(shader.locColor, color);
+    shader.setFloat(shader.locAlpha, alpha);
+    quad2d.draw();
+}
+
+void Renderer::endHUD() {
+    glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+    shader.setFloat(shader.locAlpha, 1.0f);
 }
 
 void Renderer::drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color) {
@@ -88,6 +114,7 @@ void Renderer::toggleWireframe() {
 }
 
 void Renderer::shutdown() {
+    quad2d.destroy();
     ground.destroy();
     cube.destroy();
     shader.destroy();

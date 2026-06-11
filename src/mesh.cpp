@@ -57,6 +57,17 @@ bool createUnitCube(Mesh& m) {
     return m.create(verts, 24, idx, 36);
 }
 
+bool createQuad2D(Mesh& m) {
+    static const float verts[] = {
+        -0.5f, -0.5f, 0.0f,
+         0.5f, -0.5f, 0.0f,
+         0.5f,  0.5f, 0.0f,
+        -0.5f,  0.5f, 0.0f,
+    };
+    static const unsigned idx[] = { 0, 1, 2,  2, 3, 0 };  // CCW in screen space
+    return m.create(verts, 12, idx, 6);
+}
+
 bool createGroundQuad(Mesh& m) {
     static const float verts[] = {
         -50.0f, 0.0f, -50.0f,  // 0

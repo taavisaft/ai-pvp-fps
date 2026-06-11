@@ -13,7 +13,44 @@ static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
 static const glm::vec3 COLOR_BULLET_ENEMY = {1.00f, 0.40f, 0.10f};
 
-static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int localID) {
+// Bar anchored at its left edge; fill scales with frac
+static void drawBar(Renderer& r, glm::vec2 center, glm::vec2 size, float frac,
+                    const glm::vec3& fillColor) {
+    if (frac < 0.0f) frac = 0.0f;
+    if (frac > 1.0f) frac = 1.0f;
+    r.drawRect(center, size, {0.1f, 0.1f, 0.1f}, 0.7f);
+    float left = center.x - size.x * 0.5f;
+    glm::vec2 fillCenter = {left + size.x * frac * 0.5f, center.y};
+    r.drawRect(fillCenter, {size.x * frac, size.y * 0.7f}, fillColor, 0.9f);
+}
+
+static void drawHUD(Renderer& r, const GameState& gs, int localID, float flashAlpha) {
+    float ia = 1.0f / r.aspect();  // keep HUD shapes square in NDC
+    r.beginHUD();
+
+    if (flashAlpha > 0.0f)
+        r.drawRect({0, 0}, {2, 2}, {0.9f, 0.1f, 0.1f}, flashAlpha);
+
+    float ownFrac   = gs.players[localID].hp     / (float)PLAYER_HP;
+    float enemyFrac = gs.players[1 - localID].hp / (float)PLAYER_HP;
+    glm::vec3 ownColor = glm::mix(glm::vec3(0.9f, 0.2f, 0.1f),
+                                  glm::vec3(0.2f, 0.85f, 0.2f), ownFrac);
+    drawBar(r, {-0.6f, -0.88f}, {0.5f, 0.05f}, ownFrac, ownColor);
+    drawBar(r, {0.0f, 0.9f}, {0.4f, 0.035f}, enemyFrac, {0.85f, 0.3f, 0.2f});
+
+    r.drawRect({0, 0}, {0.006f * ia, 0.045f}, {1, 1, 1}, 0.9f);  // crosshair |
+    r.drawRect({0, 0}, {0.045f * ia, 0.006f}, {1, 1, 1}, 0.9f);  // crosshair -
+
+    if (gs.gameOver) {
+        bool won = gs.winnerID == localID;
+        r.drawRect({0, 0}, {2, 2},
+                   won ? glm::vec3(0.1f, 0.7f, 0.2f) : glm::vec3(0.7f, 0.1f, 0.1f), 0.25f);
+    }
+    r.endHUD();
+}
+
+static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int localID,
+                        float flashAlpha) {
     r.beginFrame(cam.view(), cam.proj(r.aspect()));
     r.drawGround();
 
@@ -27,6 +64,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         bool own = b.ownerID == localID;
         r.drawCube(b.pos, {0.1f, 0.1f, 0.1f}, own ? COLOR_BULLET_OWN : COLOR_BULLET_ENEMY);
     }
+    drawHUD(r, gs, localID, flashAlpha);
     r.endFrame();
 }
 
@@ -78,6 +116,8 @@ int main(int argc, char** argv) {
     bool        running     = true;
     int         lastPrintedHP[2] = {PLAYER_HP, PLAYER_HP};
     bool        winPrinted  = false;
+    float       flashTimer  = 0.0f;
+    int         prevOwnHP   = PLAYER_HP;
 
     printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
     printf("offline practice mode until connected\n");
@@ -142,6 +182,10 @@ int main(int argc, char** argv) {
 
         int ownHP   = shown->players[localID].hp;
         int enemyHP = shown->players[1 - localID].hp;
+        if (ownHP < prevOwnHP) flashTimer = 0.4f;  // got hit
+        prevOwnHP = ownHP;
+        flashTimer -= dt;
+        if (flashTimer < 0.0f) flashTimer = 0.0f;
         if (ownHP != lastPrintedHP[0] || enemyHP != lastPrintedHP[1]) {
             lastPrintedHP[0] = ownHP;
             lastPrintedHP[1] = enemyHP;
@@ -153,7 +197,7 @@ int main(int argc, char** argv) {
         }
         if (!shown->gameOver) winPrinted = false;  // server reset the match
 
-        renderScene(renderer, cam, *shown, localID);
+        renderScene(renderer, cam, *shown, localID, 0.35f * flashTimer / 0.4f);
     }
 
     net.disconnect();

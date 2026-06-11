@@ -8,10 +8,12 @@ struct Shader {
     GLint  locView  = -1;
     GLint  locProj  = -1;
     GLint  locColor = -1;
+    GLint  locAlpha = -1;
 
     bool load(const char* vertPath, const char* fragPath);
     void use() const;
     void setMat4(GLint loc, const glm::mat4& m) const;
     void setVec3(GLint loc, const glm::vec3& v) const;
+    void setFloat(GLint loc, float f) const;
     void destroy();
 };

@@ -64,6 +64,7 @@ bool Shader::load(const char* vertPath, const char* fragPath) {
     locView  = glGetUniformLocation(program, "view");
     locProj  = glGetUniformLocation(program, "proj");
     locColor = glGetUniformLocation(program, "color");
+    locAlpha = glGetUniformLocation(program, "alpha");
     return true;
 }
 
@@ -75,6 +76,10 @@ void Shader::setMat4(GLint loc, const glm::mat4& m) const {
 
 void Shader::setVec3(GLint loc, const glm::vec3& v) const {
     glUniform3f(loc, v.x, v.y, v.z);
+}
+
+void Shader::setFloat(GLint loc, float f) const {
+    glUniform1f(loc, f);
 }
 
 void Shader::destroy() {
