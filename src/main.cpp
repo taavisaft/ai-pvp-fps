@@ -1,5 +1,5 @@
 // Client: offline practice vs dummy by default; connects to dedicated server
-// via `./game <ip>` or the C key (IP prompt on stdin).
+// via `./game <ip>` or the C key (IP prompt on stdin). Drop-in FFA, 16 players.
 #include <SDL.h>
 #include <cstdio>
 #include "platform.h"
@@ -26,26 +26,25 @@ static void drawBar(Renderer& r, glm::vec2 center, glm::vec2 size, float frac,
 
 static void drawHUD(Renderer& r, const GameState& gs, int localID, float flashAlpha) {
     float ia = 1.0f / r.aspect();  // keep HUD shapes square in NDC
+    const Player& own = gs.players[localID];
     r.beginHUD();
 
     if (flashAlpha > 0.0f)
         r.drawRect({0, 0}, {2, 2}, {0.9f, 0.1f, 0.1f}, flashAlpha);
 
-    float ownFrac   = gs.players[localID].hp     / (float)PLAYER_HP;
-    float enemyFrac = gs.players[1 - localID].hp / (float)PLAYER_HP;
-    glm::vec3 ownColor = glm::mix(glm::vec3(0.9f, 0.2f, 0.1f),
-                                  glm::vec3(0.2f, 0.85f, 0.2f), ownFrac);
-    drawBar(r, {-0.6f, -0.88f}, {0.5f, 0.05f}, ownFrac, ownColor);
-    drawBar(r, {0.0f, 0.9f}, {0.4f, 0.035f}, enemyFrac, {0.85f, 0.3f, 0.2f});
+    float hpFrac = own.hp / (float)PLAYER_HP;
+    glm::vec3 hpColor = glm::mix(glm::vec3(0.9f, 0.2f, 0.1f),
+                                 glm::vec3(0.2f, 0.85f, 0.2f), hpFrac);
+    drawBar(r, {-0.6f, -0.88f}, {0.5f, 0.05f}, hpFrac, hpColor);
+    drawBar(r, {-0.6f, -0.95f}, {0.5f, 0.03f}, own.ammo / (float)AMMO_PER_LIFE,
+            {0.95f, 0.85f, 0.25f});
 
     r.drawRect({0, 0}, {0.006f * ia, 0.045f}, {1, 1, 1}, 0.9f);  // crosshair |
     r.drawRect({0, 0}, {0.045f * ia, 0.006f}, {1, 1, 1}, 0.9f);  // crosshair -
 
-    if (gs.gameOver) {
-        bool won = gs.winnerID == localID;
-        r.drawRect({0, 0}, {2, 2},
-                   won ? glm::vec3(0.1f, 0.7f, 0.2f) : glm::vec3(0.7f, 0.1f, 0.1f), 0.25f);
-    }
+    if (!own.alive)
+        r.drawRect({0, 0}, {2, 2}, {0.6f, 0.05f, 0.05f}, 0.4f);  // dead, waiting respawn
+
     r.endHUD();
 }
 
@@ -54,9 +53,11 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     r.beginFrame(cam.view(), cam.proj(r.aspect()));
     r.drawGround();
 
-    const Player& remote = gs.players[1 - localID];
-    if (remote.alive) {
-        r.drawCube(remote.pos + glm::vec3(0, 1.0f, 0), {1, 2, 1}, COLOR_ENEMY);
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (i == localID) continue;
+        if (!(gs.usedMask & (1u << i))) continue;
+        if (!gs.players[i].alive) continue;
+        r.drawCube(gs.players[i].pos + glm::vec3(0, 1.0f, 0), {1, 2, 1}, COLOR_ENEMY);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
         const Bullet& b = gs.bullets[i];
@@ -94,9 +95,10 @@ int main(int argc, char** argv) {
     }
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
-    GameState offline;                    // local practice match vs dummy
+    static GameState offline;             // local practice match vs dummy
+    offline.usedMask = 0b11;              // slot 0 = self, slot 1 = dummy
     offline.players[1].pos = {0, 0, -10};
-    GameState display;                    // what gets rendered when online
+    static GameState display;             // what gets rendered when online
 
     ClientNet net;
     Player    predicted;                  // own player, client-side predicted
@@ -114,10 +116,9 @@ int main(int argc, char** argv) {
     float       accumulator = 0.0f;
     Uint64      last        = SDL_GetPerformanceCounter();
     bool        running     = true;
-    int         lastPrintedHP[2] = {PLAYER_HP, PLAYER_HP};
-    bool        winPrinted  = false;
     float       flashTimer  = 0.0f;
     int         prevOwnHP   = PLAYER_HP;
+    bool        prevOwnAlive = true;
 
     printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
     printf("offline practice mode until connected\n");
@@ -148,14 +149,24 @@ int main(int argc, char** argv) {
         bool shootPending = input.state.shoot;
         while (accumulator >= FIXED_DT) {
             if (online) {
-                movePlayer(predicted, input.state, FIXED_DT);  // prediction only
-            } else if (!offline.gameOver) {
-                if (shootPending) {
+                if (prevOwnAlive) movePlayer(predicted, input.state, FIXED_DT);
+            } else {
+                Player& self  = offline.players[0];
+                Player& dummy = offline.players[1];
+                if (shootPending && self.alive) {
                     spawnBullet(offline, cam.eye, cam.front(), 0);
+                    if (self.ammo <= 0) self.ammo = AMMO_PER_LIFE;  // offline auto-refill
                     shootPending = false;
                 }
-                movePlayer(offline.players[0], input.state, FIXED_DT);
+                movePlayer(self, input.state, FIXED_DT);
                 updateBullets(offline, FIXED_DT);
+                if (!dummy.alive) {                                 // offline dummy respawn
+                    dummy.respawnTimer -= FIXED_DT;
+                    if (dummy.respawnTimer <= 0.0f) {
+                        dummy = Player{};
+                        dummy.pos = {0, 0, -10};
+                    }
+                }
             }
             accumulator -= FIXED_DT;
         }
@@ -165,10 +176,8 @@ int main(int argc, char** argv) {
             // snap prediction to authoritative position on each new state
             if (net.lastState.seq != appliedStateSeq) {
                 appliedStateSeq = net.lastState.seq;
-                if (net.playerID == 0)
-                    predicted.pos = {net.lastState.p0x, net.lastState.p0y, net.lastState.p0z};
-                else
-                    predicted.pos = {net.lastState.p1x, net.lastState.p1y, net.lastState.p1z};
+                const PlayerNetState& own = net.lastState.players[net.playerID];
+                predicted.pos = {own.x, own.y, own.z};
             }
             const StatePacket& a = net.hasPrev ? net.prevState : net.lastState;
             float alpha = net.sinceState * NET_HZ;
@@ -180,22 +189,15 @@ int main(int argc, char** argv) {
 
         cam.eye = shown->players[localID].pos + glm::vec3(0, EYE_HEIGHT, 0);
 
-        int ownHP   = shown->players[localID].hp;
-        int enemyHP = shown->players[1 - localID].hp;
-        if (ownHP < prevOwnHP) flashTimer = 0.4f;  // got hit
-        prevOwnHP = ownHP;
+        const Player& own = shown->players[localID];
+        if (own.hp < prevOwnHP && own.alive) flashTimer = 0.4f;  // got hit
+        prevOwnHP = own.hp;
         flashTimer -= dt;
         if (flashTimer < 0.0f) flashTimer = 0.0f;
-        if (ownHP != lastPrintedHP[0] || enemyHP != lastPrintedHP[1]) {
-            lastPrintedHP[0] = ownHP;
-            lastPrintedHP[1] = enemyHP;
-            printf("HP: you %d | enemy %d\n", ownHP, enemyHP);
-        }
-        if (shown->gameOver && !winPrinted) {
-            winPrinted = true;
-            printf("game over — you %s\n", shown->winnerID == localID ? "WIN" : "LOSE");
-        }
-        if (!shown->gameOver) winPrinted = false;  // server reset the match
+
+        if (prevOwnAlive && !own.alive) printf("you died — respawning\n");
+        if (!prevOwnAlive && own.alive) printf("respawned\n");
+        prevOwnAlive = own.alive;
 
         renderScene(renderer, cam, *shown, localID, 0.35f * flashTimer / 0.4f);
     }

@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
 
 enum PacketType : uint8_t {
@@ -9,10 +10,15 @@ enum PacketType : uint8_t {
     PKT_BYE    = 6,   // either direction: clean disconnect
 };
 
+// Max bullets carried per StatePacket; keeps the packet under typical MTU.
+// Bullets beyond this are still simulated server-side, just not rendered.
+constexpr int NET_MAX_BULLETS = 64;
+constexpr int NET_MAX_PLAYERS = 16;   // must equal MAX_PLAYERS
+
 #pragma pack(push, 1)
 
 struct HelloPacket  { PacketType type; };   // PKT_HELLO
-struct AcceptPacket { PacketType type; uint8_t playerID; };  // 0 or 1
+struct AcceptPacket { PacketType type; uint8_t playerID; };  // 0..15
 
 struct InputPacket {
     PacketType type;   // PKT_INPUT
@@ -22,22 +28,37 @@ struct InputPacket {
     float      pitch;
 };
 
-struct BulletNetState { float x, y, z; };
+struct PlayerNetState {
+    float   x, y, z, yaw;
+    int32_t hp;
+    uint8_t alive;
+    uint8_t ammo;
+};
 
+struct BulletNetState {
+    uint8_t poolIdx;   // server pool slot, stable across packets (interpolation key)
+    uint8_t owner;
+    float   x, y, z;
+};
+
+// Sent truncated: header + players + bulletCount + bulletCount * BulletNetState.
 struct StatePacket {
-    PacketType    type;          // PKT_STATE
-    uint32_t      seq;
-    float         p0x, p0y, p0z, p0yaw; int32_t p0hp;
-    float         p1x, p1y, p1z, p1yaw; int32_t p1hp;
-    uint8_t       bulletCount;
-    BulletNetState bullets[16];
-    uint8_t       gameOver;
-    int8_t        winnerID;     // -1, 0, or 1
+    PacketType     type;          // PKT_STATE
+    uint32_t       seq;
+    uint16_t       usedMask;      // bit i set = player slot i occupied
+    PlayerNetState players[NET_MAX_PLAYERS];
+    uint8_t        bulletCount;
+    BulletNetState bullets[NET_MAX_BULLETS];
 };
 
 struct ByePacket { PacketType type; };
 
 #pragma pack(pop)
+
+// Wire size of a StatePacket carrying `count` bullets
+constexpr int statePacketSize(int count) {
+    return (int)offsetof(StatePacket, bullets) + count * (int)sizeof(BulletNetState);
+}
 
 // keys bitmask bits
 constexpr uint8_t KEY_W     = 1;

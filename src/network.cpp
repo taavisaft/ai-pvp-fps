@@ -39,7 +39,7 @@ void ClientNet::update(float dt) {
         }
     }
 
-    char buf[1024];
+    char buf[1500];
     sockaddr_in from{};
     int n;
     while ((n = netRecv(fd, buf, sizeof(buf), from)) > 0) {
@@ -54,12 +54,13 @@ void ClientNet::update(float dt) {
             connected  = true;
             connecting = false;
             printf("net: connected as player %d\n", playerID);
-        } else if (type == PKT_STATE && n >= (int)sizeof(StatePacket)) {
+        } else if (type == PKT_STATE && n >= statePacketSize(0)) {
             if (hasState) {
                 prevState = lastState;
                 hasPrev   = true;
             }
-            memcpy(&lastState, buf, sizeof(lastState));
+            int copy = n <= (int)sizeof(StatePacket) ? n : (int)sizeof(StatePacket);
+            memcpy(&lastState, buf, copy);  // truncated packet; bulletCount guards the tail
             hasState   = true;
             sinceState = 0.0f;
         } else if (type == PKT_BYE) {
@@ -84,35 +85,41 @@ void ClientNet::sendInput(const InputState& in) {
 }
 
 void unpackState(const StatePacket& a, const StatePacket& b, float alpha, GameState& out) {
-    glm::vec3 p0a{a.p0x, a.p0y, a.p0z}, p0b{b.p0x, b.p0y, b.p0z};
-    glm::vec3 p1a{a.p1x, a.p1y, a.p1z}, p1b{b.p1x, b.p1y, b.p1z};
+    out.usedMask = b.usedMask;
 
-    out.players[0].pos   = glm::mix(p0a, p0b, alpha);
-    out.players[0].yaw   = a.p0yaw + (b.p0yaw - a.p0yaw) * alpha;
-    out.players[0].hp    = b.p0hp;
-    out.players[0].alive = b.p0hp > 0;
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        const PlayerNetState& pb = b.players[i];
+        glm::vec3 pos{pb.x, pb.y, pb.z};
+        float     yaw = pb.yaw;
+        if ((a.usedMask & b.usedMask) & (1u << i)) {
+            const PlayerNetState& pa = a.players[i];
+            pos = glm::mix(glm::vec3{pa.x, pa.y, pa.z}, pos, alpha);
+            yaw = pa.yaw + (pb.yaw - pa.yaw) * alpha;
+        }
+        out.players[i].pos   = pos;
+        out.players[i].yaw   = yaw;
+        out.players[i].hp    = pb.hp;
+        out.players[i].ammo  = pb.ammo;
+        out.players[i].alive = pb.alive != 0;
+    }
 
-    out.players[1].pos   = glm::mix(p1a, p1b, alpha);
-    out.players[1].yaw   = a.p1yaw + (b.p1yaw - a.p1yaw) * alpha;
-    out.players[1].hp    = b.p1hp;
-    out.players[1].alive = b.p1hp > 0;
-
-    int count = b.bulletCount <= MAX_BULLETS ? b.bulletCount : MAX_BULLETS;
+    int count = b.bulletCount <= NET_MAX_BULLETS ? b.bulletCount : NET_MAX_BULLETS;
+    int prevCount = a.bulletCount <= NET_MAX_BULLETS ? a.bulletCount : NET_MAX_BULLETS;
     for (int i = 0; i < MAX_BULLETS; i++) out.bullets[i].active = false;
     for (int i = 0; i < count; i++) {
-        glm::vec3 pb{b.bullets[i].x, b.bullets[i].y, b.bullets[i].z};
-        glm::vec3 pos = pb;
-        if (i < a.bulletCount) {
-            glm::vec3 pa{a.bullets[i].x, a.bullets[i].y, a.bullets[i].z};
-            pos = glm::mix(pa, pb, alpha);
+        const BulletNetState& nb = b.bullets[i];
+        glm::vec3 pos{nb.x, nb.y, nb.z};
+        for (int j = 0; j < prevCount; j++) {   // match by pool slot for smooth interp
+            if (a.bullets[j].poolIdx != nb.poolIdx) continue;
+            pos = glm::mix(glm::vec3{a.bullets[j].x, a.bullets[j].y, a.bullets[j].z},
+                           pos, alpha);
+            break;
         }
         out.bullets[i].pos     = pos;
         out.bullets[i].active  = true;
-        out.bullets[i].ownerID = -1;
+        out.bullets[i].ownerID = nb.owner;
     }
     out.bulletCount = count;
-    out.gameOver    = b.gameOver != 0;
-    out.winnerID    = b.winnerID;
 }
 
 void ClientNet::disconnect() {

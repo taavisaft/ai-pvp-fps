@@ -6,14 +6,22 @@ No game engine. No physics library. No networking library.
 ## Implemented Deviations from the Spec Below
 
 - **Dedicated server** instead of listen server: separate `server` executable (headless,
-  no SDL/GL) runs authoritative simulation on port 7777; both players run `game` clients.
+  no SDL/GL) runs authoritative simulation on port 7777; players run `game` clients.
   `H` key dropped. Connect: `./build/game <ip>` or `C` key (IP prompt on stdin).
+- **Drop-in FFA, 16 players** instead of 1v1 rounds: `MAX_PLAYERS = 16`, players spawn
+  on a circle (radius 15) as they join. No match end — die → respawn after 3 s at your
+  spawn with full HP. Each life has **20 ammo** (`AMMO_PER_LIFE`); refilled on respawn.
+- **Protocol v2**: `StatePacket` is variable-length — header + `usedMask` (occupied
+  slots) + 16 `PlayerNetState` + up to 64 `BulletNetState` (each carries pool index for
+  interpolation + owner). Sent truncated via `statePacketSize(count)`. GameState has no
+  gameOver/winner.
 - Extra files: `src/game.h` (shared structs/constants), `src/gl_loader.h/.cpp` (GL 3.3
   function loading on Linux/Windows via SDL_GL_GetProcAddress; macOS uses the framework),
   `src/net_common.h/.cpp` (shared UDP helpers), `src/server_main.cpp` (server entry).
-- Offline practice mode: client starts vs a stationary dummy until connected.
-- Server auto-resets the match 5 s after game over or when a player disconnects.
-- HP / win state printed to stdout (no text rendering).
+- HUD (colored quads, no text): crosshair, HP bar, ammo bar, hit flash, death overlay.
+- Offline practice mode: client starts vs a stationary respawning dummy until connected;
+  ammo auto-refills offline.
+- Kill/death/join events printed to stdout.
 
 ---
 

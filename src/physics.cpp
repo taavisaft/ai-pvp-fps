@@ -30,6 +30,8 @@ void movePlayer(Player& p, const InputState& in, float dt) {
 }
 
 bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, int ownerID) {
+    Player& owner = gs.players[ownerID];
+    if (!owner.alive || owner.ammo <= 0) return false;
     for (int i = 0; i < MAX_BULLETS; i++) {
         Bullet& b = gs.bullets[i];
         if (b.active) continue;
@@ -38,6 +40,7 @@ bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, i
         b.lifetime = BULLET_TTL;
         b.ownerID  = ownerID;
         b.active   = true;
+        owner.ammo--;
         return true;
     }
     return false;
@@ -54,8 +57,9 @@ void updateBullets(GameState& gs, float dt) {
         b.lifetime -= dt;
         if (b.lifetime <= 0.0f) { b.active = false; continue; }
 
-        for (int pid = 0; pid < 2; pid++) {
+        for (int pid = 0; pid < MAX_PLAYERS; pid++) {
             if (pid == b.ownerID) continue;
+            if (!(gs.usedMask & (1u << pid))) continue;
             Player& target = gs.players[pid];
             if (!target.alive) continue;
             if (!aabbHit(b.pos, target.pos)) continue;
@@ -63,10 +67,9 @@ void updateBullets(GameState& gs, float dt) {
             target.hp -= (int)BULLET_DMG;
             b.active = false;
             if (target.hp <= 0) {
-                target.hp       = 0;
-                target.alive    = false;
-                gs.gameOver     = true;
-                gs.winnerID     = 1 - pid;
+                target.hp           = 0;
+                target.alive        = false;
+                target.respawnTimer = RESPAWN_TIME;
             }
             break;
         }

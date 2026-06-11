@@ -1,8 +1,10 @@
-// Dedicated server: authoritative physics @ 60 Hz, StatePacket broadcast @ 20 Hz
+// Dedicated server: drop-in FFA for up to 16 players.
+// Authoritative physics @ 60 Hz, StatePacket broadcast @ 20 Hz.
 #include <chrono>
 #include <thread>
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 #include "platform.h"
 #include "net_common.h"
 #include "protocol.h"
@@ -19,51 +21,58 @@ struct ClientSlot {
 };
 
 static GameState  game;
-static ClientSlot clients[2];
-static int        prevHP[2] = {PLAYER_HP, PLAYER_HP};
+static ClientSlot clients[MAX_PLAYERS];
+static bool       prevAlive[MAX_PLAYERS];
 
-static const glm::vec3 SPAWN[2] = {{0, 0, 5}, {0, 0, -5}};
-static const float SPAWN_YAW[2] = {-90.0f, 90.0f};  // face each other... (yaw -90 = -Z)
+// Spawn points on a circle, facing the center
+static glm::vec3 spawnPos(int id) {
+    float a = glm::radians(id * (360.0f / MAX_PLAYERS));
+    return {15.0f * cosf(a), 0.0f, 15.0f * sinf(a)};
+}
+static float spawnYaw(int id) {
+    return id * (360.0f / MAX_PLAYERS) + 180.0f;  // look toward center
+}
 
-static void resetMatch() {
-    game = GameState{};
-    for (int i = 0; i < 2; i++) {
-        game.players[i].pos = SPAWN[i];
-        game.players[i].yaw = SPAWN_YAW[i];
-        prevHP[i] = PLAYER_HP;
-    }
-    printf("server: match reset\n");
+static void respawn(int id) {
+    Player& p = game.players[id];
+    p = Player{};
+    p.pos = spawnPos(id);
+    p.yaw = spawnYaw(id);
+    prevAlive[id] = true;
 }
 
 static void dropClient(int id) {
-    printf("server: player %d left\n", id);
     clients[id] = ClientSlot{};
-    resetMatch();
+    game.usedMask &= ~(1u << id);
+    int online = 0;
+    for (int i = 0; i < MAX_PLAYERS; i++) online += clients[i].used;
+    printf("server: player %d left (%d online)\n", id, online);
 }
 
 static void handlePackets(int fd) {
-    char buf[1024];
+    char buf[1500];
     sockaddr_in from{};
     int n;
     while ((n = netRecv(fd, buf, sizeof(buf), from)) > 0) {
         PacketType type = (PacketType)buf[0];
 
         int id = -1;
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < MAX_PLAYERS; i++)
             if (clients[i].used && netSameAddr(clients[i].addr, from)) id = i;
 
         if (type == PKT_HELLO) {
             if (id < 0) {
-                for (int i = 0; i < 2 && id < 0; i++)
+                for (int i = 0; i < MAX_PLAYERS && id < 0; i++)
                     if (!clients[i].used) id = i;
                 if (id < 0) continue;  // full — reject silently
                 clients[id].used = true;
                 clients[id].addr = from;
                 clients[id].silence = 0.0f;
-                game.players[id] = Player{};
-                game.players[id].pos = SPAWN[id];
-                game.players[id].yaw = SPAWN_YAW[id];
-                printf("server: player %d joined\n", id);
+                game.usedMask |= (1u << id);
+                respawn(id);
+                int online = 0;
+                for (int i = 0; i < MAX_PLAYERS; i++) online += clients[i].used;
+                printf("server: player %d joined (%d online)\n", id, online);
             }
             AcceptPacket a{PKT_ACCEPT, (uint8_t)id};
             netSend(fd, &a, sizeof(a), from);
@@ -88,12 +97,20 @@ static void handlePackets(int fd) {
 }
 
 static void tick(float dt) {
-    if (game.gameOver) return;
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < MAX_PLAYERS; i++) {
         ClientSlot& c = clients[i];
         if (!c.used) continue;
         Player& p = game.players[i];
-        if (!p.alive) continue;
+
+        if (!p.alive) {
+            c.pendingShoot = false;
+            p.respawnTimer -= dt;
+            if (p.respawnTimer <= 0.0f) {
+                respawn(i);
+                printf("server: player %d respawned\n", i);
+            }
+            continue;
+        }
 
         movePlayer(p, c.input, dt);
         if (c.pendingShoot) {
@@ -102,41 +119,41 @@ static void tick(float dt) {
             c.pendingShoot = false;
         }
     }
+
     updateBullets(game, dt);
 
-    for (int i = 0; i < 2; i++) {
-        if (game.players[i].hp != prevHP[i]) {
-            prevHP[i] = game.players[i].hp;
-            printf("server: HP p0 %d | p1 %d\n", game.players[0].hp, game.players[1].hp);
-        }
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (!clients[i].used) continue;
+        if (prevAlive[i] && !game.players[i].alive)
+            printf("server: player %d died\n", i);
+        prevAlive[i] = game.players[i].alive;
     }
-    if (game.gameOver) printf("server: player %d wins\n", game.winnerID);
 }
 
 static void broadcast(int fd, uint32_t seq) {
-    StatePacket s{};
-    s.type = PKT_STATE;
-    s.seq  = seq;
-    s.p0x = game.players[0].pos.x; s.p0y = game.players[0].pos.y;
-    s.p0z = game.players[0].pos.z; s.p0yaw = game.players[0].yaw;
-    s.p0hp = game.players[0].hp;
-    s.p1x = game.players[1].pos.x; s.p1y = game.players[1].pos.y;
-    s.p1z = game.players[1].pos.z; s.p1yaw = game.players[1].yaw;
-    s.p1hp = game.players[1].hp;
+    static StatePacket s;  // ~1.3 KB; keep off the stack, reused each call
+    s.type     = PKT_STATE;
+    s.seq      = seq;
+    s.usedMask = game.usedMask;
+
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        const Player& p = game.players[i];
+        s.players[i] = {p.pos.x, p.pos.y, p.pos.z, p.yaw,
+                        p.hp, (uint8_t)(p.alive ? 1 : 0), (uint8_t)p.ammo};
+    }
 
     uint8_t count = 0;
-    for (int i = 0; i < MAX_BULLETS && count < 16; i++) {
+    for (int i = 0; i < MAX_BULLETS && count < NET_MAX_BULLETS; i++) {
         const Bullet& b = game.bullets[i];
         if (!b.active) continue;
-        s.bullets[count] = {b.pos.x, b.pos.y, b.pos.z};
+        s.bullets[count] = {(uint8_t)i, (uint8_t)b.ownerID, b.pos.x, b.pos.y, b.pos.z};
         count++;
     }
     s.bulletCount = count;
-    s.gameOver = game.gameOver ? 1 : 0;
-    s.winnerID = (int8_t)game.winnerID;
 
-    for (int i = 0; i < 2; i++)
-        if (clients[i].used) netSend(fd, &s, sizeof(s), clients[i].addr);
+    int size = statePacketSize(count);
+    for (int i = 0; i < MAX_PLAYERS; i++)
+        if (clients[i].used) netSend(fd, &s, size, clients[i].addr);
 }
 
 int main() {
@@ -147,31 +164,22 @@ int main() {
         fprintf(stderr, "server: cannot bind UDP %d\n", UDP_PORT);
         return 1;
     }
-    printf("server: listening on UDP %d\n", UDP_PORT);
-    resetMatch();
+    printf("server: listening on UDP %d (max %d players)\n", UDP_PORT, MAX_PLAYERS);
 
     const float DT = 1.0f / PHYS_HZ;
     const int   TICKS_PER_STATE = PHYS_HZ / NET_HZ;  // 3
     uint32_t    stateSeq  = 0;
     int         tickCount = 0;
-    float       overTimer = 0.0f;
 
     auto next = std::chrono::steady_clock::now();
     while (true) {
         handlePackets(fd);
         tick(DT);
 
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < MAX_PLAYERS; i++) {
             if (!clients[i].used) continue;
             clients[i].silence += DT;
             if (clients[i].silence > 5.0f) dropClient(i);
-        }
-
-        if (game.gameOver) {
-            overTimer += DT;
-            if (overTimer >= 5.0f) { overTimer = 0.0f; resetMatch(); }
-        } else {
-            overTimer = 0.0f;
         }
 
         if (++tickCount >= TICKS_PER_STATE) {
