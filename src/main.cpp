@@ -18,7 +18,9 @@ static const glm::vec3 COLOR_BULLET_ENEMY = {1.00f, 0.40f, 0.10f};
 
 static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int localID,
                         const HudState& hud, bool scoreboard, bool online) {
-    r.beginFrame(cam.view(), cam.proj(r.aspect()));
+    static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
+
+    r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
     r.drawGround();
 
     for (int i = 0; i < MAP_BOX_COUNT; i++) {
@@ -29,13 +31,16 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         if (i == localID) continue;
         if (!(gs.usedMask & (1u << i))) continue;
         if (!gs.players[i].alive) continue;
-        r.drawCube(gs.players[i].pos + glm::vec3(0, 1.0f, 0), {1, 2, 1}, COLOR_ENEMY);
+        const glm::vec3& p = gs.players[i].pos;
+        r.drawCube(p + glm::vec3(0, 1.0f, 0), {1, 2, 1}, COLOR_ENEMY);
+        r.drawCube({p.x, 0.01f, p.z}, {1.1f, 0.001f, 1.1f}, COLOR_BLOB);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
         const Bullet& b = gs.bullets[i];
         if (!b.active) continue;
         bool own = b.ownerID == localID;
         r.drawCube(b.pos, {0.1f, 0.1f, 0.1f}, own ? COLOR_BULLET_OWN : COLOR_BULLET_ENEMY);
+        r.drawCube({b.pos.x, 0.01f, b.pos.z}, {0.22f, 0.001f, 0.22f}, COLOR_BLOB);
     }
     drawHUD(r, gs, localID, hud, scoreboard, online);
     r.endFrame();

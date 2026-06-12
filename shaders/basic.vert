@@ -3,6 +3,9 @@ layout(location = 0) in vec3 aPos;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 proj;
+out vec3 worldPos;
 void main() {
-    gl_Position = proj * view * model * vec4(aPos, 1.0);
+    vec4 wp = model * vec4(aPos, 1.0);
+    worldPos = wp.xyz;
+    gl_Position = proj * view * wp;
 }

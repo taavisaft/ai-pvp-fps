@@ -27,6 +27,10 @@ No game engine. No physics library. No networking library.
   countdown, Tab scoreboard (kills/deaths, sorted), kill feed. Text via embedded 5x7
   bitmap font (`src/font.h/.cpp`, atlas texture + `shaders/text.vert/.frag`), HUD
   logic in `src/hud.h/.cpp`. Protocol carries per-player kills/deaths (uint8).
+- Depth cues, all in `basic.frag` (no assets, no extra passes): flat shading from
+  `dFdx/dFdy` normals, 1 m grid on ground-level faces, distance fog toward sky color
+  (`lit`/`eyePos` uniforms; HUD sets `lit=0`). Blob shadows = flattened dark cubes
+  under players/bullets.
 - Debug: `FPS_SHOT=<path.ppm> ./build/game` dumps a frame ~1 s after start.
 - Offline practice mode: client starts vs a stationary respawning dummy until connected;
   ammo auto-refills offline.

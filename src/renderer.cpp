@@ -59,12 +59,14 @@ float Renderer::aspect() const {
     return (float)width / (float)height;
 }
 
-void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj) {
+void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     shader.use();
     shader.setMat4(shader.locView, view);
     shader.setMat4(shader.locProj, proj);
     shader.setFloat(shader.locAlpha, 1.0f);
+    shader.setInt(shader.locLit, 1);
+    shader.setVec3(shader.locEye, eye);
 }
 
 void Renderer::beginHUD() {
@@ -73,6 +75,7 @@ void Renderer::beginHUD() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     shader.setMat4(shader.locView, glm::mat4(1.0f));
     shader.setMat4(shader.locProj, glm::mat4(1.0f));
+    shader.setInt(shader.locLit, 0);
 }
 
 void Renderer::drawRect(const glm::vec2& center, const glm::vec2& size,

@@ -20,7 +20,7 @@ struct Renderer {
 
     bool  init(const char* title, int w, int h);
     float aspect() const;
-    void  beginFrame(const glm::mat4& view, const glm::mat4& proj);
+    void  beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye);
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color);
     void  drawGround();
     // HUD pass: depth off, blending on, coordinates in NDC [-1,1]
