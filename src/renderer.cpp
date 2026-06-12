@@ -51,6 +51,7 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!createUnitCube(cube)) return false;
     if (!createGroundQuad(ground)) return false;
     if (!createQuad2D(quad2d)) return false;
+    if (!font.init()) return false;
     return true;
 }
 
@@ -76,6 +77,7 @@ void Renderer::beginHUD() {
 
 void Renderer::drawRect(const glm::vec2& center, const glm::vec2& size,
                         const glm::vec3& color, float alpha) {
+    shader.use();  // drawText may have bound the text program
     glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(center, 0.0f));
     model = glm::scale(model, glm::vec3(size, 1.0f));
     shader.setMat4(shader.locModel, model);
@@ -84,9 +86,19 @@ void Renderer::drawRect(const glm::vec2& center, const glm::vec2& size,
     quad2d.draw();
 }
 
+void Renderer::drawText(const char* s, float x, float y, float h,
+                        const glm::vec3& color, float alpha) {
+    font.draw(s, x, y, h, 1.0f / aspect(), color, alpha);
+}
+
+float Renderer::textWidth(const char* s, float h) const {
+    return font.width(s, h, (float)height / (float)width);
+}
+
 void Renderer::endHUD() {
     glDisable(GL_BLEND);
     glEnable(GL_DEPTH_TEST);
+    shader.use();
     shader.setFloat(shader.locAlpha, 1.0f);
 }
 
@@ -114,6 +126,7 @@ void Renderer::toggleWireframe() {
 }
 
 void Renderer::shutdown() {
+    font.destroy();
     quad2d.destroy();
     ground.destroy();
     cube.destroy();

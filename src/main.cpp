@@ -2,6 +2,7 @@
 // via `./game <ip>` or the C key (IP prompt on stdin). Drop-in FFA, 16 players.
 #include <SDL.h>
 #include <cstdio>
+#include <cstdlib>
 #include "platform.h"
 #include "renderer.h"
 #include "camera.h"
@@ -9,48 +10,14 @@
 #include "physics.h"
 #include "network.h"
 #include "map.h"
+#include "hud.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
 static const glm::vec3 COLOR_BULLET_ENEMY = {1.00f, 0.40f, 0.10f};
 
-// Bar anchored at its left edge; fill scales with frac
-static void drawBar(Renderer& r, glm::vec2 center, glm::vec2 size, float frac,
-                    const glm::vec3& fillColor) {
-    if (frac < 0.0f) frac = 0.0f;
-    if (frac > 1.0f) frac = 1.0f;
-    r.drawRect(center, size, {0.1f, 0.1f, 0.1f}, 0.7f);
-    float left = center.x - size.x * 0.5f;
-    glm::vec2 fillCenter = {left + size.x * frac * 0.5f, center.y};
-    r.drawRect(fillCenter, {size.x * frac, size.y * 0.7f}, fillColor, 0.9f);
-}
-
-static void drawHUD(Renderer& r, const GameState& gs, int localID, float flashAlpha) {
-    float ia = 1.0f / r.aspect();  // keep HUD shapes square in NDC
-    const Player& own = gs.players[localID];
-    r.beginHUD();
-
-    if (flashAlpha > 0.0f)
-        r.drawRect({0, 0}, {2, 2}, {0.9f, 0.1f, 0.1f}, flashAlpha);
-
-    float hpFrac = own.hp / (float)PLAYER_HP;
-    glm::vec3 hpColor = glm::mix(glm::vec3(0.9f, 0.2f, 0.1f),
-                                 glm::vec3(0.2f, 0.85f, 0.2f), hpFrac);
-    drawBar(r, {-0.6f, -0.88f}, {0.5f, 0.05f}, hpFrac, hpColor);
-    drawBar(r, {-0.6f, -0.95f}, {0.5f, 0.03f}, own.ammo / (float)AMMO_PER_LIFE,
-            {0.95f, 0.85f, 0.25f});
-
-    r.drawRect({0, 0}, {0.006f * ia, 0.045f}, {1, 1, 1}, 0.9f);  // crosshair |
-    r.drawRect({0, 0}, {0.045f * ia, 0.006f}, {1, 1, 1}, 0.9f);  // crosshair -
-
-    if (!own.alive)
-        r.drawRect({0, 0}, {2, 2}, {0.6f, 0.05f, 0.05f}, 0.4f);  // dead, waiting respawn
-
-    r.endHUD();
-}
-
 static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int localID,
-                        float flashAlpha) {
+                        const HudState& hud, bool scoreboard, bool online) {
     r.beginFrame(cam.view(), cam.proj(r.aspect()));
     r.drawGround();
 
@@ -70,8 +37,29 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         bool own = b.ownerID == localID;
         r.drawCube(b.pos, {0.1f, 0.1f, 0.1f}, own ? COLOR_BULLET_OWN : COLOR_BULLET_ENEMY);
     }
-    drawHUD(r, gs, localID, flashAlpha);
+    drawHUD(r, gs, localID, hud, scoreboard, online);
     r.endFrame();
+}
+
+// Debug: FPS_SHOT=<path.ppm> dumps the framebuffer once, shortly after start.
+// Drawable size, not window size — they differ on HiDPI displays.
+static void dumpFrame(const Renderer& r, const char* path) {
+    int w = 0, h = 0;
+    SDL_GL_GetDrawableSize(r.window, &w, &h);
+    unsigned char* px = (unsigned char*)malloc((size_t)w * h * 3);  // one-shot debug path
+    if (!px) return;
+    glReadBuffer(GL_FRONT);  // called after the swap; back buffer is undefined
+    glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, px);
+    glReadBuffer(GL_BACK);
+    FILE* f = fopen(path, "wb");
+    if (f) {
+        fprintf(f, "P6\n%d %d\n255\n", w, h);
+        for (int y = h - 1; y >= 0; y--)        // GL reads bottom-up
+            fwrite(&px[(size_t)y * w * 3], 1, (size_t)w * 3, f);
+        fclose(f);
+        printf("frame dumped to %s\n", path);
+    }
+    free(px);
 }
 
 static bool promptConnect(ClientNet& net) {
@@ -102,7 +90,8 @@ int main(int argc, char** argv) {
 
     static GameState offline;             // local practice match vs dummy
     offline.usedMask = 0b11;              // slot 0 = self, slot 1 = dummy
-    offline.players[1].pos = {0, 0, -10};
+    offline.players[0].pos = {12, 0, 12}; // clear of the center pillar
+    offline.players[1].pos = {3, 0, -3};
     static GameState display;             // what gets rendered when online
 
     ClientNet net;
@@ -110,6 +99,7 @@ int main(int argc, char** argv) {
     uint32_t  appliedStateSeq = 0;
 
     Camera     cam;
+    cam.yaw = 230.0f;  // offline spawn looks toward the arena center
     FrameInput input;
 
     if (argc > 1) {
@@ -121,7 +111,7 @@ int main(int argc, char** argv) {
     float       accumulator = 0.0f;
     Uint64      last        = SDL_GetPerformanceCounter();
     bool        running     = true;
-    float       flashTimer  = 0.0f;
+    HudState    hud;
     int         prevOwnHP   = PLAYER_HP;
     bool        prevOwnAlive = true;
 
@@ -183,6 +173,7 @@ int main(int argc, char** argv) {
                 appliedStateSeq = net.lastState.seq;
                 const PlayerNetState& own = net.lastState.players[net.playerID];
                 predicted.pos = {own.x, own.y, own.z};
+                hud.noteState(net.lastState);
             }
             const StatePacket& a = net.hasPrev ? net.prevState : net.lastState;
             float alpha = net.sinceState * NET_HZ;
@@ -195,16 +186,26 @@ int main(int argc, char** argv) {
         cam.eye = shown->players[localID].pos + glm::vec3(0, EYE_HEIGHT, 0);
 
         const Player& own = shown->players[localID];
-        if (own.hp < prevOwnHP && own.alive) flashTimer = 0.4f;  // got hit
+        if (own.hp < prevOwnHP && own.alive) hud.flashTimer = 0.4f;  // got hit
         prevOwnHP = own.hp;
-        flashTimer -= dt;
-        if (flashTimer < 0.0f) flashTimer = 0.0f;
+        hud.flashTimer -= dt;
+        if (hud.flashTimer < 0.0f) hud.flashTimer = 0.0f;
 
-        if (prevOwnAlive && !own.alive) printf("you died — respawning\n");
+        if (prevOwnAlive && !own.alive) {
+            printf("you died — respawning\n");
+            hud.deathTimer = RESPAWN_TIME;
+        }
         if (!prevOwnAlive && own.alive) printf("respawned\n");
         prevOwnAlive = own.alive;
+        hud.deathTimer -= dt;
+        if (hud.deathTimer < 0.0f) hud.deathTimer = 0.0f;
+        hud.feed.update(dt);
 
-        renderScene(renderer, cam, *shown, localID, 0.35f * flashTimer / 0.4f);
+        renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online);
+
+        static int frameCount = 0;
+        const char* shotPath = getenv("FPS_SHOT");
+        if (shotPath && ++frameCount == 60) dumpFrame(renderer, shotPath);
     }
 
     net.disconnect();

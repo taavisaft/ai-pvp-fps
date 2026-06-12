@@ -98,9 +98,11 @@ void unpackState(const StatePacket& a, const StatePacket& b, float alpha, GameSt
         }
         out.players[i].pos   = pos;
         out.players[i].yaw   = yaw;
-        out.players[i].hp    = pb.hp;
-        out.players[i].ammo  = pb.ammo;
-        out.players[i].alive = pb.alive != 0;
+        out.players[i].hp     = pb.hp;
+        out.players[i].ammo   = pb.ammo;
+        out.players[i].kills  = pb.kills;
+        out.players[i].deaths = pb.deaths;
+        out.players[i].alive  = pb.alive != 0;
     }
 
     int count = b.bulletCount <= NET_MAX_BULLETS ? b.bulletCount : NET_MAX_BULLETS;

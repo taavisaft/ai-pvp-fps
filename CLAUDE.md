@@ -23,7 +23,11 @@ No game engine. No physics library. No networking library.
   boxes (XZ least-overlap, in `movePlayer`), bullets stop on boxes and the ground.
   Players clamped to ±45 on X/Z. Obstacles ≥1 m thick so bullets can't tunnel.
   Death respawn picks a random spawn point; joining uses your slot's point.
-- HUD (colored quads, no text): crosshair, HP bar, ammo bar, hit flash, death overlay.
+- HUD: crosshair, HP/ammo bars + numbers, hit flash, death overlay with respawn
+  countdown, Tab scoreboard (kills/deaths, sorted), kill feed. Text via embedded 5x7
+  bitmap font (`src/font.h/.cpp`, atlas texture + `shaders/text.vert/.frag`), HUD
+  logic in `src/hud.h/.cpp`. Protocol carries per-player kills/deaths (uint8).
+- Debug: `FPS_SHOT=<path.ppm> ./build/game` dumps a frame ~1 s after start.
 - Offline practice mode: client starts vs a stationary respawning dummy until connected;
   ammo auto-refills offline.
 - Kill/death/join events printed to stdout.

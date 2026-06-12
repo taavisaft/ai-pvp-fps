@@ -22,8 +22,10 @@ set(CLIENT_SOURCES
     src/main.cpp
     src/gl_loader.cpp
     src/shader.cpp
+    src/font.cpp
     src/mesh.cpp
     src/renderer.cpp
+    src/hud.cpp
     src/camera.cpp
     src/input.cpp
     src/network.cpp)

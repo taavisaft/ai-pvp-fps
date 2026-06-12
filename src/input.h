@@ -9,6 +9,7 @@ struct FrameInput {
     bool quit             = false;
     bool wireframeToggle  = false; // F pressed this frame
     bool connectRequested = false; // C pressed this frame
+    bool scoreboardHeld   = false; // Tab held
 };
 
 // Polls all pending SDL events. Updates camera look from mouse motion,

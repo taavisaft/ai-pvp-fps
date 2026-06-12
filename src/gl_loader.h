@@ -28,6 +28,10 @@
       X(PFNGLGETUNIFORMLOCATIONPROC,      glGetUniformLocation) \
       X(PFNGLUNIFORMMATRIX4FVPROC,        glUniformMatrix4fv) \
       X(PFNGLUNIFORM3FPROC,               glUniform3f) \
+      X(PFNGLUNIFORM1FPROC,               glUniform1f) \
+      X(PFNGLUNIFORM1IPROC,               glUniform1i) \
+      X(PFNGLACTIVETEXTUREPROC,           glActiveTexture) \
+      X(PFNGLBUFFERSUBDATAPROC,           glBufferSubData) \
       X(PFNGLGENVERTEXARRAYSPROC,         glGenVertexArrays) \
       X(PFNGLBINDVERTEXARRAYPROC,         glBindVertexArray) \
       X(PFNGLDELETEVERTEXARRAYSPROC,      glDeleteVertexArrays) \

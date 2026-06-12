@@ -44,8 +44,9 @@ Starting `./build/game` without an IP gives offline practice mode against a stat
 | W A S D    | Move                          |
 | Mouse      | Look                          |
 | Left click | Shoot (one bullet per click)  |
+| Tab (hold) | Scoreboard                    |
 | C          | Connect (prompts IP on stdin) |
 | F          | Toggle wireframe              |
 | ESC        | Quit                          |
 
-HP and ammo show as bars on screen; kills and deaths are printed to the terminal.
+HP and ammo show on screen, kills appear in the feed top-right, and holding Tab shows the scoreboard.

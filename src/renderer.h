@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include "shader.h"
 #include "mesh.h"
+#include "font.h"
 
 struct Renderer {
     SDL_Window*   window    = nullptr;
@@ -15,6 +16,7 @@ struct Renderer {
     Mesh   cube;     // unit cube, scaled per draw
     Mesh   ground;   // 100x100 quad at y=0
     Mesh   quad2d;   // unit quad for HUD rects
+    Font   font;     // bitmap text, HUD pass only
 
     bool  init(const char* title, int w, int h);
     float aspect() const;
@@ -25,6 +27,10 @@ struct Renderer {
     void  beginHUD();
     void  drawRect(const glm::vec2& center, const glm::vec2& size,
                    const glm::vec3& color, float alpha);
+    // x,y = bottom-left in NDC, h = char height in NDC
+    void  drawText(const char* s, float x, float y, float h,
+                   const glm::vec3& color, float alpha);
+    float textWidth(const char* s, float h) const;
     void  endHUD();
     void  endFrame();
     void  toggleWireframe();

@@ -23,6 +23,8 @@ struct Player {
     float     yaw          = 0.0f;       // degrees
     int       hp           = PLAYER_HP;
     int       ammo         = AMMO_PER_LIFE;
+    int       kills        = 0;          // persists across respawns
+    int       deaths       = 0;
     bool      alive        = true;
     float     respawnTimer = 0.0f;       // counts down while dead
 };

@@ -33,6 +33,8 @@ struct PlayerNetState {
     int32_t hp;
     uint8_t alive;
     uint8_t ammo;
+    uint8_t kills;     // saturates at 255
+    uint8_t deaths;
 };
 
 struct BulletNetState {

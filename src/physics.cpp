@@ -103,6 +103,8 @@ void updateBullets(GameState& gs, float dt) {
                 target.hp           = 0;
                 target.alive        = false;
                 target.respawnTimer = RESPAWN_TIME;
+                target.deaths++;
+                if (b.ownerID >= 0) gs.players[b.ownerID].kills++;
             }
             break;
         }

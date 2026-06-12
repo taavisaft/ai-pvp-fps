@@ -36,12 +36,18 @@ static float spawnYaw(int point) {
     return point * (360.0f / MAX_PLAYERS) + 180.0f;  // look toward center
 }
 
-static void respawn(int id, bool randomPoint) {
-    int point = randomPoint ? rand() % MAX_PLAYERS : id;
+// joining=true: fresh player at the slot's own point, score zeroed.
+// joining=false: death respawn at a random point, score kept.
+static void respawn(int id, bool joining) {
     Player& p = game.players[id];
+    int point  = joining ? id : rand() % MAX_PLAYERS;
+    int kills  = joining ? 0 : p.kills;
+    int deaths = joining ? 0 : p.deaths;
     p = Player{};
-    p.pos = spawnPos(point);
-    p.yaw = spawnYaw(point);
+    p.pos    = spawnPos(point);
+    p.yaw    = spawnYaw(point);
+    p.kills  = kills;
+    p.deaths = deaths;
     prevAlive[id] = true;
 }
 
@@ -73,7 +79,7 @@ static void handlePackets(int fd) {
                 clients[id].addr = from;
                 clients[id].silence = 0.0f;
                 game.usedMask |= (1u << id);
-                respawn(id, false);  // joining: your slot's point (deterministic)
+                respawn(id, true);  // joining: your slot's point, fresh score
                 int online = 0;
                 for (int i = 0; i < MAX_PLAYERS; i++) online += clients[i].used;
                 printf("server: player %d joined (%d online)\n", id, online);
@@ -110,7 +116,7 @@ static void tick(float dt) {
             c.pendingShoot = false;
             p.respawnTimer -= dt;
             if (p.respawnTimer <= 0.0f) {
-                respawn(i, true);
+                respawn(i, false);
                 printf("server: player %d respawned\n", i);
             }
             continue;
@@ -143,7 +149,9 @@ static void broadcast(int fd, uint32_t seq) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
         const Player& p = game.players[i];
         s.players[i] = {p.pos.x, p.pos.y, p.pos.z, p.yaw,
-                        p.hp, (uint8_t)(p.alive ? 1 : 0), (uint8_t)p.ammo};
+                        p.hp, (uint8_t)(p.alive ? 1 : 0), (uint8_t)p.ammo,
+                        (uint8_t)(p.kills  > 255 ? 255 : p.kills),
+                        (uint8_t)(p.deaths > 255 ? 255 : p.deaths)};
     }
 
     uint8_t count = 0;
