@@ -34,7 +34,9 @@ struct PlayerNetState {
     float   x, y, z, yaw;
     int32_t hp;
     uint8_t alive;
-    uint8_t ammo;
+    uint8_t mag;       // rounds in magazine
+    uint8_t reserve;   // spare rounds
+    uint8_t reloading; // 1 while reloading
     uint8_t kills;     // saturates at 255
     uint8_t deaths;
     uint8_t crouched;
@@ -76,3 +78,4 @@ constexpr uint8_t KEY_JUMP    = 64;
 constexpr uint8_t KEY_CROUCH  = 128;
 // InputPacket.flags bits
 constexpr uint8_t FLAG_ADS    = 1;
+constexpr uint8_t FLAG_RELOAD = 2;

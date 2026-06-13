@@ -172,6 +172,10 @@ int main(int argc, char** argv) {
     float       prevOwnPosY  = 0.0f;    // detect airborne (no footsteps in air)
     bool        heardBullet[MAX_BULLETS] = {false};  // enemy-shot sound: bullets already sounded
     float       fpsAvg       = 0.0f;    // smoothed FPS readout
+    int         fireMode     = FIRE_SEMI;
+    float       fireTimer    = 0.0f;    // cooldown until next allowed shot
+    int         burstRemaining = 0;     // rounds left in current burst
+    bool        prevReloading = false;  // for reload-start sound
 
     printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
     printf("offline practice mode until connected\n");
@@ -202,10 +206,44 @@ int main(int argc, char** argv) {
 
         if (net.connected) net.sendInput(input.state);
 
+        // --- fire control: pick shots this frame by fire mode, gate on ammo ---
+        if (input.fireModeToggle) { fireMode = (fireMode + 1) % FIRE_MODE_COUNT; burstRemaining = 0; }
+        hud.fireMode = fireMode;
+
+        bool ownAliveF, ownReloadingF; int ownMagF;   // own weapon state for gating
+        if (online) {
+            const PlayerNetState& o = net.lastState.players[localID];
+            ownAliveF = o.alive != 0; ownMagF = o.mag; ownReloadingF = o.reloading != 0;
+        } else {
+            const Player& s = offline.players[0];
+            ownAliveF = s.alive; ownMagF = s.mag; ownReloadingF = s.reloading;
+        }
+
+        fireTimer -= dt;
+        if (fireMode == FIRE_BURST && input.state.shoot) burstRemaining = BURST_COUNT;
+        bool  wantFire = false;
+        float fireInt  = FIRE_SEMI_INT;
+        if (fireMode == FIRE_SEMI)  { wantFire = input.state.shoot;     fireInt = FIRE_SEMI_INT;  }
+        if (fireMode == FIRE_BURST) { wantFire = burstRemaining > 0;    fireInt = FIRE_BURST_INT; }
+        if (fireMode == FIRE_AUTO)  { wantFire = input.state.shootHeld; fireInt = FIRE_AUTO_INT;  }
+
+        bool fired = wantFire && ownAliveF && ownMagF > 0 && !ownReloadingF && fireTimer <= 0.0f;
+        if (online) offlineShoot = false;
+        if (fired) {
+            fireTimer = fireInt;
+            if (fireMode == FIRE_BURST && burstRemaining > 0) burstRemaining--;
+            if (online) net.shotSeq++;   // reliable shot; server spawns + decrements mag
+            else        offlineShoot = true;
+            vm.flashTimer = 0.05f;
+            vm.recoilT    = 1.0f;
+            audioPlay(SND_SHOOT);
+        }
+        if (input.state.shoot && ownAliveF && ownMagF == 0 && !ownReloadingF) audioPlay(SND_DRYFIRE);
+        if (ownReloadingF && !prevReloading) audioPlay(SND_RELOAD);
+        prevReloading = ownReloadingF;
+
         // fixed-step simulation
         accumulator += dt;
-        if (online) offlineShoot = false;            // online sends shoot directly each frame
-        else if (input.state.shoot) offlineShoot = true;  // survives frames with no physics tick
         while (accumulator >= FIXED_DT) {
             if (online) {
                 if (prevOwnAlive) movePlayer(predicted, input.state, FIXED_DT);
@@ -213,11 +251,15 @@ int main(int argc, char** argv) {
                 Player& self  = offline.players[0];
                 Player& dummy = offline.players[1];
                 if (offlineShoot && self.alive) {
-                    spawnBullet(offline, cam.eye, cam.front(), 0);
-                    if (self.ammo <= 0) self.ammo = AMMO_PER_LIFE;  // offline auto-refill
+                    glm::vec3 origin, dir;
+                    weaponShot(input.state.yaw, input.state.pitch, cam.eye, input.state.ads,
+                               origin, dir);
+                    spawnBullet(offline, origin, dir, 0);
                     offlineShoot = false;
                 }
                 movePlayer(self, input.state, FIXED_DT);
+                updateReload(self, input.state.reload, FIXED_DT);
+                if (self.mag == 0 && self.reserve == 0) self.reserve = RESERVE_PER_LIFE;  // keep practice stocked
                 updateBullets(offline, FIXED_DT);
                 if (!dummy.alive) {                                 // offline dummy respawn
                     dummy.respawnTimer -= FIXED_DT;
@@ -276,11 +318,6 @@ int main(int argc, char** argv) {
         if (k > 1.0f) k = 1.0f;
         vm.adsT += (adsTarget - vm.adsT) * k;
         cam.fov  = glm::mix(HIP_FOV, ADS_FOV, vm.adsT);
-        if (input.state.shoot && own.alive && own.ammo > 0) {
-            vm.flashTimer = 0.05f;
-            vm.recoilT    = 1.0f;
-            audioPlay(SND_SHOOT);
-        }
         vm.flashTimer -= dt;
         if (vm.flashTimer < 0.0f) vm.flashTimer = 0.0f;
         vm.recoilT -= dt * 8.0f;

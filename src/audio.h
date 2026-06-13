@@ -9,6 +9,8 @@ enum SoundId {
     SND_STEP,
     SND_DEATH,
     SND_RESPAWN,
+    SND_RELOAD,
+    SND_DRYFIRE,
     SND_COUNT
 };
 

@@ -96,6 +96,28 @@ void genDeath(std::vector<float>& b) {
     }
 }
 
+// Two mechanical clacks — magazine out, magazine in.
+void genReload(std::vector<float>& b) {
+    b = makeBuffer(0.35f);
+    float lp = 0.0f;
+    for (size_t i = 0; i < b.size(); i++) {
+        float t  = (float)i / SR;
+        float e1 = t >= 0.0f  ? expf(-(t - 0.0f)  * 55.0f) : 0.0f;
+        float e2 = t >= 0.16f ? expf(-(t - 0.16f) * 55.0f) : 0.0f;
+        lp += (noise() - lp) * 0.4f;
+        b[i] = lp * (e1 + e2) * 0.4f;
+    }
+}
+
+// Short click when the trigger is pulled on an empty magazine.
+void genDryFire(std::vector<float>& b) {
+    b = makeBuffer(0.04f);
+    for (size_t i = 0; i < b.size(); i++) {
+        float t = (float)i / SR;
+        b[i] = noise() * expf(-t * 120.0f) * 0.3f;
+    }
+}
+
 // Rising tone for respawn.
 void genRespawn(std::vector<float>& b) {
     b = makeBuffer(0.3f);
@@ -128,6 +150,8 @@ bool Audio::init() {
     genStep(gSounds[SND_STEP]);
     genDeath(gSounds[SND_DEATH]);
     genRespawn(gSounds[SND_RESPAWN]);
+    genReload(gSounds[SND_RELOAD]);
+    genDryFire(gSounds[SND_DRYFIRE]);
 
     SDL_PauseAudioDevice(gDevice, 0);   // start playback
     return true;

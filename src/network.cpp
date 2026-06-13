@@ -78,7 +78,8 @@ void ClientNet::sendInput(const InputState& in) {
     InputPacket p{};
     p.type = PKT_INPUT;
     p.seq  = ++inputSeq;
-    if (in.shoot) shotSeq++;   // one click = one increment; every packet re-advertises it
+    // shotSeq is bumped by the client fire logic (per fire mode), not here;
+    // every packet just re-advertises the latest count for reliable delivery.
     p.keys = (in.w ? KEY_W : 0) | (in.a ? KEY_A : 0) |
              (in.s ? KEY_S : 0) | (in.d ? KEY_D : 0) |
              (in.sprint ? KEY_SPRINT : 0) | (in.jump ? KEY_JUMP : 0) |
@@ -86,7 +87,7 @@ void ClientNet::sendInput(const InputState& in) {
     p.yaw     = in.yaw;
     p.pitch   = in.pitch;
     p.shotSeq = shotSeq;
-    p.flags   = (in.ads ? FLAG_ADS : 0);
+    p.flags   = (in.ads ? FLAG_ADS : 0) | (in.reload ? FLAG_RELOAD : 0);
     netSend(fd, &p, sizeof(p), server);
 }
 
@@ -104,11 +105,13 @@ void unpackState(const StatePacket& a, const StatePacket& b, float alpha, GameSt
         }
         out.players[i].pos   = pos;
         out.players[i].yaw   = yaw;
-        out.players[i].hp     = pb.hp;
-        out.players[i].ammo   = pb.ammo;
-        out.players[i].kills  = pb.kills;
-        out.players[i].deaths = pb.deaths;
-        out.players[i].alive  = pb.alive != 0;
+        out.players[i].hp      = pb.hp;
+        out.players[i].mag     = pb.mag;
+        out.players[i].reserve = pb.reserve;
+        out.players[i].reloading = pb.reloading != 0;
+        out.players[i].kills   = pb.kills;
+        out.players[i].deaths  = pb.deaths;
+        out.players[i].alive   = pb.alive != 0;
         out.players[i].crouched = pb.crouched != 0;
     }
 

@@ -4,7 +4,9 @@
 
 constexpr int   MAX_PLAYERS    = 16;
 constexpr int   MAX_BULLETS    = 256;    // global active pool (server-side cap)
-constexpr int   AMMO_PER_LIFE  = 20;
+constexpr int   MAG_SIZE        = 10;    // rounds per magazine
+constexpr int   RESERVE_PER_LIFE = 30;   // spare rounds, refilled on respawn
+constexpr float RELOAD_TIME     = 2.0f;  // seconds to reload
 constexpr int   PLAYER_HP      = 100;
 constexpr float RESPAWN_TIME   = 3.0f;   // seconds dead before respawn
 constexpr float BULLET_SPEED   = 50.0f;  // m/s
@@ -31,6 +33,13 @@ constexpr float HIP_SPREAD_DEG = 5.0f;   // bullet cone half-angle, hipfire
 constexpr float ADS_SPREAD_DEG = 0.4f;   // near-perfect when aiming
 constexpr float ADS_LERP_SPEED = 12.0f;  // viewmodel/FOV transition rate
 
+// Fire modes (client-side only — decides when shots are registered)
+enum FireMode { FIRE_SEMI = 0, FIRE_BURST, FIRE_AUTO, FIRE_MODE_COUNT };
+constexpr float FIRE_SEMI_INT  = 0.12f;  // min seconds between shots, semi
+constexpr float FIRE_BURST_INT = 0.07f;  // within a burst
+constexpr float FIRE_AUTO_INT  = 0.10f;  // ~600 rpm full-auto
+constexpr int   BURST_COUNT    = 3;
+
 struct Player {
     glm::vec3 pos          = {0, 0, 0};  // feet; Y rises when jumping
     float     velY         = 0.0f;       // vertical velocity (jump/gravity)
@@ -39,7 +48,10 @@ struct Player {
     bool      crouched     = false;      // affects height, hitbox, speed
     float     yaw          = 0.0f;       // degrees
     int       hp           = PLAYER_HP;
-    int       ammo         = AMMO_PER_LIFE;
+    int       mag          = MAG_SIZE;       // rounds in magazine
+    int       reserve      = RESERVE_PER_LIFE; // spare rounds
+    float     reloadTimer  = 0.0f;           // >0 while reloading (server sim)
+    bool      reloading    = false;          // for HUD/clients (mirrors reloadTimer>0)
     int       kills        = 0;          // persists across respawns
     int       deaths       = 0;
     bool      alive        = true;
@@ -64,10 +76,12 @@ struct GameState {
 struct InputState {
     bool  w, a, s, d;
     bool  shoot;                   // true on press, not hold
+    bool  shootHeld;               // left-mouse held (for full-auto)
     bool  sprint;                  // shift held
     bool  jump;                    // space held
     bool  crouch;                  // left-ctrl held
     bool  ads;                     // right-mouse held (aim down sights)
+    bool  reload;                  // R held
     float yaw;
     float pitch;
 };

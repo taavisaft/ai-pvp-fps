@@ -17,8 +17,11 @@ void weaponShot(float yaw, float pitch, const glm::vec3& eye, bool ads,
 // Includes collision: pushed out of map boxes, clamped to arena bounds.
 void movePlayer(Player& p, const InputState& in, float dt);
 
-// Spawns a bullet from the pool; returns false if pool exhausted
+// Spawns a bullet from the pool; returns false if pool exhausted / no ammo
 bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, int ownerID);
+
+// Reload state machine for one player (start/finish, mag from reserve). Run per tick.
+void updateReload(Player& p, bool wantReload, float dt);
 
 // Integrates bullets (gravity, TTL), checks hits vs both players,
 // applies damage and sets gameOver/winnerID

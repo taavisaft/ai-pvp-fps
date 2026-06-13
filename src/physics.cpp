@@ -135,7 +135,7 @@ void movePlayer(Player& p, const InputState& in, float dt) {
 
 bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, int ownerID) {
     Player& owner = gs.players[ownerID];
-    if (!owner.alive || owner.ammo <= 0) return false;
+    if (!owner.alive || owner.mag <= 0 || owner.reloading) return false;
     for (int i = 0; i < MAX_BULLETS; i++) {
         Bullet& b = gs.bullets[i];
         if (b.active) continue;
@@ -144,10 +144,28 @@ bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, i
         b.lifetime = BULLET_TTL;
         b.ownerID  = ownerID;
         b.active   = true;
-        owner.ammo--;
+        owner.mag--;
         return true;
     }
     return false;
+}
+
+// Advance a reload: start one if requested and possible, finish when the timer
+// elapses by topping the magazine from reserve. Authoritative; run per tick.
+void updateReload(Player& p, bool wantReload, float dt) {
+    if (p.reloadTimer > 0.0f) {
+        p.reloadTimer -= dt;
+        if (p.reloadTimer <= 0.0f) {
+            p.reloadTimer = 0.0f;
+            int need = MAG_SIZE - p.mag;
+            int take = need < p.reserve ? need : p.reserve;
+            p.mag     += take;
+            p.reserve -= take;
+        }
+    } else if (wantReload && p.mag < MAG_SIZE && p.reserve > 0) {
+        p.reloadTimer = RELOAD_TIME;
+    }
+    p.reloading = p.reloadTimer > 0.0f;
 }
 
 void updateBullets(GameState& gs, float dt) {

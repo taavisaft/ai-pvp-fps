@@ -102,6 +102,7 @@ static void handlePackets(int fd) {
             c.input.jump   = p.keys & KEY_JUMP;
             c.input.crouch = p.keys & KEY_CROUCH;
             c.input.ads    = p.flags & FLAG_ADS;
+            c.input.reload = p.flags & FLAG_RELOAD;
             c.input.yaw   = p.yaw;
             c.input.pitch = p.pitch;
             c.shotSeq     = p.shotSeq;  // packet is seq-gated newest, so monotonic
@@ -128,12 +129,13 @@ static void tick(float dt) {
         }
 
         movePlayer(p, c.input, dt);
+        updateReload(p, c.input.reload, dt);
         if (c.firedShots < c.shotSeq) {   // one shot per tick; drains any backlog
             float eyeH = p.crouched ? CROUCH_EYE : EYE_HEIGHT;
             glm::vec3 eye = p.pos + glm::vec3(0, eyeH, 0);
             glm::vec3 origin, dir;
             weaponShot(c.input.yaw, c.input.pitch, eye, c.input.ads, origin, dir);
-            spawnBullet(game, origin, dir, i);
+            spawnBullet(game, origin, dir, i);   // no-op if mag empty / reloading
             c.firedShots++;
         }
     }
@@ -157,7 +159,8 @@ static void broadcast(int fd, uint32_t seq) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
         const Player& p = game.players[i];
         s.players[i] = {p.pos.x, p.pos.y, p.pos.z, p.yaw,
-                        p.hp, (uint8_t)(p.alive ? 1 : 0), (uint8_t)p.ammo,
+                        p.hp, (uint8_t)(p.alive ? 1 : 0),
+                        (uint8_t)p.mag, (uint8_t)p.reserve, (uint8_t)(p.reloading ? 1 : 0),
                         (uint8_t)(p.kills  > 255 ? 255 : p.kills),
                         (uint8_t)(p.deaths > 255 ? 255 : p.deaths),
                         (uint8_t)(p.crouched ? 1 : 0)};

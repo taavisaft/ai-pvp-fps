@@ -6,6 +6,7 @@ void pollInput(FrameInput& in, Camera& cam) {
     in.state.shoot      = false;
     in.wireframeToggle  = false;
     in.connectRequested = false;
+    in.fireModeToggle   = false;
 
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
@@ -19,6 +20,7 @@ void pollInput(FrameInput& in, Camera& cam) {
             case SDLK_ESCAPE: in.quit = true; break;
             case SDLK_f:      in.wireframeToggle = true; break;
             case SDLK_c:      in.connectRequested = true; break;
+            case SDLK_b:      in.fireModeToggle  = true; break;
             default: break;
             }
             break;
@@ -41,8 +43,10 @@ void pollInput(FrameInput& in, Camera& cam) {
     in.state.sprint = keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT];
     in.state.jump   = keys[SDL_SCANCODE_SPACE];
     in.state.crouch = keys[SDL_SCANCODE_LCTRL] || keys[SDL_SCANCODE_RCTRL];
+    in.state.reload = keys[SDL_SCANCODE_R];
     Uint32 mouse = SDL_GetMouseState(nullptr, nullptr);
-    in.state.ads = (mouse & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
+    in.state.ads       = (mouse & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
+    in.state.shootHeld = (mouse & SDL_BUTTON(SDL_BUTTON_LEFT))  != 0;
     in.scoreboardHeld = keys[SDL_SCANCODE_TAB];
     in.state.yaw   = cam.yaw;
     in.state.pitch = cam.pitch;

@@ -18,6 +18,7 @@ struct HudState {
     float    flashTimer = 0.0f;   // red hit flash
     float    deathTimer = 0.0f;   // local respawn countdown while dead
     float    fps        = 0.0f;   // smoothed frames/sec, top-left readout
+    int      fireMode   = 0;      // FireMode enum, for the HUD label
     KillFeed feed;
     uint8_t  prevKills[MAX_PLAYERS]  = {0};
     uint8_t  prevDeaths[MAX_PLAYERS] = {0};
