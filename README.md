@@ -16,7 +16,10 @@ Requires CMake 3.20+ and SDL2.
 brew install sdl2
 
 # Ubuntu/Debian
-sudo apt install libsdl2-dev
+sudo apt install cmake build-essential libsdl2-dev libgl1-mesa-dev
+
+# Windows
+# Nope, I won't touch that even with a 20-inch stick.
 
 # then
 cmake -B build

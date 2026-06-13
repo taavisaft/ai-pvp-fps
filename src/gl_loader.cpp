@@ -10,11 +10,11 @@ GL_CORE_FUNCS(GL_DEFINE)
 
 bool loadGLFunctions() {
     bool ok = true;
-    #define GL_LOAD(type, name) \
+    #define GL_LOAD_FUNC(type, name) \
         name = (type)SDL_GL_GetProcAddress(#name); \
         if (!name) { fprintf(stderr, "GL load failed: %s\n", #name); ok = false; }
-    GL_CORE_FUNCS(GL_LOAD)
-    #undef GL_LOAD
+    GL_CORE_FUNCS(GL_LOAD_FUNC)
+    #undef GL_LOAD_FUNC
     return ok;
 }
 #endif

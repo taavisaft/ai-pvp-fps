@@ -27,6 +27,7 @@
       X(PFNGLUSEPROGRAMPROC,              glUseProgram) \
       X(PFNGLGETUNIFORMLOCATIONPROC,      glGetUniformLocation) \
       X(PFNGLUNIFORMMATRIX4FVPROC,        glUniformMatrix4fv) \
+      X(PFNGLUNIFORM1FPROC,               glUniform1f) \
       X(PFNGLUNIFORM3FPROC,               glUniform3f) \
       X(PFNGLUNIFORM1FPROC,               glUniform1f) \
       X(PFNGLUNIFORM1IPROC,               glUniform1i) \
