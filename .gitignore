@@ -1,5 +1,9 @@
 # Build output
 build/
+build-release/
+
+# Packaged distributables
+dist/
 
 # IDE / editor
 .vscode/
