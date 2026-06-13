@@ -170,6 +170,7 @@ int main(int argc, char** argv) {
     bool        prevJumpKey  = false;   // for jump-sound edge
     float       stepTimer    = 0.0f;    // footstep cadence
     float       prevOwnPosY  = 0.0f;    // detect airborne (no footsteps in air)
+    bool        heardBullet[MAX_BULLETS] = {false};  // enemy-shot sound: bullets already sounded
 
     printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
     printf("offline practice mode until connected\n");
@@ -297,6 +298,26 @@ int main(int argc, char** argv) {
             stepTimer = 0.0f;                              // first step fires instantly
         }
         prevOwnPosY = own.pos.y;
+
+        // enemy gunshots: a bullet pool slot newly appearing = someone fired.
+        // Track by stable poolIdx from the raw state; volume falls off with distance.
+        if (online) {
+            bool nowSeen[MAX_BULLETS] = {false};
+            const StatePacket& st = net.lastState;
+            int bc = st.bulletCount <= NET_MAX_BULLETS ? st.bulletCount : NET_MAX_BULLETS;
+            for (int k = 0; k < bc; k++) {
+                const BulletNetState& nb = st.bullets[k];  // poolIdx is uint8_t, always < MAX_BULLETS (256)
+                nowSeen[nb.poolIdx] = true;
+                if (!heardBullet[nb.poolIdx] && nb.owner != localID) {
+                    float d   = glm::length(glm::vec3(nb.x, nb.y, nb.z) - cam.eye);
+                    float vol = 1.0f - d / 60.0f;
+                    if (vol > 0.08f) audioPlay(SND_SHOOT, vol > 1.0f ? 1.0f : vol);
+                }
+            }
+            for (int i = 0; i < MAX_BULLETS; i++) heardBullet[i] = nowSeen[i];
+        } else {
+            for (int i = 0; i < MAX_BULLETS; i++) heardBullet[i] = false;
+        }
 
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm);
 
