@@ -171,6 +171,7 @@ int main(int argc, char** argv) {
     float       stepTimer    = 0.0f;    // footstep cadence
     float       prevOwnPosY  = 0.0f;    // detect airborne (no footsteps in air)
     bool        heardBullet[MAX_BULLETS] = {false};  // enemy-shot sound: bullets already sounded
+    float       fpsAvg       = 0.0f;    // smoothed FPS readout
 
     printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
     printf("offline practice mode until connected\n");
@@ -179,6 +180,11 @@ int main(int argc, char** argv) {
         Uint64 now = SDL_GetPerformanceCounter();
         float  dt  = (float)(now - last) / SDL_GetPerformanceFrequency();
         last = now;
+        if (dt > 0.0f) {              // smoothed FPS from raw frame time (before the cap)
+            float inst = 1.0f / dt;
+            fpsAvg = fpsAvg <= 0.0f ? inst : fpsAvg + (inst - fpsAvg) * 0.1f;
+            hud.fps = fpsAvg;
+        }
         if (dt > 0.05f) dt = 0.05f;   // cap to avoid spiral
 
         pollInput(input, cam);

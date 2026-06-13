@@ -116,9 +116,12 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
                    {1, 1, 1}, 0.95f);
     }
 
+    snprintf(buf, sizeof(buf), "%d FPS", (int)(hud.fps + 0.5f));
+    r.drawText(buf, -0.98f, 0.93f, 0.04f, {0.6f, 0.9f, 0.6f}, 0.8f);
+
     if (!online)
         r.drawText("OFFLINE PRACTICE - PRESS C TO CONNECT",
-                   -0.98f, 0.93f, 0.04f, {0.8f, 0.8f, 0.8f}, 0.8f);
+                   -0.98f, 0.87f, 0.04f, {0.8f, 0.8f, 0.8f}, 0.8f);
 
     for (int i = 0; i < hud.feed.count; i++) {
         const KillFeed::Entry& e = hud.feed.entries[i];
