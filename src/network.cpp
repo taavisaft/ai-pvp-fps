@@ -80,7 +80,8 @@ void ClientNet::sendInput(const InputState& in) {
     p.seq  = ++inputSeq;
     if (in.shoot) shotSeq++;   // one click = one increment; every packet re-advertises it
     p.keys = (in.w ? KEY_W : 0) | (in.a ? KEY_A : 0) |
-             (in.s ? KEY_S : 0) | (in.d ? KEY_D : 0);
+             (in.s ? KEY_S : 0) | (in.d ? KEY_D : 0) |
+             (in.sprint ? KEY_SPRINT : 0);
     p.yaw     = in.yaw;
     p.pitch   = in.pitch;
     p.shotSeq = shotSeq;

@@ -47,10 +47,11 @@ void movePlayer(Player& p, const InputState& in, float dt) {
     glm::vec3 forward = glm::normalize(glm::vec3(
         cos(glm::radians(in.yaw)), 0, sin(glm::radians(in.yaw))));
     glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0, 1, 0)));
-    if (in.w) p.pos += forward * MOVE_SPEED * dt;
-    if (in.s) p.pos -= forward * MOVE_SPEED * dt;
-    if (in.a) p.pos -= right   * MOVE_SPEED * dt;
-    if (in.d) p.pos += right   * MOVE_SPEED * dt;
+    float speed = in.sprint ? SPRINT_SPEED : MOVE_SPEED;
+    if (in.w) p.pos += forward * speed * dt;
+    if (in.s) p.pos -= forward * speed * dt;
+    if (in.a) p.pos -= right   * speed * dt;
+    if (in.d) p.pos += right   * speed * dt;
     p.pos.y = 0.0f; // lock to ground
     p.yaw = in.yaw;
     collideWithMap(p);

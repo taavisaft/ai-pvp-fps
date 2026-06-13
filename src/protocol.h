@@ -68,4 +68,5 @@ constexpr uint8_t KEY_W     = 1;
 constexpr uint8_t KEY_A     = 2;
 constexpr uint8_t KEY_S     = 4;
 constexpr uint8_t KEY_D     = 8;
-constexpr uint8_t KEY_SHOOT = 16;
+constexpr uint8_t KEY_SHOOT  = 16;
+constexpr uint8_t KEY_SPRINT = 32;

@@ -10,6 +10,7 @@ constexpr float RESPAWN_TIME   = 3.0f;   // seconds dead before respawn
 constexpr float BULLET_SPEED   = 50.0f;  // m/s
 constexpr float BULLET_TTL     = 3.0f;   // seconds
 constexpr float MOVE_SPEED     = 5.0f;   // m/s
+constexpr float SPRINT_SPEED   = 8.0f;   // m/s, shift held
 constexpr float GRAVITY        = 9.8f;   // m/s²
 constexpr float BULLET_DMG     = 25;     // HP per hit
 constexpr int   NET_HZ         = 20;     // state sync rate
@@ -47,6 +48,7 @@ struct GameState {
 struct InputState {
     bool  w, a, s, d;
     bool  shoot;                   // true on press, not hold
+    bool  sprint;                  // shift held
     float yaw;
     float pitch;
 };
