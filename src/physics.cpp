@@ -2,9 +2,10 @@
 #include "map.h"
 #include <cmath>
 
-bool aabbHit(glm::vec3 p, glm::vec3 playerPos) {
-    glm::vec3 center = playerPos + glm::vec3(0, 1.0f, 0);
-    glm::vec3 half   = {0.4f, 1.0f, 0.4f};
+bool aabbHit(glm::vec3 p, glm::vec3 playerPos, bool crouched) {
+    float h = (crouched ? CROUCH_HEIGHT : STAND_HEIGHT) * 0.5f;  // half body height
+    glm::vec3 center = playerPos + glm::vec3(0, h, 0);
+    glm::vec3 half   = {0.4f, h, 0.4f};
     return fabsf(p.x - center.x) < half.x &&
            fabsf(p.y - center.y) < half.y &&
            fabsf(p.z - center.z) < half.z;
@@ -66,13 +67,14 @@ void movePlayer(Player& p, const InputState& in, float dt) {
         cos(glm::radians(in.yaw)), 0, sin(glm::radians(in.yaw))));
     glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0, 1, 0)));
     p.yaw = in.yaw;
+    p.crouched = in.crouch;
 
     float fromY    = p.pos.y;
     bool  grounded = fromY <= supportHeight(p, fromY) + 0.001f;
 
     // horizontal: full control on the ground; in the air keep takeoff momentum
     if (grounded) {
-        float speed = in.sprint ? SPRINT_SPEED : MOVE_SPEED;
+        float speed = in.crouch ? CROUCH_SPEED : in.sprint ? SPRINT_SPEED : MOVE_SPEED;
         glm::vec3 vel(0.0f);
         if (in.w) vel += forward;
         if (in.s) vel -= forward;
@@ -142,7 +144,7 @@ void updateBullets(GameState& gs, float dt) {
             if (!(gs.usedMask & (1u << pid))) continue;
             Player& target = gs.players[pid];
             if (!target.alive) continue;
-            if (!aabbHit(b.pos, target.pos)) continue;
+            if (!aabbHit(b.pos, target.pos, target.crouched)) continue;
 
             target.hp -= (int)BULLET_DMG;
             b.active = false;

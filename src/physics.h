@@ -1,8 +1,8 @@
 #pragma once
 #include "game.h"
 
-// Returns true if point p is inside the player's AABB
-bool aabbHit(glm::vec3 p, glm::vec3 playerPos);
+// Returns true if point p is inside the player's AABB (shorter when crouched)
+bool aabbHit(glm::vec3 p, glm::vec3 playerPos, bool crouched);
 
 // Look direction from yaw/pitch in degrees (matches camera front)
 glm::vec3 dirFromYawPitch(float yaw, float pitch);

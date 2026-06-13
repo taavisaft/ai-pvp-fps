@@ -36,6 +36,7 @@ struct PlayerNetState {
     uint8_t ammo;
     uint8_t kills;     // saturates at 255
     uint8_t deaths;
+    uint8_t crouched;
 };
 
 struct BulletNetState {
@@ -70,4 +71,5 @@ constexpr uint8_t KEY_S     = 4;
 constexpr uint8_t KEY_D     = 8;
 constexpr uint8_t KEY_SHOOT  = 16;
 constexpr uint8_t KEY_SPRINT = 32;
-constexpr uint8_t KEY_JUMP   = 64;
+constexpr uint8_t KEY_JUMP    = 64;
+constexpr uint8_t KEY_CROUCH  = 128;

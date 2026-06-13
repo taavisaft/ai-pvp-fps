@@ -100,6 +100,7 @@ static void handlePackets(int fd) {
             c.input.d = p.keys & KEY_D;
             c.input.sprint = p.keys & KEY_SPRINT;
             c.input.jump   = p.keys & KEY_JUMP;
+            c.input.crouch = p.keys & KEY_CROUCH;
             c.input.yaw   = p.yaw;
             c.input.pitch = p.pitch;
             c.shotSeq     = p.shotSeq;  // packet is seq-gated newest, so monotonic
@@ -154,7 +155,8 @@ static void broadcast(int fd, uint32_t seq) {
         s.players[i] = {p.pos.x, p.pos.y, p.pos.z, p.yaw,
                         p.hp, (uint8_t)(p.alive ? 1 : 0), (uint8_t)p.ammo,
                         (uint8_t)(p.kills  > 255 ? 255 : p.kills),
-                        (uint8_t)(p.deaths > 255 ? 255 : p.deaths)};
+                        (uint8_t)(p.deaths > 255 ? 255 : p.deaths),
+                        (uint8_t)(p.crouched ? 1 : 0)};
     }
 
     uint8_t count = 0;

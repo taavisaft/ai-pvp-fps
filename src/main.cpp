@@ -32,7 +32,8 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         if (!(gs.usedMask & (1u << i))) continue;
         if (!gs.players[i].alive) continue;
         const glm::vec3& p = gs.players[i].pos;
-        r.drawCube(p + glm::vec3(0, 1.0f, 0), {1, 2, 1}, COLOR_ENEMY);
+        float bodyH = gs.players[i].crouched ? CROUCH_HEIGHT : STAND_HEIGHT;
+        r.drawCube(p + glm::vec3(0, bodyH * 0.5f, 0), {1, bodyH, 1}, COLOR_ENEMY);
         r.drawCube({p.x, 0.01f, p.z}, {1.1f, 0.001f, 1.1f}, COLOR_BLOB);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
@@ -190,7 +191,8 @@ int main(int argc, char** argv) {
             shown = &display;
         }
 
-        cam.eye = shown->players[localID].pos + glm::vec3(0, EYE_HEIGHT, 0);
+        float eyeH = shown->players[localID].crouched ? CROUCH_EYE : EYE_HEIGHT;
+        cam.eye = shown->players[localID].pos + glm::vec3(0, eyeH, 0);
 
         const Player& own = shown->players[localID];
         if (own.hp < prevOwnHP && own.alive) hud.flashTimer = 0.4f;  // got hit
