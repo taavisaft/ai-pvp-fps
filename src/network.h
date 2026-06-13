@@ -11,6 +11,7 @@ struct ClientNet {
     bool        connecting = false;
     bool        connected  = false;
     uint32_t    inputSeq   = 0;
+    uint32_t    shotSeq    = 0;   // bumped per click; carried in every input packet
 
     StatePacket prevState{};      // for interpolation
     StatePacket lastState{};

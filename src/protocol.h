@@ -21,11 +21,12 @@ struct HelloPacket  { PacketType type; };   // PKT_HELLO
 struct AcceptPacket { PacketType type; uint8_t playerID; };  // 0..15
 
 struct InputPacket {
-    PacketType type;   // PKT_INPUT
-    uint32_t   seq;    // monotonically increasing, for drop detection
-    uint8_t    keys;   // bitmask: W=1 A=2 S=4 D=8 SHOOT=16
+    PacketType type;    // PKT_INPUT
+    uint32_t   seq;     // monotonically increasing, for drop detection
+    uint8_t    keys;    // bitmask: W=1 A=2 S=4 D=8 (SHOOT no longer used to fire)
     float      yaw;
     float      pitch;
+    uint32_t   shotSeq; // total shots fired this session; reliable event count
 };
 
 struct PlayerNetState {

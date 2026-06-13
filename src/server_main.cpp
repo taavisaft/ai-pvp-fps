@@ -19,7 +19,8 @@ struct ClientSlot {
     InputState  input{};
     uint32_t    lastSeq      = 0;
     float       silence      = 0.0f;
-    bool        pendingShoot = false;
+    uint32_t    shotSeq      = 0;   // latest shot count seen from client
+    uint32_t    firedShots   = 0;   // shots already spawned; fire while < shotSeq
 };
 
 static GameState  game;
@@ -99,7 +100,7 @@ static void handlePackets(int fd) {
             c.input.d = p.keys & KEY_D;
             c.input.yaw   = p.yaw;
             c.input.pitch = p.pitch;
-            if (p.keys & KEY_SHOOT) c.pendingShoot = true;
+            c.shotSeq     = p.shotSeq;  // packet is seq-gated newest, so monotonic
         } else if (type == PKT_BYE && id >= 0) {
             dropClient(id);
         }
@@ -113,7 +114,7 @@ static void tick(float dt) {
         Player& p = game.players[i];
 
         if (!p.alive) {
-            c.pendingShoot = false;
+            c.firedShots = c.shotSeq;   // drop shots queued while dead
             p.respawnTimer -= dt;
             if (p.respawnTimer <= 0.0f) {
                 respawn(i, false);
@@ -123,10 +124,10 @@ static void tick(float dt) {
         }
 
         movePlayer(p, c.input, dt);
-        if (c.pendingShoot) {
+        if (c.firedShots < c.shotSeq) {   // one shot per tick; drains any backlog
             glm::vec3 eye = p.pos + glm::vec3(0, EYE_HEIGHT, 0);
             spawnBullet(game, eye, dirFromYawPitch(c.input.yaw, c.input.pitch), i);
-            c.pendingShoot = false;
+            c.firedShots++;
         }
     }
 

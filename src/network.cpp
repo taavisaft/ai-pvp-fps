@@ -14,6 +14,8 @@ bool ClientNet::connect(const char* ip) {
     connected  = false;
     helloTimer = 1.0f;  // send first HELLO immediately
     silence    = 0.0f;
+    inputSeq   = 0;     // fresh session; server slot starts clean too
+    shotSeq    = 0;
     return true;
 }
 
@@ -76,11 +78,12 @@ void ClientNet::sendInput(const InputState& in) {
     InputPacket p{};
     p.type = PKT_INPUT;
     p.seq  = ++inputSeq;
+    if (in.shoot) shotSeq++;   // one click = one increment; every packet re-advertises it
     p.keys = (in.w ? KEY_W : 0) | (in.a ? KEY_A : 0) |
-             (in.s ? KEY_S : 0) | (in.d ? KEY_D : 0) |
-             (in.shoot ? KEY_SHOOT : 0);
-    p.yaw   = in.yaw;
-    p.pitch = in.pitch;
+             (in.s ? KEY_S : 0) | (in.d ? KEY_D : 0);
+    p.yaw     = in.yaw;
+    p.pitch   = in.pitch;
+    p.shotSeq = shotSeq;
     netSend(fd, &p, sizeof(p), server);
 }
 
