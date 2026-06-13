@@ -119,6 +119,7 @@ int main(int argc, char** argv) {
     HudState    hud;
     int         prevOwnHP   = PLAYER_HP;
     bool        prevOwnAlive = true;
+    bool        offlineShoot = false;  // latch click until a physics tick consumes it
 
     printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
     printf("offline practice mode until connected\n");
@@ -146,17 +147,18 @@ int main(int argc, char** argv) {
 
         // fixed-step simulation
         accumulator += dt;
-        bool shootPending = input.state.shoot;
+        if (online) offlineShoot = false;            // online sends shoot directly each frame
+        else if (input.state.shoot) offlineShoot = true;  // survives frames with no physics tick
         while (accumulator >= FIXED_DT) {
             if (online) {
                 if (prevOwnAlive) movePlayer(predicted, input.state, FIXED_DT);
             } else {
                 Player& self  = offline.players[0];
                 Player& dummy = offline.players[1];
-                if (shootPending && self.alive) {
+                if (offlineShoot && self.alive) {
                     spawnBullet(offline, cam.eye, cam.front(), 0);
                     if (self.ammo <= 0) self.ammo = AMMO_PER_LIFE;  // offline auto-refill
-                    shootPending = false;
+                    offlineShoot = false;
                 }
                 movePlayer(self, input.state, FIXED_DT);
                 updateBullets(offline, FIXED_DT);
