@@ -3,7 +3,7 @@
 Barebones 3D first-person free-for-all shooter, built from scratch in C++17.
 No game engine, no physics library, no networking library — just SDL2, OpenGL 3.3, GLM, and raw UDP sockets.
 
-Up to 16 players drop in and out of a dedicated server, fight around the cover boxes of a small arena, and shoot each other. Bullets have travel time and gravity and stop on cover, each life carries 20 rounds, 4 hits kill, and you respawn after 3 seconds at a random spawn point.
+Up to 16 players drop in and out of a dedicated server, fight around the cover boxes of a small arena, and shoot each other. Move with sprint, jump, and crouch; aim down sights for accurate fire or shoot from the hip with spread. Bullets have travel time and gravity and stop on cover, each life carries 20 rounds, 4 hits kill, and you respawn after 3 seconds at a random spawn point.
 
 ![screenshot](screenshot.png)
 
@@ -44,14 +44,18 @@ Starting `./build/game` without an IP gives offline practice mode against a stat
 
 ## Controls
 
-| Input      | Action                        |
-| ---------- | ----------------------------- |
-| W A S D    | Move                          |
-| Mouse      | Look                          |
-| Left click | Shoot (one bullet per click)  |
-| Tab (hold) | Scoreboard                    |
-| C          | Connect (prompts IP on stdin) |
-| F          | Toggle wireframe              |
-| ESC        | Quit                          |
+| Input       | Action                        |
+| ----------- | ----------------------------- |
+| W A S D     | Move                          |
+| Shift       | Sprint                        |
+| Space       | Jump                          |
+| Left Ctrl   | Crouch                        |
+| Mouse       | Look                          |
+| Left click  | Shoot (one bullet per click)  |
+| Right mouse | Aim down sights (zoom)        |
+| Tab (hold)  | Scoreboard                    |
+| C           | Connect (prompts IP on stdin) |
+| F           | Toggle wireframe              |
+| ESC         | Quit                          |
 
 HP and ammo show on screen, kills appear in the feed top-right, and holding Tab shows the scoreboard.
