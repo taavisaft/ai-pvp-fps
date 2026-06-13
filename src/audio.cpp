@@ -1,0 +1,162 @@
+#include "audio.h"
+#include <SDL.h>
+#include <vector>
+#include <cmath>
+#include <cstdlib>
+
+namespace {
+
+constexpr int   SR        = 44100;   // sample rate, mono float32
+constexpr int   MAX_VOICE = 16;      // simultaneous sounds
+
+struct Voice {
+    const float* data   = nullptr;
+    int          len    = 0;
+    int          pos    = 0;
+    float        vol    = 1.0f;
+    bool         active = false;
+};
+
+SDL_AudioDeviceID gDevice = 0;
+std::vector<float> gSounds[SND_COUNT];   // generated once at init
+Voice              gVoices[MAX_VOICE];
+
+float randf() { return (float)rand() / (float)RAND_MAX; }
+float noise() { return randf() * 2.0f - 1.0f; }
+
+// Mix all active voices into the output buffer (called on the audio thread).
+void mixCallback(void*, Uint8* stream, int bytes) {
+    float* out = (float*)stream;
+    int    n   = bytes / (int)sizeof(float);
+    for (int i = 0; i < n; i++) out[i] = 0.0f;
+
+    for (Voice& v : gVoices) {
+        if (!v.active) continue;
+        for (int i = 0; i < n && v.pos < v.len; i++)
+            out[i] += v.data[v.pos++] * v.vol;
+        if (v.pos >= v.len) v.active = false;
+    }
+    for (int i = 0; i < n; i++) {            // soft clamp
+        if (out[i] >  1.0f) out[i] =  1.0f;
+        if (out[i] < -1.0f) out[i] = -1.0f;
+    }
+}
+
+// --- synthesis ------------------------------------------------------------
+
+std::vector<float> makeBuffer(float seconds) {
+    return std::vector<float>((size_t)(seconds * SR), 0.0f);
+}
+
+// Punchy gunshot: noise burst + low thump, fast decay, one-pole low-pass.
+void genShoot(std::vector<float>& b) {
+    b = makeBuffer(0.18f);
+    float lp = 0.0f;
+    for (size_t i = 0; i < b.size(); i++) {
+        float t   = (float)i / SR;
+        float env = expf(-t * 24.0f);
+        lp += (noise() - lp) * 0.5f;                 // soften the hiss
+        float thump = sinf(2.0f * (float)M_PI * 95.0f * t) * expf(-t * 32.0f);
+        b[i] = (lp * 0.7f + thump * 0.5f) * env * 0.7f;
+    }
+}
+
+// Short rising blip.
+void genJump(std::vector<float>& b) {
+    b = makeBuffer(0.12f);
+    for (size_t i = 0; i < b.size(); i++) {
+        float t   = (float)i / SR;
+        float f   = 300.0f + 500.0f * (t / 0.12f);
+        float env = expf(-t * 14.0f);
+        b[i] = sinf(2.0f * (float)M_PI * f * t) * env * 0.3f;
+    }
+}
+
+// Soft low thud.
+void genStep(std::vector<float>& b) {
+    b = makeBuffer(0.08f);
+    float lp = 0.0f;
+    for (size_t i = 0; i < b.size(); i++) {
+        float t   = (float)i / SR;
+        float env = expf(-t * 45.0f);
+        lp += (noise() - lp) * 0.15f;                // low-frequency
+        float body = sinf(2.0f * (float)M_PI * 130.0f * t);
+        b[i] = (lp * 0.5f + body * 0.5f) * env * 0.25f;
+    }
+}
+
+// Descending tone for death.
+void genDeath(std::vector<float>& b) {
+    b = makeBuffer(0.5f);
+    for (size_t i = 0; i < b.size(); i++) {
+        float t   = (float)i / SR;
+        float f   = 420.0f - 340.0f * (t / 0.5f);
+        float env = expf(-t * 4.0f);
+        b[i] = sinf(2.0f * (float)M_PI * f * t) * env * 0.4f;
+    }
+}
+
+// Rising tone for respawn.
+void genRespawn(std::vector<float>& b) {
+    b = makeBuffer(0.3f);
+    for (size_t i = 0; i < b.size(); i++) {
+        float t   = (float)i / SR;
+        float f   = 200.0f + 320.0f * (t / 0.3f);
+        float env = sinf((float)M_PI * (t / 0.3f));  // fade in and out
+        b[i] = sinf(2.0f * (float)M_PI * f * t) * env * 0.35f;
+    }
+}
+
+} // namespace
+
+bool Audio::init() {
+    SDL_AudioSpec want{}, have{};
+    want.freq     = SR;
+    want.format   = AUDIO_F32SYS;
+    want.channels = 1;
+    want.samples  = 512;
+    want.callback = mixCallback;
+
+    gDevice = SDL_OpenAudioDevice(nullptr, 0, &want, &have, 0);
+    if (gDevice == 0) {
+        fprintf(stderr, "audio: %s (running silent)\n", SDL_GetError());
+        return false;
+    }
+
+    genShoot(gSounds[SND_SHOOT]);
+    genJump(gSounds[SND_JUMP]);
+    genStep(gSounds[SND_STEP]);
+    genDeath(gSounds[SND_DEATH]);
+    genRespawn(gSounds[SND_RESPAWN]);
+
+    SDL_PauseAudioDevice(gDevice, 0);   // start playback
+    return true;
+}
+
+void Audio::shutdown() {
+    if (gDevice) SDL_CloseAudioDevice(gDevice);
+    gDevice = 0;
+}
+
+void audioPlay(SoundId id, float volume) {
+    if (gDevice == 0 || id < 0 || id >= SND_COUNT) return;
+    const std::vector<float>& buf = gSounds[id];
+    if (buf.empty()) return;
+
+    SDL_LockAudioDevice(gDevice);
+    Voice* slot = nullptr;
+    for (Voice& v : gVoices) {           // reuse a free voice, else steal the oldest-progress one
+        if (!v.active) { slot = &v; break; }
+    }
+    if (!slot) {
+        slot = &gVoices[0];
+        for (Voice& v : gVoices)
+            if (v.pos > slot->pos) slot = &v;
+    }
+    slot->data   = buf.data();
+    slot->len    = (int)buf.size();
+    slot->pos    = 0;
+    slot->vol    = volume;
+    slot->active = true;
+    SDL_UnlockAudioDevice(gDevice);
+}

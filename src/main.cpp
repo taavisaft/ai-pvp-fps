@@ -12,6 +12,7 @@
 #include "network.h"
 #include "map.h"
 #include "hud.h"
+#include "audio.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
@@ -123,7 +124,7 @@ static bool promptConnect(ClientNet& net) {
 
 int main(int argc, char** argv) {
     platformSocketInit();
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         return 1;
     }
@@ -134,6 +135,9 @@ int main(int argc, char** argv) {
         return 1;
     }
     SDL_SetRelativeMouseMode(SDL_TRUE);
+
+    Audio audio;
+    audio.init();   // runs silent if no device
 
     static GameState offline;             // local practice match vs dummy
     offline.usedMask = 0b11;              // slot 0 = self, slot 1 = dummy
@@ -163,6 +167,9 @@ int main(int argc, char** argv) {
     bool        prevOwnAlive = true;
     bool        offlineShoot = false;  // latch click until a physics tick consumes it
     ViewModel   vm;                     // first-person gun state
+    bool        prevJumpKey  = false;   // for jump-sound edge
+    float       stepTimer    = 0.0f;    // footstep cadence
+    float       prevOwnPosY  = 0.0f;    // detect airborne (no footsteps in air)
 
     printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
     printf("offline practice mode until connected\n");
@@ -245,8 +252,12 @@ int main(int argc, char** argv) {
         if (prevOwnAlive && !own.alive) {
             printf("you died — respawning\n");
             hud.deathTimer = RESPAWN_TIME;
+            audioPlay(SND_DEATH);
         }
-        if (!prevOwnAlive && own.alive) printf("respawned\n");
+        if (!prevOwnAlive && own.alive) {
+            printf("respawned\n");
+            audioPlay(SND_RESPAWN);
+        }
         prevOwnAlive = own.alive;
         hud.deathTimer -= dt;
         if (hud.deathTimer < 0.0f) hud.deathTimer = 0.0f;
@@ -261,11 +272,31 @@ int main(int argc, char** argv) {
         if (input.state.shoot && own.alive && own.ammo > 0) {
             vm.flashTimer = 0.05f;
             vm.recoilT    = 1.0f;
+            audioPlay(SND_SHOOT);
         }
         vm.flashTimer -= dt;
         if (vm.flashTimer < 0.0f) vm.flashTimer = 0.0f;
         vm.recoilT -= dt * 8.0f;
         if (vm.recoilT < 0.0f) vm.recoilT = 0.0f;
+
+        // jump sound on key press; footsteps while moving on the ground
+        bool jumpEdge = input.state.jump && !prevJumpKey;
+        if (jumpEdge && own.alive) audioPlay(SND_JUMP, 0.7f);
+        prevJumpKey = input.state.jump;
+
+        float dY      = own.pos.y - prevOwnPosY;
+        bool  onGround = dY < 0.02f && dY > -0.02f;       // not climbing/falling
+        bool  moving   = input.state.w || input.state.a || input.state.s || input.state.d;
+        if (own.alive && moving && onGround) {
+            stepTimer -= dt;
+            if (stepTimer <= 0.0f) {
+                audioPlay(SND_STEP, input.state.crouch ? 0.4f : 0.7f);
+                stepTimer = input.state.sprint ? 0.28f : input.state.crouch ? 0.5f : 0.38f;
+            }
+        } else {
+            stepTimer = 0.0f;                              // first step fires instantly
+        }
+        prevOwnPosY = own.pos.y;
 
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm);
 
@@ -275,6 +306,7 @@ int main(int argc, char** argv) {
     }
 
     net.disconnect();
+    audio.shutdown();
     renderer.shutdown();
     SDL_Quit();
     platformSocketCleanup();

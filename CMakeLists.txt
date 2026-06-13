@@ -28,7 +28,8 @@ set(CLIENT_SOURCES
     src/hud.cpp
     src/camera.cpp
     src/input.cpp
-    src/network.cpp)
+    src/network.cpp
+    src/audio.cpp)
 
 add_executable(game ${CLIENT_SOURCES} ${SHARED_SOURCES})
 target_include_directories(game PRIVATE src)
