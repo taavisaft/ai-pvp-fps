@@ -27,6 +27,7 @@ struct InputPacket {
     float      yaw;
     float      pitch;
     uint32_t   shotSeq; // total shots fired this session; reliable event count
+    uint8_t    flags;   // FLAG_* bitmask (separate from keys, which is full)
 };
 
 struct PlayerNetState {
@@ -73,3 +74,5 @@ constexpr uint8_t KEY_SHOOT  = 16;
 constexpr uint8_t KEY_SPRINT = 32;
 constexpr uint8_t KEY_JUMP    = 64;
 constexpr uint8_t KEY_CROUCH  = 128;
+// InputPacket.flags bits
+constexpr uint8_t FLAG_ADS    = 1;

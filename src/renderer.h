@@ -22,6 +22,7 @@ struct Renderer {
     float aspect() const;
     void  beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye);
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color);
+    void  drawCubeModel(const glm::mat4& model, const glm::vec3& color);  // oriented (gun)
     void  drawGround();
     // HUD pass: depth off, blending on, coordinates in NDC [-1,1]
     void  beginHUD();

@@ -24,6 +24,13 @@ constexpr int   UDP_PORT       = 7777;
 constexpr float EYE_HEIGHT     = 1.7f;
 constexpr float CROUCH_EYE     = 1.0f;   // camera height while crouched
 
+// Weapon: aim-down-sights vs hipfire (PUBG-style)
+constexpr float HIP_FOV        = 75.0f;  // degrees
+constexpr float ADS_FOV        = 55.0f;  // zoomed in
+constexpr float HIP_SPREAD_DEG = 5.0f;   // bullet cone half-angle, hipfire
+constexpr float ADS_SPREAD_DEG = 0.4f;   // near-perfect when aiming
+constexpr float ADS_LERP_SPEED = 12.0f;  // viewmodel/FOV transition rate
+
 struct Player {
     glm::vec3 pos          = {0, 0, 0};  // feet; Y rises when jumping
     float     velY         = 0.0f;       // vertical velocity (jump/gravity)
@@ -60,6 +67,7 @@ struct InputState {
     bool  sprint;                  // shift held
     bool  jump;                    // space held
     bool  crouch;                  // left-ctrl held
+    bool  ads;                     // right-mouse held (aim down sights)
     float yaw;
     float pitch;
 };

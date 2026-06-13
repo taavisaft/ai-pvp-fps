@@ -41,6 +41,8 @@ void pollInput(FrameInput& in, Camera& cam) {
     in.state.sprint = keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT];
     in.state.jump   = keys[SDL_SCANCODE_SPACE];
     in.state.crouch = keys[SDL_SCANCODE_LCTRL] || keys[SDL_SCANCODE_RCTRL];
+    Uint32 mouse = SDL_GetMouseState(nullptr, nullptr);
+    in.state.ads = (mouse & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
     in.scoreboardHeld = keys[SDL_SCANCODE_TAB];
     in.state.yaw   = cam.yaw;
     in.state.pitch = cam.pitch;

@@ -4,6 +4,7 @@
 struct Camera {
     float     yaw   = -90.0f;  // degrees; -90 looks down -Z
     float     pitch = 0.0f;    // degrees, clamped [-89, 89]
+    float     fov   = 75.0f;   // vertical FOV, narrowed when aiming
     glm::vec3 eye   = {0.0f, 1.7f, 0.0f};
 
     void      addLook(float xrel, float yrel);  // mouse deltas, sensitivity 0.1

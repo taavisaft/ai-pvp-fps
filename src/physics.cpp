@@ -1,6 +1,7 @@
 #include "physics.h"
 #include "map.h"
 #include <cmath>
+#include <cstdlib>
 
 bool aabbHit(glm::vec3 p, glm::vec3 playerPos, bool crouched) {
     float h = (crouched ? CROUCH_HEIGHT : STAND_HEIGHT) * 0.5f;  // half body height
@@ -17,6 +18,33 @@ glm::vec3 dirFromYawPitch(float yaw, float pitch) {
         sin(glm::radians(pitch)),
         sin(glm::radians(yaw)) * cos(glm::radians(pitch))
     ));
+}
+
+static float randf() { return (float)rand() / (float)RAND_MAX; }
+
+// Perturb `dir` within a cone of half-angle `deg`. Uniform over the disc so
+// shots cluster toward the center, fall off to the edge.
+static glm::vec3 applySpread(glm::vec3 dir, float deg) {
+    if (deg <= 0.0f) return dir;
+    glm::vec3 ref   = fabsf(dir.y) < 0.99f ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
+    glm::vec3 right = glm::normalize(glm::cross(dir, ref));
+    glm::vec3 up    = glm::cross(right, dir);
+    float r   = tanf(glm::radians(deg)) * sqrtf(randf());
+    float phi = randf() * 6.2831853f;
+    return glm::normalize(dir + right * (r * cosf(phi)) + up * (r * sinf(phi)));
+}
+
+void weaponShot(float yaw, float pitch, const glm::vec3& eye, bool ads,
+                glm::vec3& outOrigin, glm::vec3& outDir) {
+    glm::vec3 front = dirFromYawPitch(yaw, pitch);
+    outDir = applySpread(front, ads ? ADS_SPREAD_DEG : HIP_SPREAD_DEG);
+    if (ads) {
+        outOrigin = eye;                      // sight line — dead on crosshair
+    } else {
+        glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0, 1, 0)));
+        glm::vec3 up    = glm::cross(right, front);
+        outOrigin = eye + front * 0.3f + right * 0.2f - up * 0.2f;  // barrel muzzle
+    }
 }
 
 static bool pointInBox(glm::vec3 p, const Box& b) {

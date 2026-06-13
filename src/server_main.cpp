@@ -101,6 +101,7 @@ static void handlePackets(int fd) {
             c.input.sprint = p.keys & KEY_SPRINT;
             c.input.jump   = p.keys & KEY_JUMP;
             c.input.crouch = p.keys & KEY_CROUCH;
+            c.input.ads    = p.flags & FLAG_ADS;
             c.input.yaw   = p.yaw;
             c.input.pitch = p.pitch;
             c.shotSeq     = p.shotSeq;  // packet is seq-gated newest, so monotonic
@@ -128,8 +129,11 @@ static void tick(float dt) {
 
         movePlayer(p, c.input, dt);
         if (c.firedShots < c.shotSeq) {   // one shot per tick; drains any backlog
-            glm::vec3 eye = p.pos + glm::vec3(0, EYE_HEIGHT, 0);
-            spawnBullet(game, eye, dirFromYawPitch(c.input.yaw, c.input.pitch), i);
+            float eyeH = p.crouched ? CROUCH_EYE : EYE_HEIGHT;
+            glm::vec3 eye = p.pos + glm::vec3(0, eyeH, 0);
+            glm::vec3 origin, dir;
+            weaponShot(c.input.yaw, c.input.pitch, eye, c.input.ads, origin, dir);
+            spawnBullet(game, origin, dir, i);
             c.firedShots++;
         }
     }

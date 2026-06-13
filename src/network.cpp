@@ -86,6 +86,7 @@ void ClientNet::sendInput(const InputState& in) {
     p.yaw     = in.yaw;
     p.pitch   = in.pitch;
     p.shotSeq = shotSeq;
+    p.flags   = (in.ads ? FLAG_ADS : 0);
     netSend(fd, &p, sizeof(p), server);
 }
 

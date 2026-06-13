@@ -113,6 +113,12 @@ void Renderer::drawCube(const glm::vec3& center, const glm::vec3& scale, const g
     cube.draw();
 }
 
+void Renderer::drawCubeModel(const glm::mat4& model, const glm::vec3& color) {
+    shader.setMat4(shader.locModel, model);
+    shader.setVec3(shader.locColor, color);
+    cube.draw();
+}
+
 void Renderer::drawGround() {
     shader.setMat4(shader.locModel, glm::mat4(1.0f));
     shader.setVec3(shader.locColor, glm::vec3(0.30f, 0.50f, 0.30f));

@@ -3,6 +3,7 @@
 #include <SDL.h>
 #include <cstdio>
 #include <cstdlib>
+#include <glm/gtc/matrix_transform.hpp>
 #include "platform.h"
 #include "renderer.h"
 #include "camera.h"
@@ -16,8 +17,47 @@ static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
 static const glm::vec3 COLOR_BULLET_ENEMY = {1.00f, 0.40f, 0.10f};
 
+// First-person weapon state (client cosmetic; gameplay is server-authoritative).
+struct ViewModel {
+    float adsT       = 0.0f;  // 0 = hipfire pose, 1 = aimed
+    float flashTimer = 0.0f;  // muzzle flash seconds remaining
+    float recoilT    = 0.0f;  // recoil kick, 1 on fire, decays to 0
+};
+
+// Draws the held gun from a few oriented cubes, anchored to the camera and
+// lerped between hipfire (lower-right) and ADS (centered under crosshair).
+static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
+    glm::vec3 front = cam.front();
+    glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0, 1, 0)));
+    glm::vec3 up    = glm::cross(right, front);
+
+    glm::vec3 hipOff = right * 0.17f - up * 0.15f + front * 0.35f;
+    glm::vec3 adsOff =                - up * 0.05f + front * 0.30f;
+    glm::vec3 off    = glm::mix(hipOff, adsOff, vm.adsT);
+    glm::vec3 anchor = cam.eye + off - front * (vm.recoilT * 0.08f);
+
+    glm::mat4 basis(glm::vec4(right, 0), glm::vec4(up, 0),
+                    glm::vec4(front, 0), glm::vec4(0, 0, 0, 1));
+    glm::mat4 anchorM = glm::translate(glm::mat4(1.0f), anchor) * basis;
+    auto part = [&](glm::vec3 lp, glm::vec3 sz, glm::vec3 col) {
+        glm::mat4 m = glm::scale(glm::translate(anchorM, lp), sz);
+        r.drawCubeModel(m, col);
+    };
+    const glm::vec3 metal = {0.12f, 0.12f, 0.14f};
+    const glm::vec3 dark  = {0.20f, 0.20f, 0.23f};
+    part({0.0f,  0.00f,  0.00f}, {0.07f,  0.09f,  0.30f}, metal);  // body
+    part({0.0f,  0.02f,  0.27f}, {0.035f, 0.035f, 0.28f}, dark);   // barrel
+    part({0.0f, -0.11f, -0.04f}, {0.05f,  0.14f,  0.07f}, metal);  // grip
+
+    if (vm.flashTimer > 0.0f) {                                    // muzzle flash
+        glm::vec3 muzzle = anchor + up * 0.02f + front * 0.44f;
+        r.drawCube(muzzle, glm::vec3(0.16f), {1.0f, 0.85f, 0.35f});
+    }
+}
+
 static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int localID,
-                        const HudState& hud, bool scoreboard, bool online) {
+                        const HudState& hud, bool scoreboard, bool online,
+                        const ViewModel& vm) {
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
 
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
@@ -43,6 +83,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         r.drawCube(b.pos, {0.1f, 0.1f, 0.1f}, own ? COLOR_BULLET_OWN : COLOR_BULLET_ENEMY);
         r.drawCube({b.pos.x, 0.01f, b.pos.z}, {0.22f, 0.001f, 0.22f}, COLOR_BLOB);
     }
+    if (gs.players[localID].alive) drawViewModel(r, cam, vm);
     drawHUD(r, gs, localID, hud, scoreboard, online);
     r.endFrame();
 }
@@ -121,6 +162,7 @@ int main(int argc, char** argv) {
     int         prevOwnHP   = PLAYER_HP;
     bool        prevOwnAlive = true;
     bool        offlineShoot = false;  // latch click until a physics tick consumes it
+    ViewModel   vm;                     // first-person gun state
 
     printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
     printf("offline practice mode until connected\n");
@@ -210,7 +252,22 @@ int main(int argc, char** argv) {
         if (hud.deathTimer < 0.0f) hud.deathTimer = 0.0f;
         hud.feed.update(dt);
 
-        renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online);
+        // weapon viewmodel: ADS transition, FOV zoom, fire feedback
+        float adsTarget = input.state.ads ? 1.0f : 0.0f;
+        float k = dt * ADS_LERP_SPEED;
+        if (k > 1.0f) k = 1.0f;
+        vm.adsT += (adsTarget - vm.adsT) * k;
+        cam.fov  = glm::mix(HIP_FOV, ADS_FOV, vm.adsT);
+        if (input.state.shoot && own.alive && own.ammo > 0) {
+            vm.flashTimer = 0.05f;
+            vm.recoilT    = 1.0f;
+        }
+        vm.flashTimer -= dt;
+        if (vm.flashTimer < 0.0f) vm.flashTimer = 0.0f;
+        vm.recoilT -= dt * 8.0f;
+        if (vm.recoilT < 0.0f) vm.recoilT = 0.0f;
+
+        renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm);
 
         static int frameCount = 0;
         const char* shotPath = getenv("FPS_SHOT");
