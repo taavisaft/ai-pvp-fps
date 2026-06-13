@@ -99,6 +99,7 @@ static void handlePackets(int fd) {
             c.input.s = p.keys & KEY_S;
             c.input.d = p.keys & KEY_D;
             c.input.sprint = p.keys & KEY_SPRINT;
+            c.input.jump   = p.keys & KEY_JUMP;
             c.input.yaw   = p.yaw;
             c.input.pitch = p.pitch;
             c.shotSeq     = p.shotSeq;  // packet is seq-gated newest, so monotonic

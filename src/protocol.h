@@ -70,3 +70,4 @@ constexpr uint8_t KEY_S     = 4;
 constexpr uint8_t KEY_D     = 8;
 constexpr uint8_t KEY_SHOOT  = 16;
 constexpr uint8_t KEY_SPRINT = 32;
+constexpr uint8_t KEY_JUMP   = 64;

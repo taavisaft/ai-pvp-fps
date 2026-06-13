@@ -24,15 +24,33 @@ static bool pointInBox(glm::vec3 p, const Box& b) {
            fabsf(p.z - b.center.z) < b.half.z;
 }
 
-// Push the player's XZ footprint (half extent 0.4) out of every map box,
-// along the axis of least overlap. Player is grounded, boxes sit on the
-// ground, so Y never separates them — XZ only.
-static void collideWithMap(Player& p) {
-    constexpr float R = 0.4f;
+static constexpr float FOOT_R = 0.4f;  // player XZ footprint half-extent
+
+// Highest surface the player can stand on under their footprint: arena floor (0)
+// or a box top they are coming down onto. `fromY` is the height before this tick's
+// fall — a box counts only if the player was at/above its top, so you land when
+// crossing a top from above but don't snap onto one you're rising past.
+static float supportHeight(const Player& p, float fromY) {
+    float floor = 0.0f;
     for (int i = 0; i < MAP_BOX_COUNT; i++) {
         const Box& b = MAP_BOXES[i];
-        float dx = (b.half.x + R) - fabsf(p.pos.x - b.center.x);
-        float dz = (b.half.z + R) - fabsf(p.pos.z - b.center.z);
+        if (fabsf(p.pos.x - b.center.x) >= b.half.x + FOOT_R) continue;
+        if (fabsf(p.pos.z - b.center.z) >= b.half.z + FOOT_R) continue;
+        float top = b.center.y + b.half.y;
+        if (top > floor && fromY >= top - 0.05f) floor = top;
+    }
+    return floor;
+}
+
+// Push the footprint out of boxes along the axis of least overlap. Skipped for
+// boxes whose top is at/below the feet — you stand on those instead of bumping.
+static void collideXZ(Player& p) {
+    for (int i = 0; i < MAP_BOX_COUNT; i++) {
+        const Box& b = MAP_BOXES[i];
+        float top = b.center.y + b.half.y;
+        if (p.pos.y >= top - 0.05f) continue;  // on/above the box → no side push
+        float dx = (b.half.x + FOOT_R) - fabsf(p.pos.x - b.center.x);
+        float dz = (b.half.z + FOOT_R) - fabsf(p.pos.z - b.center.z);
         if (dx <= 0.0f || dz <= 0.0f) continue;
         if (dx < dz) p.pos.x += (p.pos.x < b.center.x) ? -dx : dx;
         else         p.pos.z += (p.pos.z < b.center.z) ? -dz : dz;
@@ -47,14 +65,42 @@ void movePlayer(Player& p, const InputState& in, float dt) {
     glm::vec3 forward = glm::normalize(glm::vec3(
         cos(glm::radians(in.yaw)), 0, sin(glm::radians(in.yaw))));
     glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0, 1, 0)));
-    float speed = in.sprint ? SPRINT_SPEED : MOVE_SPEED;
-    if (in.w) p.pos += forward * speed * dt;
-    if (in.s) p.pos -= forward * speed * dt;
-    if (in.a) p.pos -= right   * speed * dt;
-    if (in.d) p.pos += right   * speed * dt;
-    p.pos.y = 0.0f; // lock to ground
     p.yaw = in.yaw;
-    collideWithMap(p);
+
+    float fromY    = p.pos.y;
+    bool  grounded = fromY <= supportHeight(p, fromY) + 0.001f;
+
+    // horizontal: full control on the ground; in the air keep takeoff momentum
+    if (grounded) {
+        float speed = in.sprint ? SPRINT_SPEED : MOVE_SPEED;
+        glm::vec3 vel(0.0f);
+        if (in.w) vel += forward;
+        if (in.s) vel -= forward;
+        if (in.a) vel -= right;
+        if (in.d) vel += right;
+        vel *= speed;
+        p.pos.x += vel.x * dt;
+        p.pos.z += vel.z * dt;
+        p.airVX  = vel.x;          // remember in case we leave the ground this tick
+        p.airVZ  = vel.z;
+    } else {
+        p.pos.x += p.airVX * dt;
+        p.pos.z += p.airVZ * dt;
+    }
+
+    // vertical: jump only when grounded, then integrate gravity
+    if (in.jump && grounded) p.velY = JUMP_SPEED;
+    p.velY  -= GRAVITY * dt;
+    p.pos.y  = fromY + p.velY * dt;
+
+    // land first (so a box top you reach isn't mistaken for a wall), then push
+    // out of anything taller you're beside
+    float floor = supportHeight(p, fromY);
+    if (p.pos.y <= floor) {
+        p.pos.y = floor;
+        p.velY  = 0.0f;
+    }
+    collideXZ(p);
 }
 
 bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, int ownerID) {

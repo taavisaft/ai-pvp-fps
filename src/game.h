@@ -11,6 +11,7 @@ constexpr float BULLET_SPEED   = 50.0f;  // m/s
 constexpr float BULLET_TTL     = 3.0f;   // seconds
 constexpr float MOVE_SPEED     = 5.0f;   // m/s
 constexpr float SPRINT_SPEED   = 8.0f;   // m/s, shift held
+constexpr float JUMP_SPEED      = 6.0f;   // m/s upward; ~1.8 m peak, clears crates
 constexpr float GRAVITY        = 9.8f;   // m/s²
 constexpr float BULLET_DMG     = 25;     // HP per hit
 constexpr int   NET_HZ         = 20;     // state sync rate
@@ -20,7 +21,10 @@ constexpr int   UDP_PORT       = 7777;
 constexpr float EYE_HEIGHT     = 1.7f;
 
 struct Player {
-    glm::vec3 pos          = {0, 0, 0};  // feet, Y always 0
+    glm::vec3 pos          = {0, 0, 0};  // feet; Y rises when jumping
+    float     velY         = 0.0f;       // vertical velocity (jump/gravity)
+    float     airVX        = 0.0f;       // horizontal velocity locked at takeoff
+    float     airVZ        = 0.0f;       // (no mid-air steering)
     float     yaw          = 0.0f;       // degrees
     int       hp           = PLAYER_HP;
     int       ammo         = AMMO_PER_LIFE;
@@ -49,6 +53,7 @@ struct InputState {
     bool  w, a, s, d;
     bool  shoot;                   // true on press, not hold
     bool  sprint;                  // shift held
+    bool  jump;                    // space held
     float yaw;
     float pitch;
 };

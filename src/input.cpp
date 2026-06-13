@@ -39,6 +39,7 @@ void pollInput(FrameInput& in, Camera& cam) {
     in.state.s = keys[SDL_SCANCODE_S];
     in.state.d = keys[SDL_SCANCODE_D];
     in.state.sprint = keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT];
+    in.state.jump   = keys[SDL_SCANCODE_SPACE];
     in.scoreboardHeld = keys[SDL_SCANCODE_TAB];
     in.state.yaw   = cam.yaw;
     in.state.pitch = cam.pitch;
