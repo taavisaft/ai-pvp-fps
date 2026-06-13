@@ -1,5 +1,7 @@
 #include "font.h"
 #include <cstring>
+#include <cstdio>
+#include <SDL.h>
 
 // Classic 5x7 font, one glyph per 5 bytes, column-major, bit 0 = top row.
 // Covers ASCII 32..90 (space through 'Z'); enough for a numeric/uppercase HUD.
@@ -78,7 +80,16 @@ static int glyphIndex(char c) {
 }
 
 bool Font::init() {
-    if (!shader.load("shaders/text.vert", "shaders/text.frag")) return false;
+    // Load shaders next to the executable (so Finder / any cwd works); fall back
+    // to cwd for running from the source tree. Mirrors Renderer::init.
+    const char* sdlBase = SDL_GetBasePath();
+    char base[512], vpath[600], fpath[600];
+    snprintf(base, sizeof(base), "%s", sdlBase ? sdlBase : "");
+    snprintf(vpath, sizeof(vpath), "%sshaders/text.vert", base);
+    snprintf(fpath, sizeof(fpath), "%sshaders/text.frag", base);
+    if (!shader.load(vpath, fpath)) {
+        if (!shader.load("shaders/text.vert", "shaders/text.frag")) return false;
+    }
 
     static unsigned char pixels[ATLAS_W * ATLAS_H];
     memset(pixels, 0, sizeof(pixels));
