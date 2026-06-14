@@ -7,11 +7,15 @@ bool aabbHit(glm::vec3 p, glm::vec3 playerPos, bool crouched);
 // Look direction from yaw/pitch in degrees (matches camera front)
 glm::vec3 dirFromYawPitch(float yaw, float pitch);
 
+// Spread cone half-angle (degrees) for a shot, from stance + movement: stationary
+// is precise, moving/sprinting/airborne bloom, crouching tightens, ADS steadies.
+float aimSpread(const Player& p, const InputState& in);
+
 // Authoritative shot: fills bullet origin + direction for a shot from `eye`.
-// ADS = spawn from eye, tight spread; hipfire = spawn from barrel muzzle
-// (lower-right of view) with a wide random cone. Uses rand() for spread.
+// ADS spawns from the eye, hipfire from the barrel muzzle (lower-right of view).
+// spreadDeg is the random cone half-angle (see aimSpread); 0 = dead-on.
 void weaponShot(float yaw, float pitch, const glm::vec3& eye, bool ads,
-                glm::vec3& outOrigin, glm::vec3& outDir);
+                float spreadDeg, glm::vec3& outOrigin, glm::vec3& outDir);
 
 // WASD movement on XZ plane, Y locked to 0.
 // Includes collision: pushed out of map boxes, clamped to arena bounds.

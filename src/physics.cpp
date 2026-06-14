@@ -34,10 +34,22 @@ static glm::vec3 applySpread(glm::vec3 dir, float deg) {
     return glm::normalize(dir + right * (r * cosf(phi)) + up * (r * sinf(phi)));
 }
 
+float aimSpread(const Player& p, const InputState& in) {
+    float base    = in.ads ? ADS_SPREAD_DEG : HIP_SPREAD_DEG;
+    bool  airborne = p.pos.y > 0.05f;
+    bool  moving   = in.w || in.a || in.s || in.d;
+    float move     = airborne ? JUMP_SPREAD_DEG
+                   : (in.sprint && moving) ? SPRINT_SPREAD_DEG
+                   : moving ? MOVE_SPREAD_DEG : 0.0f;
+    if (in.crouch && !moving && !airborne) base *= CROUCH_SPREAD_MULT;
+    if (in.ads) move *= ADS_MOVE_MULT;
+    return base + move;
+}
+
 void weaponShot(float yaw, float pitch, const glm::vec3& eye, bool ads,
-                glm::vec3& outOrigin, glm::vec3& outDir) {
+                float spreadDeg, glm::vec3& outOrigin, glm::vec3& outDir) {
     glm::vec3 front = dirFromYawPitch(yaw, pitch);
-    outDir = applySpread(front, ads ? ADS_SPREAD_DEG : HIP_SPREAD_DEG);
+    outDir = applySpread(front, spreadDeg);
     if (ads) {
         outOrigin = eye;                      // sight line — dead on crosshair
     } else {

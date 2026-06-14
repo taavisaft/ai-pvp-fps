@@ -267,6 +267,7 @@ int main(int argc, char** argv) {
         if (fired) {
             float t    = recoilHeat / RECOIL_HEAT_CAP;
             float mult = input.state.ads ? RECOIL_ADS_MULT : RECOIL_HIP_MULT;
+            if (recoilHeat == 0.0f) mult *= RECOIL_FIRST_MULT;  // snappier opening shot
             float rs   = (float)rand() / (float)RAND_MAX * 2.0f - 1.0f;  // [-1,1]
             float vKick = glm::mix(RECOIL_PITCH_MIN, RECOIL_PITCH_MAX, t) * mult;
             float hKick = RECOIL_YAW * (0.6f + 0.8f * t) * mult * rs;
@@ -289,8 +290,9 @@ int main(int argc, char** argv) {
                 Player& dummy = offline.players[1];
                 if (offlineShoot && self.alive) {
                     glm::vec3 origin, dir;
+                    float spread = aimSpread(self, input.state);
                     weaponShot(input.state.yaw, input.state.pitch, cam.eye, input.state.ads,
-                               origin, dir);
+                               spread, origin, dir);
                     spawnBullet(offline, origin, dir, 0);
                     offlineShoot = false;
                 }

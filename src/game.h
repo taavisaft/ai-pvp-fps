@@ -34,6 +34,15 @@ constexpr float HIP_SPREAD_DEG = 0.5f;   // tiny residual hipfire bloom (0 = las
 constexpr float ADS_SPREAD_DEG = 0.0f;   // dead-on when aiming
 constexpr float ADS_LERP_SPEED = 12.0f;  // viewmodel/FOV transition rate
 
+// Movement accuracy penalties (spread bloom added on top of the base, in degrees).
+// Stationary stays precise; moving/sprinting/airborne widen the cone, crouching
+// tightens it, and aiming down sights strongly reduces the movement penalty.
+constexpr float MOVE_SPREAD_DEG    = 2.0f;   // walking
+constexpr float SPRINT_SPREAD_DEG  = 4.5f;   // sprinting while moving
+constexpr float JUMP_SPREAD_DEG    = 8.0f;   // airborne / falling
+constexpr float CROUCH_SPREAD_MULT = 0.5f;   // crouched + stationary tightens base
+constexpr float ADS_MOVE_MULT      = 0.35f;  // ADS reduces the movement penalty
+
 constexpr float HIT_MARKER_TIME = 0.5f;  // seconds the hit marker stays visible
 
 // Recoil (client-side camera kick; the recoiled aim is what gets shot). Per-shot
@@ -50,6 +59,7 @@ constexpr float RECOIL_RECOVER_DELAY = 0.12f; // s after last shot before recove
                                               // (> FIRE_AUTO_INT so a spray climbs cleanly)
 constexpr float RECOIL_RECOVER_TAU  = 0.10f;  // exp decay time constant of recovery
 constexpr float RECOIL_PITCH_CAP    = 25.0f;  // max accumulated upward offset
+constexpr float RECOIL_FIRST_MULT   = 1.25f;  // extra kick on the first (cold) shot
 
 // Fire modes (client-side only — decides when shots are registered)
 enum FireMode { FIRE_SEMI = 0, FIRE_BURST, FIRE_AUTO, FIRE_MODE_COUNT };

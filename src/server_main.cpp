@@ -223,7 +223,8 @@ static void tick(float dt) {
             float eyeH = p.crouched ? CROUCH_EYE : EYE_HEIGHT;
             glm::vec3 eye = p.pos + glm::vec3(0, eyeH, 0);
             glm::vec3 origin, dir;
-            weaponShot(c.input.yaw, c.input.pitch, eye, c.input.ads, origin, dir);
+            float spread = aimSpread(p, c.input);   // stance/movement accuracy
+            weaponShot(c.input.yaw, c.input.pitch, eye, c.input.ads, spread, origin, dir);
             // Rewind targets to the world the shooter saw when they fired.
             float viewT, comp = 0.0f;
             if (stateTimeFor(c.viewSeq, viewT)) {
