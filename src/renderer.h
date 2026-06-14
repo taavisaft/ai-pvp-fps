@@ -28,6 +28,10 @@ struct Renderer {
     void  beginHUD();
     void  drawRect(const glm::vec2& center, const glm::vec2& size,
                    const glm::vec3& color, float alpha);
+    // Like drawRect but rotated by angle (radians) about screen +Z. size is in
+    // aspect-corrected square space so a 45 deg stroke renders at 45 deg.
+    void  drawRectRot(const glm::vec2& center, const glm::vec2& size,
+                      const glm::vec3& color, float alpha, float angle);
     // x,y = bottom-left in NDC, h = char height in NDC
     void  drawText(const char* s, float x, float y, float h,
                    const glm::vec3& color, float alpha);

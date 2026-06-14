@@ -20,6 +20,10 @@ struct HudState {
     float    fps        = 0.0f;   // smoothed frames/sec, top-left readout
     int      fireMode   = 0;      // FireMode enum, for the HUD label
     KillFeed feed;
+
+    float     hitMarkerTimer    = 0.0f;        // >0 while showing the hit X
+    glm::vec2 hitMarkerNDC       = {0, 0};      // screen position (set in main.cpp)
+    bool      hitMarkerOnScreen = false;        // impact point is in front of camera
     uint8_t  prevKills[MAX_PLAYERS]  = {0};
     uint8_t  prevDeaths[MAX_PLAYERS] = {0};
     bool     tracked = false;

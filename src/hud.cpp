@@ -114,7 +114,19 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
     if (own.alive) {
         r.drawRect({0, 0}, {0.006f * ia, 0.045f}, {1, 1, 1}, 0.9f);
         r.drawRect({0, 0}, {0.045f * ia, 0.006f}, {1, 1, 1}, 0.9f);
-    } else {
+    }
+
+    // Hit marker: a small X at the world impact point you last hit (projected
+    // to screen in main.cpp). Two diagonal strokes, fading out over its lifetime.
+    if (hud.hitMarkerTimer > 0.0f && hud.hitMarkerOnScreen) {
+        float a = hud.hitMarkerTimer / HIT_MARKER_TIME;
+        if (a > 1.0f) a = 1.0f;
+        glm::vec2 sz = {0.045f, 0.009f};
+        r.drawRectRot(hud.hitMarkerNDC, sz, {1.0f, 1.0f, 0.9f}, a,  0.7854f);
+        r.drawRectRot(hud.hitMarkerNDC, sz, {1.0f, 1.0f, 0.9f}, a, -0.7854f);
+    }
+
+    if (!own.alive) {
         r.drawRect({0, 0}, {2, 2}, {0.6f, 0.05f, 0.05f}, 0.4f);
         snprintf(buf, sizeof(buf), "RESPAWN IN %d", (int)ceilf(hud.deathTimer));
         r.drawText(buf, -r.textWidth(buf, 0.08f) * 0.5f, -0.04f, 0.08f,

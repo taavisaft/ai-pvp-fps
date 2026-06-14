@@ -33,6 +33,8 @@ constexpr float HIP_SPREAD_DEG = 5.0f;   // bullet cone half-angle, hipfire
 constexpr float ADS_SPREAD_DEG = 0.4f;   // near-perfect when aiming
 constexpr float ADS_LERP_SPEED = 12.0f;  // viewmodel/FOV transition rate
 
+constexpr float HIT_MARKER_TIME = 0.5f;  // seconds the hit marker stays visible
+
 // Fire modes (client-side only — decides when shots are registered)
 enum FireMode { FIRE_SEMI = 0, FIRE_BURST, FIRE_AUTO, FIRE_MODE_COUNT };
 constexpr float FIRE_SEMI_INT  = 0.12f;  // min seconds between shots, semi
@@ -56,6 +58,8 @@ struct Player {
     int       deaths       = 0;
     bool      alive        = true;
     float     respawnTimer = 0.0f;       // counts down while dead
+    int       hits         = 0;          // damaging hits dealt (for hit markers)
+    glm::vec3 lastHitPos    = {0, 0, 0}; // world impact point of the latest hit
 };
 
 struct Bullet {

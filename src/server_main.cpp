@@ -275,7 +275,14 @@ static void broadcast(int fd, uint32_t seq) {
 
     int size = statePacketSize(count);
     for (int i = 0; i < MAX_PLAYERS; i++)
-        if (clients[i].used) netSend(fd, &s, size, clients[i].addr);
+        if (clients[i].used) {
+            const Player& rp = game.players[i];     // stamp this recipient's own hit info
+            s.recvHits = (uint8_t)rp.hits;
+            s.recvHitX = rp.lastHitPos.x;
+            s.recvHitY = rp.lastHitPos.y;
+            s.recvHitZ = rp.lastHitPos.z;
+            netSend(fd, &s, size, clients[i].addr);
+        }
 }
 
 int main() {

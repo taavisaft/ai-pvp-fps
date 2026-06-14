@@ -51,10 +51,14 @@ struct BulletNetState {
 };
 
 // Sent truncated: header + players + bulletCount + bulletCount * BulletNetState.
+// recvHits/recvHit* are per-recipient: stamped with the destination player's own
+// hit counter + last impact point just before each send, for their hit marker.
 struct StatePacket {
     PacketType     type;          // PKT_STATE
     uint32_t       seq;
     uint16_t       usedMask;      // bit i set = player slot i occupied
+    uint8_t        recvHits;      // recipient's damaging-hits-dealt counter
+    float          recvHitX, recvHitY, recvHitZ;  // recipient's last impact point
     PlayerNetState players[NET_MAX_PLAYERS];
     uint8_t        bulletCount;
     BulletNetState bullets[NET_MAX_BULLETS];

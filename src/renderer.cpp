@@ -89,6 +89,20 @@ void Renderer::drawRect(const glm::vec2& center, const glm::vec2& size,
     quad2d.draw();
 }
 
+void Renderer::drawRectRot(const glm::vec2& center, const glm::vec2& size,
+                           const glm::vec3& color, float alpha, float angle) {
+    shader.use();
+    float ia = 1.0f / aspect();
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(center, 0.0f));
+    model = glm::scale(model, glm::vec3(ia, 1.0f, 1.0f));            // square space -> NDC
+    model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));  // rotate in square space
+    model = glm::scale(model, glm::vec3(size, 1.0f));
+    shader.setMat4(shader.locModel, model);
+    shader.setVec3(shader.locColor, color);
+    shader.setFloat(shader.locAlpha, alpha);
+    quad2d.draw();
+}
+
 void Renderer::drawText(const char* s, float x, float y, float h,
                         const glm::vec3& color, float alpha) {
     font.draw(s, x, y, h, 1.0f / aspect(), color, alpha);

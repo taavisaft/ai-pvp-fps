@@ -179,6 +179,8 @@ int main(int argc, char** argv) {
     float       fireTimer    = 0.0f;    // cooldown until next allowed shot
     int         burstRemaining = 0;     // rounds left in current burst
     bool        prevReloading = false;  // for reload-start sound
+    uint8_t     prevOwnHits  = 0;       // hit-marker: own hits-dealt counter
+    glm::vec3   hitMarkerPos(0.0f);     // world impact point of the latest hit
 
     printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
     printf("offline practice mode until connected\n");
@@ -322,6 +324,27 @@ int main(int argc, char** argv) {
         prevOwnHP = own.hp;
         hud.flashTimer -= dt;
         if (hud.flashTimer < 0.0f) hud.flashTimer = 0.0f;
+
+        // Hit marker: arm when our own hits-dealt counter advances, then keep the
+        // world impact point projected to screen for the marker's lifetime. The
+        // delta < 128 test ignores counter resets/wraps (respawn, offline->online).
+        uint8_t curHits = online ? net.lastState.recvHits : (uint8_t)offline.players[0].hits;
+        glm::vec3 impact = online
+            ? glm::vec3(net.lastState.recvHitX, net.lastState.recvHitY, net.lastState.recvHitZ)
+            : offline.players[0].lastHitPos;
+        uint8_t hitDelta = (uint8_t)(curHits - prevOwnHits);
+        if (hitDelta != 0 && hitDelta < 128) {
+            hitMarkerPos       = impact;
+            hud.hitMarkerTimer = HIT_MARKER_TIME;
+        }
+        prevOwnHits = curHits;
+        if (hud.hitMarkerTimer > 0.0f) {
+            glm::vec4 clip = cam.proj(renderer.aspect()) * cam.view() * glm::vec4(hitMarkerPos, 1.0f);
+            hud.hitMarkerOnScreen = clip.w > 1e-4f;
+            if (hud.hitMarkerOnScreen) hud.hitMarkerNDC = {clip.x / clip.w, clip.y / clip.w};
+        }
+        hud.hitMarkerTimer -= dt;
+        if (hud.hitMarkerTimer < 0.0f) hud.hitMarkerTimer = 0.0f;
 
         if (prevOwnAlive && !own.alive) {
             printf("you died — respawning\n");

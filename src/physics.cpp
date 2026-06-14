@@ -207,6 +207,11 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
 
             target.hp -= (int)BULLET_DMG;
             b.active = false;
+            if (b.ownerID >= 0) {                       // record for the shooter's hit marker
+                Player& shooter = gs.players[b.ownerID];
+                shooter.hits++;
+                shooter.lastHitPos = b.pos;
+            }
             if (target.hp <= 0) {
                 target.hp           = 0;
                 target.alive        = false;
