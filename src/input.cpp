@@ -7,6 +7,7 @@ void pollInput(FrameInput& in, Camera& cam) {
     in.wireframeToggle  = false;
     in.connectRequested = false;
     in.fireModeToggle   = false;
+    in.clearRange       = false;
 
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
@@ -21,6 +22,7 @@ void pollInput(FrameInput& in, Camera& cam) {
             case SDLK_f:      in.wireframeToggle = true; break;
             case SDLK_c:      in.connectRequested = true; break;
             case SDLK_b:      in.fireModeToggle  = true; break;
+            case SDLK_g:      in.clearRange      = true; break;
             default: break;
             }
             break;

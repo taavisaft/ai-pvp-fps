@@ -19,6 +19,15 @@ static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
 static const glm::vec3 COLOR_BULLET_ENEMY = {1.00f, 0.40f, 0.10f};
 
+// Offline shooting range: a large flat target wall (client-only, not in MAP_BOXES
+// so it never affects online play) that the practice spawn faces. Bullets that
+// reach it leave persistent marks so the spread/recoil pattern and drop are visible.
+static const glm::vec3 RANGE_WALL_CENTER = {26.0f, 4.0f, 0.0f};
+static const glm::vec3 RANGE_WALL_HALF   = {0.6f, 4.0f, 13.0f};
+static const float     RANGE_WALL_FACE   = 25.4f;  // front face = center.x - half.x
+static const float     RANGE_BULLSEYE_Y  = 1.7f;   // matches standing eye height
+constexpr int          RANGE_MARK_MAX    = 256;    // ring buffer of impact marks
+
 // First-person weapon state (client cosmetic; gameplay is server-authoritative).
 struct ViewModel {
     float adsT       = 0.0f;  // 0 = hipfire pose, 1 = aimed
@@ -59,11 +68,22 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
 
 static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int localID,
                         const HudState& hud, bool scoreboard, bool online,
-                        const ViewModel& vm) {
+                        const ViewModel& vm,
+                        const glm::vec3* rangeMarks, int rangeMarkCount, bool drawRange) {
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
 
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
     r.drawGround();
+
+    if (drawRange) {
+        r.drawCube(RANGE_WALL_CENTER, RANGE_WALL_HALF * 2.0f, {0.22f, 0.24f, 0.30f});
+        // aim reference: a red cross at standing eye height, dead center
+        glm::vec3 c = {RANGE_WALL_FACE - 0.03f, RANGE_BULLSEYE_Y, 0.0f};
+        r.drawCube(c, {0.06f, 1.0f, 0.10f}, {0.85f, 0.25f, 0.20f});
+        r.drawCube(c, {0.06f, 0.10f, 1.0f}, {0.85f, 0.25f, 0.20f});
+        for (int i = 0; i < rangeMarkCount; i++)
+            r.drawCube(rangeMarks[i], {0.05f, 0.11f, 0.11f}, {1.0f, 0.85f, 0.20f});
+    }
 
     for (int i = 0; i < MAP_BOX_COUNT; i++) {
         const Box& b = MAP_BOXES[i];
@@ -142,9 +162,14 @@ int main(int argc, char** argv) {
 
     static GameState offline;             // local practice match vs dummy
     offline.usedMask = 0b11;              // slot 0 = self, slot 1 = dummy
-    offline.players[0].pos = {12, 0, 12}; // clear of the center pillar
-    offline.players[1].pos = {3, 0, -3};
+    offline.players[0].pos = {12, 0, 0};  // on the firing line, facing the range wall
+    offline.players[1].pos = {24, 0, 6};  // dummy off to the side, clear of the pattern
     static GameState display;             // what gets rendered when online
+
+    // Persistent impact marks on the range wall (offline spread/recoil testing).
+    static glm::vec3 rangeMarks[RANGE_MARK_MAX];
+    int rangeMarkCount = 0;   // number of live marks (<= RANGE_MARK_MAX)
+    int rangeMarkHead  = 0;   // next write index (ring buffer)
 
     ClientNet net;
     Player    predicted;                  // own player, client-side predicted
@@ -153,7 +178,7 @@ int main(int argc, char** argv) {
     const float PRED_SMOOTH_TAU = 0.08f;  // correction half-life (~smoothing window)
 
     Camera     cam;
-    cam.yaw = 230.0f;  // offline spawn looks toward the arena center
+    cam.yaw = 0.0f;  // offline spawn looks down the range (+X) at the target wall
     FrameInput input;
 
     if (argc > 1) {
@@ -185,7 +210,7 @@ int main(int argc, char** argv) {
     float       sinceShot    = 1e9f;    // seconds since last shot (recovery gating)
 
     printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
-    printf("offline practice mode until connected\n");
+    printf("offline shooting range: fire at the wall to see your spread; G clears the marks\n");
 
     while (running) {
         Uint64 now = SDL_GetPerformanceCounter();
@@ -201,6 +226,7 @@ int main(int argc, char** argv) {
         pollInput(input, cam);
         if (input.quit) running = false;
         if (input.wireframeToggle) renderer.toggleWireframe();
+        if (input.clearRange) { rangeMarkCount = 0; rangeMarkHead = 0; }
         if (input.connectRequested && !net.connected && !net.connecting) {
             promptConnect(net);
             last = SDL_GetPerformanceCounter();  // stdin blocked; don't count it as dt
@@ -300,11 +326,25 @@ int main(int argc, char** argv) {
                 updateReload(self, input.state.reload, FIXED_DT);
                 if (self.mag == 0 && self.reserve == 0) self.reserve = RESERVE_PER_LIFE;  // keep practice stocked
                 updateBullets(offline, FIXED_DT);
+                // Stamp a persistent mark where each of our bullets meets the range
+                // wall (wall is >1 m thick, bullets step <0.85 m/tick, so no tunnel).
+                for (int bi = 0; bi < MAX_BULLETS; bi++) {
+                    Bullet& b = offline.bullets[bi];
+                    if (!b.active || b.ownerID != 0) continue;
+                    if (fabsf(b.pos.x - RANGE_WALL_CENTER.x) < RANGE_WALL_HALF.x &&
+                        fabsf(b.pos.y - RANGE_WALL_CENTER.y) < RANGE_WALL_HALF.y &&
+                        fabsf(b.pos.z - RANGE_WALL_CENTER.z) < RANGE_WALL_HALF.z) {
+                        rangeMarks[rangeMarkHead] = {RANGE_WALL_FACE - 0.02f, b.pos.y, b.pos.z};
+                        rangeMarkHead = (rangeMarkHead + 1) % RANGE_MARK_MAX;
+                        if (rangeMarkCount < RANGE_MARK_MAX) rangeMarkCount++;
+                        b.active = false;
+                    }
+                }
                 if (!dummy.alive) {                                 // offline dummy respawn
                     dummy.respawnTimer -= FIXED_DT;
                     if (dummy.respawnTimer <= 0.0f) {
                         dummy = Player{};
-                        dummy.pos = {0, 0, -10};
+                        dummy.pos = {24, 0, 6};
                     }
                 }
             }
@@ -431,7 +471,8 @@ int main(int argc, char** argv) {
             for (int i = 0; i < MAX_BULLETS; i++) heardBullet[i] = false;
         }
 
-        renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm);
+        renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
+                    rangeMarks, rangeMarkCount, !online);
 
         static int frameCount = 0;
         const char* shotPath = getenv("FPS_SHOT");

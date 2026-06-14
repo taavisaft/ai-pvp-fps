@@ -11,6 +11,7 @@ struct FrameInput {
     bool connectRequested = false; // C pressed this frame
     bool scoreboardHeld   = false; // Tab held
     bool fireModeToggle   = false; // B pressed this frame
+    bool clearRange       = false; // G pressed this frame (clear offline target marks)
 };
 
 // Polls all pending SDL events. Updates camera look from mouse motion,
