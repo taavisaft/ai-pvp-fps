@@ -48,6 +48,6 @@ void pollInput(FrameInput& in, Camera& cam) {
     in.state.ads       = (mouse & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
     in.state.shootHeld = (mouse & SDL_BUTTON(SDL_BUTTON_LEFT))  != 0;
     in.scoreboardHeld = keys[SDL_SCANCODE_TAB];
-    in.state.yaw   = cam.yaw;
-    in.state.pitch = cam.pitch;
+    in.state.yaw   = cam.aimYaw();    // includes recoil offset
+    in.state.pitch = cam.aimPitch();
 }

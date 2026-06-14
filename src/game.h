@@ -29,11 +29,27 @@ constexpr float CROUCH_EYE     = 1.0f;   // camera height while crouched
 // Weapon: aim-down-sights vs hipfire (PUBG-style)
 constexpr float HIP_FOV        = 75.0f;  // degrees
 constexpr float ADS_FOV        = 55.0f;  // zoomed in
-constexpr float HIP_SPREAD_DEG = 5.0f;   // bullet cone half-angle, hipfire
-constexpr float ADS_SPREAD_DEG = 0.4f;   // near-perfect when aiming
+// Bullets exit the barrel along the aim; inaccuracy comes from recoil, not spread.
+constexpr float HIP_SPREAD_DEG = 0.5f;   // tiny residual hipfire bloom (0 = laser)
+constexpr float ADS_SPREAD_DEG = 0.0f;   // dead-on when aiming
 constexpr float ADS_LERP_SPEED = 12.0f;  // viewmodel/FOV transition rate
 
 constexpr float HIT_MARKER_TIME = 0.5f;  // seconds the hit marker stays visible
+
+// Recoil (client-side camera kick; the recoiled aim is what gets shot). Per-shot
+// vertical climb + small random horizontal, escalating over a sustained spray,
+// recovering back to the player's aim once firing stops. All tunable.
+constexpr float RECOIL_PITCH_MIN    = 0.35f;  // deg up per shot, cold
+constexpr float RECOIL_PITCH_MAX    = 0.85f;  // deg up per shot, fully heated
+constexpr float RECOIL_YAW          = 0.18f;  // deg, base horizontal random magnitude
+constexpr float RECOIL_HEAT_CAP     = 10.0f;  // shots until kick fully ramped
+constexpr float RECOIL_HEAT_RESET   = 0.25f;  // s of no fire before heat resets
+constexpr float RECOIL_HIP_MULT     = 1.5f;   // hipfire kicks harder
+constexpr float RECOIL_ADS_MULT     = 0.85f;  // aiming is steadier
+constexpr float RECOIL_RECOVER_DELAY = 0.12f; // s after last shot before recovery
+                                              // (> FIRE_AUTO_INT so a spray climbs cleanly)
+constexpr float RECOIL_RECOVER_TAU  = 0.10f;  // exp decay time constant of recovery
+constexpr float RECOIL_PITCH_CAP    = 25.0f;  // max accumulated upward offset
 
 // Fire modes (client-side only — decides when shots are registered)
 enum FireMode { FIRE_SEMI = 0, FIRE_BURST, FIRE_AUTO, FIRE_MODE_COUNT };

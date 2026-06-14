@@ -181,6 +181,8 @@ int main(int argc, char** argv) {
     bool        prevReloading = false;  // for reload-start sound
     uint8_t     prevOwnHits  = 0;       // hit-marker: own hits-dealt counter
     glm::vec3   hitMarkerPos(0.0f);     // world impact point of the latest hit
+    float       recoilHeat   = 0.0f;    // ramps recoil kick over a sustained spray
+    float       sinceShot    = 1e9f;    // seconds since last shot (recovery gating)
 
     printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
     printf("offline practice mode until connected\n");
@@ -208,21 +210,6 @@ int main(int argc, char** argv) {
 
         bool online  = net.connected && net.hasState;
         int  localID = online ? net.playerID : 0;
-
-        if (net.connected) {
-            // Tell the server which interpolated view we're rendering, so it can
-            // rewind targets to where we saw them. Matches the alpha used below.
-            uint32_t viewSeq  = net.hasState ? net.lastState.seq : 0;
-            uint8_t  viewFrac = 0;
-            if (net.hasPrev) {
-                viewSeq = net.prevState.seq;          // interpolating prev -> last
-                float a = net.sinceState * NET_HZ;
-                if (a < 0.0f) a = 0.0f;
-                if (a > 1.0f) a = 1.0f;
-                viewFrac = (uint8_t)(a * 255.0f + 0.5f);
-            }
-            net.sendInput(input.state, viewSeq, viewFrac);
-        }
 
         // --- fire control: pick shots this frame by fire mode, gate on ammo ---
         if (input.fireModeToggle) { fireMode = (fireMode + 1) % FIRE_MODE_COUNT; burstRemaining = 0; }
@@ -259,6 +246,38 @@ int main(int argc, char** argv) {
         if (input.state.shoot && ownAliveF && ownMagF == 0 && !ownReloadingF) audioPlay(SND_DRYFIRE);
         if (ownReloadingF && !prevReloading) audioPlay(SND_RELOAD);
         prevReloading = ownReloadingF;
+
+        // Report input (incl. this frame's shotSeq) with the pre-kick aim, so the
+        // shot leaves the barrel exactly where aimed; the kick lands afterwards.
+        if (net.connected) {
+            uint32_t viewSeq  = net.hasState ? net.lastState.seq : 0;
+            uint8_t  viewFrac = 0;
+            if (net.hasPrev) {
+                viewSeq = net.prevState.seq;          // interpolating prev -> last
+                float a = net.sinceState * NET_HZ;
+                if (a < 0.0f) a = 0.0f;
+                if (a > 1.0f) a = 1.0f;
+                viewFrac = (uint8_t)(a * 255.0f + 0.5f);
+            }
+            net.sendInput(input.state, viewSeq, viewFrac);
+        }
+
+        // Recoil: kick the aim up + a little sideways, escalating with heat. Applied
+        // after the shot is sent so each shot carries only prior shots' kicks.
+        if (fired) {
+            float t    = recoilHeat / RECOIL_HEAT_CAP;
+            float mult = input.state.ads ? RECOIL_ADS_MULT : RECOIL_HIP_MULT;
+            float rs   = (float)rand() / (float)RAND_MAX * 2.0f - 1.0f;  // [-1,1]
+            float vKick = glm::mix(RECOIL_PITCH_MIN, RECOIL_PITCH_MAX, t) * mult;
+            float hKick = RECOIL_YAW * (0.6f + 0.8f * t) * mult * rs;
+            cam.applyRecoil(vKick, hKick);
+            recoilHeat += 1.0f;
+            if (recoilHeat > RECOIL_HEAT_CAP) recoilHeat = RECOIL_HEAT_CAP;
+            sinceShot = 0.0f;
+        }
+        sinceShot += dt;
+        if (sinceShot > RECOIL_HEAT_RESET) recoilHeat = 0.0f;
+        cam.recoverRecoil(dt, sinceShot < RECOIL_RECOVER_DELAY);
 
         // fixed-step simulation
         accumulator += dt;

@@ -1,5 +1,7 @@
 #include "camera.h"
+#include "game.h"
 #include <glm/gtc/matrix_transform.hpp>
+#include <cmath>
 
 static constexpr float SENSITIVITY = 0.1f;
 
@@ -10,11 +12,36 @@ void Camera::addLook(float xrel, float yrel) {
     if (pitch < -89.0f) pitch = -89.0f;
 }
 
+float Camera::aimYaw() const { return yaw + recoilYaw; }
+
+float Camera::aimPitch() const {
+    float p = pitch + recoilPitch;
+    if (p >  89.0f) p =  89.0f;
+    if (p < -89.0f) p = -89.0f;
+    return p;
+}
+
+void Camera::applyRecoil(float dPitch, float dYaw) {
+    recoilPitch += dPitch;
+    if (recoilPitch > RECOIL_PITCH_CAP) recoilPitch = RECOIL_PITCH_CAP;
+    recoilYaw += dYaw;
+}
+
+void Camera::recoverRecoil(float dt, bool firingRecently) {
+    if (firingRecently) return;                 // let the spray climb while firing
+    float k = expf(-dt / RECOIL_RECOVER_TAU);
+    recoilPitch *= k;
+    recoilYaw   *= k;
+    if (fabsf(recoilPitch) < 0.001f) recoilPitch = 0.0f;
+    if (fabsf(recoilYaw)   < 0.001f) recoilYaw   = 0.0f;
+}
+
 glm::vec3 Camera::front() const {
+    float y = aimYaw(), p = aimPitch();
     return glm::normalize(glm::vec3(
-        cos(glm::radians(yaw)) * cos(glm::radians(pitch)),
-        sin(glm::radians(pitch)),
-        sin(glm::radians(yaw)) * cos(glm::radians(pitch))
+        cos(glm::radians(y)) * cos(glm::radians(p)),
+        sin(glm::radians(p)),
+        sin(glm::radians(y)) * cos(glm::radians(p))
     ));
 }
 
