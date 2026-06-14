@@ -25,7 +25,7 @@ bool Renderer::init(const char* title, int w, int h) {
         fprintf(stderr, "SDL_GL_CreateContext: %s\n", SDL_GetError());
         return false;
     }
-    SDL_GL_SetSwapInterval(1);
+    SDL_GL_SetSwapInterval(0);  // VSync off: uncapped frame rate
 
     if (!loadGLFunctions()) return false;
 
