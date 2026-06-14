@@ -42,19 +42,30 @@ For multiple machines, run the server anywhere reachable and pass its IP to each
 
 Starting `./build/game` without an IP gives offline practice mode against a stationary dummy.
 
-### Testing lag compensation
+### Testing netcode (lag, jitter, packet loss)
 
-The server rewinds player positions to the moment a shooter fired, so shots register even with high ping. To try this on one machine, set `FPS_LAG` (one-way latency in milliseconds) on the client to simulate a laggy connection:
+The client can simulate a bad connection so you can test lag compensation and the
+interpolation buffer on a single machine. Set any combination of these environment
+variables on the client; they apply to packets in both directions:
+
+| Variable     | Meaning                                  | Example       |
+| ------------ | ---------------------------------------- | ------------- |
+| `FPS_LAG`    | One-way latency, milliseconds            | `FPS_LAG=150` |
+| `FPS_JITTER` | Random ±delay added per packet, ms       | `FPS_JITTER=40` |
+| `FPS_LOSS`   | Packet drop chance, percent (0–95)       | `FPS_LOSS=10` |
 
 ```bash
 # terminal 1
 ./build/server
 
-# terminal 2 — client with a simulated 150 ms one-way delay (300 ms round trip)
-FPS_LAG=150 ./build/game 127.0.0.1
+# terminal 2 — 150 ms one-way (300 ms RTT), ±40 ms jitter, 10% loss
+FPS_LAG=150 FPS_JITTER=40 FPS_LOSS=10 ./build/game 127.0.0.1
 ```
 
-Strafe a target and fire on the crosshair: hits land where you aimed despite the delay. Without `FPS_LAG` (or on a LAN) there's effectively no rewind, so behavior is unchanged.
+- **Lag compensation:** the server rewinds player positions to the moment you fired, so strafing a target and firing on the crosshair still registers despite the delay.
+- **Interpolation buffer:** remote players render a couple of snapshots behind the newest packet, so jitter and the occasional dropped packet stay smooth instead of stuttering or snapping.
+
+Without these variables (or on a LAN) there's effectively no delay, so behavior is unchanged.
 
 ## Controls
 
@@ -67,7 +78,10 @@ Strafe a target and fire on the crosshair: hits land where you aimed despite the
 | Mouse       | Look                          |
 | Left click  | Shoot (one bullet per click)  |
 | Right mouse | Aim down sights (zoom)        |
+| B           | Cycle fire mode (semi/burst/auto) |
+| R           | Reload                        |
 | Tab (hold)  | Scoreboard                    |
+| G           | Clear range marks (offline)   |
 | C           | Connect (prompts IP on stdin) |
 | F           | Toggle wireframe              |
 | ESC         | Quit                          |

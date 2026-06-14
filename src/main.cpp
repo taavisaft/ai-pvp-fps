@@ -276,14 +276,12 @@ int main(int argc, char** argv) {
         // Report input (incl. this frame's shotSeq) with the pre-kick aim, so the
         // shot leaves the barrel exactly where aimed; the kick lands afterwards.
         if (net.connected) {
-            uint32_t viewSeq  = net.hasState ? net.lastState.seq : 0;
+            uint32_t viewSeq  = 0;
             uint8_t  viewFrac = 0;
-            if (net.hasPrev) {
-                viewSeq = net.prevState.seq;          // interpolating prev -> last
-                float a = net.sinceState * NET_HZ;
-                if (a < 0.0f) a = 0.0f;
-                if (a > 1.0f) a = 1.0f;
-                viewFrac = (uint8_t)(a * 255.0f + 0.5f);
+            if (net.hasState) {
+                float ps = net.playSeq < 0.0f ? 0.0f : net.playSeq;  // playout pos = render time
+                viewSeq  = (uint32_t)floorf(ps);
+                viewFrac = (uint8_t)((ps - (float)viewSeq) * 255.0f + 0.5f);
             }
             net.sendInput(input.state, viewSeq, viewFrac);
         }
@@ -367,10 +365,10 @@ int main(int argc, char** argv) {
                 if (glm::length(posError) > 2.0f) posError = glm::vec3(0.0f);  // big desync: snap
                 hud.noteState(net.lastState);
             }
-            const StatePacket& a = net.hasPrev ? net.prevState : net.lastState;
-            float alpha = net.sinceState * NET_HZ;
-            if (alpha > 1.0f) alpha = 1.0f;
-            unpackState(a, net.lastState, alpha, display);
+            StatePacket sa, sb;
+            float alpha = 0.0f;
+            net.sampleRender(sa, sb, alpha);   // playout-buffered: smooth under jitter/loss
+            unpackState(sa, sb, alpha, display);
             display.players[localID].pos = predicted.pos + posError;  // smoothed own view
             shown = &display;
         }
