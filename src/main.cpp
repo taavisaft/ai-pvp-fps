@@ -3,6 +3,7 @@
 #include <SDL.h>
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 #include "platform.h"
 #include "renderer.h"
@@ -148,6 +149,8 @@ int main(int argc, char** argv) {
     ClientNet net;
     Player    predicted;                  // own player, client-side predicted
     uint32_t  appliedStateSeq = 0;
+    glm::vec3 posError(0.0f);             // smooths the snap to authoritative pos
+    const float PRED_SMOOTH_TAU = 0.08f;  // correction half-life (~smoothing window)
 
     Camera     cam;
     cam.yaw = 230.0f;  // offline spawn looks toward the arena center
@@ -287,20 +290,29 @@ int main(int argc, char** argv) {
 
         const GameState* shown = &offline;
         if (online) {
-            // snap prediction to authoritative position on each new state
+            // Reconcile prediction with each new authoritative state. The server
+            // position trails our prediction by ~RTT, so snapping straight to it
+            // jolts the camera under latency. Instead keep the corrected position
+            // for the sim, but roll the jump into posError and decay it out so the
+            // render eases over a few frames while local input stays responsive.
             if (net.lastState.seq != appliedStateSeq) {
                 appliedStateSeq = net.lastState.seq;
                 const PlayerNetState& own = net.lastState.players[net.playerID];
-                predicted.pos = {own.x, own.y, own.z};
+                glm::vec3 authoritative = {own.x, own.y, own.z};
+                posError += predicted.pos - authoritative;
+                predicted.pos = authoritative;
+                if (glm::length(posError) > 2.0f) posError = glm::vec3(0.0f);  // big desync: snap
                 hud.noteState(net.lastState);
             }
             const StatePacket& a = net.hasPrev ? net.prevState : net.lastState;
             float alpha = net.sinceState * NET_HZ;
             if (alpha > 1.0f) alpha = 1.0f;
             unpackState(a, net.lastState, alpha, display);
-            display.players[localID].pos = predicted.pos;  // own view from prediction
+            display.players[localID].pos = predicted.pos + posError;  // smoothed own view
             shown = &display;
         }
+        posError *= expf(-dt / PRED_SMOOTH_TAU);
+        if (glm::length(posError) < 0.0005f) posError = glm::vec3(0.0f);
 
         float eyeH = shown->players[localID].crouched ? CROUCH_EYE : EYE_HEIGHT;
         cam.eye = shown->players[localID].pos + glm::vec3(0, eyeH, 0);
