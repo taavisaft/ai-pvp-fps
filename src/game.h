@@ -61,9 +61,10 @@ struct Player {
 struct Bullet {
     glm::vec3 pos;
     glm::vec3 vel;
-    float     lifetime = 0.0f;
-    int       ownerID  = -1;      // 0..MAX_PLAYERS-1
-    bool      active   = false;
+    float     lifetime   = 0.0f;
+    int       ownerID    = -1;     // 0..MAX_PLAYERS-1
+    bool      active     = false;
+    float     compRewind = 0.0f;   // server-only: seconds to rewind targets for hits
 };
 
 struct GameState {

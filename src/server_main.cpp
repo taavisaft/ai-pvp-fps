@@ -21,11 +21,97 @@ struct ClientSlot {
     float       silence      = 0.0f;
     uint32_t    shotSeq      = 0;   // latest shot count seen from client
     uint32_t    firedShots   = 0;   // shots already spawned; fire while < shotSeq
+    uint32_t    viewSeq      = 0;   // state the client was rendering (lag comp)
+    uint8_t     viewFrac     = 0;   // interpolation alpha * 255 (lag comp)
 };
 
 static GameState  game;
 static ClientSlot clients[MAX_PLAYERS];
 static bool       prevAlive[MAX_PLAYERS];
+
+// --- Lag compensation: rewind player hitboxes to the shooter's view-time ---
+constexpr int   HISTORY_TICKS   = 90;    // 1.5 s of position history at 60 Hz
+constexpr float HISTORY_SECONDS = 1.4f;  // max rewind, kept under the buffer
+constexpr int   STATE_HIST      = 64;    // recent state-seq -> send-time map size
+
+static float serverTime = 0.0f;          // monotonic seconds since boot
+
+// One per-tick snapshot of every player's hitbox, tagged with its server time.
+struct Snap {
+    float     t = 0.0f;
+    uint16_t  usedMask = 0;
+    glm::vec3 pos[MAX_PLAYERS];
+    bool      crouched[MAX_PLAYERS];
+    bool      alive[MAX_PLAYERS];
+};
+static Snap history[HISTORY_TICKS];
+static int  histHead  = -1;   // index of newest snapshot
+static int  histCount = 0;    // valid snapshots in the ring
+
+// Maps a broadcast state seq to the server time it was sent, so an incoming
+// viewSeq can be turned into an absolute server time.
+struct StateStamp { uint32_t seq = 0xFFFFFFFFu; float t = 0.0f; };
+static StateStamp stateStamps[STATE_HIST];
+
+static bool stateTimeFor(uint32_t seq, float& outT) {
+    const StateStamp& s = stateStamps[seq % STATE_HIST];
+    if (s.seq != seq) return false;   // unknown / overwritten
+    outT = s.t;
+    return true;
+}
+
+static void recordSnapshot() {
+    histHead = (histHead + 1) % HISTORY_TICKS;
+    Snap& s = history[histHead];
+    s.t        = serverTime;
+    s.usedMask = game.usedMask;
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        s.pos[i]      = game.players[i].pos;
+        s.crouched[i] = game.players[i].crouched;
+        s.alive[i]    = game.players[i].alive;
+    }
+    if (histCount < HISTORY_TICKS) histCount++;
+}
+
+// RewindLookup: where player `pid`'s hitbox was `rewindSec` seconds ago.
+static bool rewindLookup(const void* ctx, int pid, float rewindSec,
+                         glm::vec3& pos, bool& crouched, bool& alive) {
+    (void)ctx;
+    if (histCount == 0) return false;
+    float    target = serverTime - rewindSec;
+    uint16_t bit    = (uint16_t)(1u << pid);
+
+    int   olderIdx = histHead, newerIdx = histHead;
+    float a = 0.0f;
+    const Snap& newest = history[histHead];
+    if (target >= newest.t || histCount == 1) {
+        olderIdx = newerIdx = histHead;          // at/after newest: no interp
+    } else {
+        bool found = false;
+        for (int k = 1; k < histCount; k++) {
+            int oi = (histHead - k + HISTORY_TICKS) % HISTORY_TICKS;
+            if (history[oi].t <= target) {
+                olderIdx = oi;
+                newerIdx = (histHead - (k - 1) + HISTORY_TICKS) % HISTORY_TICKS;
+                float span = history[newerIdx].t - history[oi].t;
+                a = span > 1e-6f ? (target - history[oi].t) / span : 0.0f;
+                found = true;
+                break;
+            }
+        }
+        if (!found)                              // older than everything retained
+            olderIdx = newerIdx = (histHead - (histCount - 1) + HISTORY_TICKS) % HISTORY_TICKS;
+    }
+
+    const Snap& sa = history[olderIdx];
+    const Snap& sb = history[newerIdx];
+    if (!(sb.usedMask & bit) || !sb.alive[pid]) return false;  // not a valid target then
+    glm::vec3 older = ((sa.usedMask & bit) && sa.alive[pid]) ? sa.pos[pid] : sb.pos[pid];
+    pos      = glm::mix(older, sb.pos[pid], a);
+    crouched = sb.crouched[pid];
+    alive    = true;
+    return true;
+}
 
 // Spawn points on a circle, facing the center. Random point per respawn
 // so deaths don't return you to a campable fixed spot.
@@ -106,6 +192,8 @@ static void handlePackets(int fd) {
             c.input.yaw   = p.yaw;
             c.input.pitch = p.pitch;
             c.shotSeq     = p.shotSeq;  // packet is seq-gated newest, so monotonic
+            c.viewSeq     = p.viewSeq;  // for lag-compensating this client's shots
+            c.viewFrac    = p.viewFrac;
         } else if (type == PKT_BYE && id >= 0) {
             dropClient(id);
         }
@@ -113,6 +201,7 @@ static void handlePackets(int fd) {
 }
 
 static void tick(float dt) {
+    serverTime += dt;
     for (int i = 0; i < MAX_PLAYERS; i++) {
         ClientSlot& c = clients[i];
         if (!c.used) continue;
@@ -135,12 +224,20 @@ static void tick(float dt) {
             glm::vec3 eye = p.pos + glm::vec3(0, eyeH, 0);
             glm::vec3 origin, dir;
             weaponShot(c.input.yaw, c.input.pitch, eye, c.input.ads, origin, dir);
-            spawnBullet(game, origin, dir, i);   // no-op if mag empty / reloading
+            // Rewind targets to the world the shooter saw when they fired.
+            float viewT, comp = 0.0f;
+            if (stateTimeFor(c.viewSeq, viewT)) {
+                comp = serverTime - (viewT + (c.viewFrac / 255.0f) * (1.0f / NET_HZ));
+                if (comp < 0.0f) comp = 0.0f;
+                if (comp > HISTORY_SECONDS) comp = HISTORY_SECONDS;
+            }
+            spawnBullet(game, origin, dir, i, comp);   // no-op if mag empty / reloading
             c.firedShots++;
         }
     }
 
-    updateBullets(game, dt);
+    recordSnapshot();                       // freshest positions for lag-comp lookups
+    updateBullets(game, dt, rewindLookup, nullptr);
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (!clients[i].used) continue;
@@ -155,6 +252,7 @@ static void broadcast(int fd, uint32_t seq) {
     s.type     = PKT_STATE;
     s.seq      = seq;
     s.usedMask = game.usedMask;
+    stateStamps[seq % STATE_HIST] = {seq, serverTime};  // for lag-comp viewSeq mapping
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         const Player& p = game.players[i];

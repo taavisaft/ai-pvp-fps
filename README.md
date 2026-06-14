@@ -42,6 +42,20 @@ For multiple machines, run the server anywhere reachable and pass its IP to each
 
 Starting `./build/game` without an IP gives offline practice mode against a stationary dummy.
 
+### Testing lag compensation
+
+The server rewinds player positions to the moment a shooter fired, so shots register even with high ping. To try this on one machine, set `FPS_LAG` (one-way latency in milliseconds) on the client to simulate a laggy connection:
+
+```bash
+# terminal 1
+./build/server
+
+# terminal 2 — client with a simulated 150 ms one-way delay (300 ms round trip)
+FPS_LAG=150 ./build/game 127.0.0.1
+```
+
+Strafe a target and fire on the crosshair: hits land where you aimed despite the delay. Without `FPS_LAG` (or on a LAN) there's effectively no rewind, so behavior is unchanged.
+
 ## Controls
 
 | Input       | Action                        |

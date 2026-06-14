@@ -21,10 +21,18 @@ struct ClientNet {
     float       helloTimer = 0.0f;
     float       silence    = 0.0f;  // seconds since any server packet
 
+    float       lagSec     = 0.0f;  // FPS_LAG one-way latency, debug (0 = off)
+    float       clock      = 0.0f;  // advanced by update(dt) for delay scheduling
+
     bool connect(const char* ip);          // open socket, start HELLO retries
     void update(float dt);                 // drain socket, handshake, track states
-    void sendInput(const InputState& in);
+    // viewSeq/viewFrac: the state seq + interpolation alpha (*255) the client is
+    // rendering when this input is sent, so the server can lag-compensate shots.
+    void sendInput(const InputState& in, uint32_t viewSeq, uint8_t viewFrac);
     void disconnect();                     // BYE + close
+
+    void sendRaw(const void* buf, int len);             // delayed if FPS_LAG set
+    bool processPacket(const char* buf, int n, const sockaddr_in& from);  // true => returned/disconnected
 };
 
 // Fills a render-ready GameState by interpolating between two StatePackets.

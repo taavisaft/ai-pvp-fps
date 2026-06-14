@@ -133,17 +133,19 @@ void movePlayer(Player& p, const InputState& in, float dt) {
     collideXZ(p);
 }
 
-bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, int ownerID) {
+bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, int ownerID,
+                 float compRewind) {
     Player& owner = gs.players[ownerID];
     if (!owner.alive || owner.mag <= 0 || owner.reloading) return false;
     for (int i = 0; i < MAX_BULLETS; i++) {
         Bullet& b = gs.bullets[i];
         if (b.active) continue;
-        b.pos      = eyePos;
-        b.vel      = dir * BULLET_SPEED;
-        b.lifetime = BULLET_TTL;
-        b.ownerID  = ownerID;
-        b.active   = true;
+        b.pos        = eyePos;
+        b.vel        = dir * BULLET_SPEED;
+        b.lifetime   = BULLET_TTL;
+        b.ownerID    = ownerID;
+        b.active     = true;
+        b.compRewind = compRewind;
         owner.mag--;
         return true;
     }
@@ -168,7 +170,7 @@ void updateReload(Player& p, bool wantReload, float dt) {
     p.reloading = p.reloadTimer > 0.0f;
 }
 
-void updateBullets(GameState& gs, float dt) {
+void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx) {
     int active = 0;
     for (int i = 0; i < MAX_BULLETS; i++) {
         Bullet& b = gs.bullets[i];
@@ -190,7 +192,18 @@ void updateBullets(GameState& gs, float dt) {
             if (!(gs.usedMask & (1u << pid))) continue;
             Player& target = gs.players[pid];
             if (!target.alive) continue;
-            if (!aabbHit(b.pos, target.pos, target.crouched)) continue;
+
+            // Test against the rewound hitbox (lag comp) when a history lookup is
+            // provided, else against the current position. Damage/kills always
+            // apply to the current authoritative player.
+            glm::vec3 hitPos     = target.pos;
+            bool      hitCrouched = target.crouched;
+            if (lookup) {
+                bool wasAlive = false;
+                if (!lookup(ctx, pid, b.compRewind, hitPos, hitCrouched, wasAlive)) continue;
+                if (!wasAlive) continue;
+            }
+            if (!aabbHit(b.pos, hitPos, hitCrouched)) continue;
 
             target.hp -= (int)BULLET_DMG;
             b.active = false;

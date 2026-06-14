@@ -204,7 +204,20 @@ int main(int argc, char** argv) {
         bool online  = net.connected && net.hasState;
         int  localID = online ? net.playerID : 0;
 
-        if (net.connected) net.sendInput(input.state);
+        if (net.connected) {
+            // Tell the server which interpolated view we're rendering, so it can
+            // rewind targets to where we saw them. Matches the alpha used below.
+            uint32_t viewSeq  = net.hasState ? net.lastState.seq : 0;
+            uint8_t  viewFrac = 0;
+            if (net.hasPrev) {
+                viewSeq = net.prevState.seq;          // interpolating prev -> last
+                float a = net.sinceState * NET_HZ;
+                if (a < 0.0f) a = 0.0f;
+                if (a > 1.0f) a = 1.0f;
+                viewFrac = (uint8_t)(a * 255.0f + 0.5f);
+            }
+            net.sendInput(input.state, viewSeq, viewFrac);
+        }
 
         // --- fire control: pick shots this frame by fire mode, gate on ammo ---
         if (input.fireModeToggle) { fireMode = (fireMode + 1) % FIRE_MODE_COUNT; burstRemaining = 0; }
