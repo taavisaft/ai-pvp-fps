@@ -69,6 +69,8 @@ void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const gl
     shader.setInt(shader.locLit, 1);
     shader.setVec3(shader.locEye, eye);
     shader.setInt(shader.locDiffuse, 0);
+    shader.setFloat(shader.locTime, frameTime);
+    shader.setInt(shader.locGrass, 0);
 }
 
 static void bindFlatColor(Shader& sh) {
@@ -169,7 +171,9 @@ void Renderer::drawGround(MaterialId mat) {
     bindMaterial(shader, materials, mat);
     shader.setMat4(shader.locModel, glm::mat4(1.0f));
     shader.setVec3(shader.locColor, glm::vec3(1.0f));
+    shader.setInt(shader.locGrass, 1);   // procedural grass, ground only
     ground.draw();
+    shader.setInt(shader.locGrass, 0);
 }
 
 void Renderer::endFrame() {

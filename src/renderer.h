@@ -12,6 +12,8 @@ struct Renderer {
     int           width     = 1280;
     int           height    = 720;
     bool          wireframe = false;
+    float         frameTime = 0.0f;   // seconds; grass wind shimmer (and a future
+                                      // 3D-blade instanced pass) read the same clock
 
     Shader shader;
     Mesh   cube;     // unit cube, scaled per draw
@@ -22,6 +24,7 @@ struct Renderer {
 
     bool  init(const char* title, int w, int h);
     float aspect() const;
+    void  setTime(float t) { frameTime = t; }
     void  beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye);
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color);
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, MaterialId mat);

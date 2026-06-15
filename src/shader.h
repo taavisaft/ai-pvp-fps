@@ -16,6 +16,8 @@ struct Shader {
     GLint  locTile    = -1;
     GLint  locSpec    = -1;
     GLint  locTint    = -1;
+    GLint  locTime    = -1;
+    GLint  locGrass   = -1;
 
     bool load(const char* vertPath, const char* fragPath);
     void use() const;

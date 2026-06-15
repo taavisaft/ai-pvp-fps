@@ -288,6 +288,7 @@ int main(int argc, char** argv) {
     float       fireTimer    = 0.0f;    // cooldown until next allowed shot
     int         burstRemaining = 0;     // rounds left in current burst
     bool        prevReloading = false;  // for reload-start sound
+    float       gameTime     = 0.0f;    // accumulated seconds, drives grass wind
     uint8_t     prevOwnHits  = 0;       // hit-marker: own hits-dealt counter
     glm::vec3   hitMarkerPos(0.0f);     // world impact point of the latest hit
     float       recoilHeat   = 0.0f;    // ramps recoil kick over a sustained spray
@@ -637,6 +638,8 @@ int main(int argc, char** argv) {
             walkPhase[i] += walkSpeed[i] * 1.8f * dt;               // stride tied to speed
         }
 
+        gameTime += dt;
+        renderer.setTime(gameTime);
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
                     rangeMarks, rangeMarkCount, !online, connectPrompt, walkPhase, walkAmp,
                     showHitboxes);

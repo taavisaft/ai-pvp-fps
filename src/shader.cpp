@@ -72,6 +72,8 @@ bool Shader::load(const char* vertPath, const char* fragPath) {
     locTile    = glGetUniformLocation(program, "tileSize");
     locSpec    = glGetUniformLocation(program, "specular");
     locTint    = glGetUniformLocation(program, "tint");
+    locTime    = glGetUniformLocation(program, "time");
+    locGrass   = glGetUniformLocation(program, "grass");
     return true;
 }
 
