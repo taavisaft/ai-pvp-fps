@@ -3,6 +3,8 @@
 #include "game.h"
 #include "protocol.h"
 
+struct ConnectPrompt;
+
 // Rolling kill-feed derived from kills/deaths counter deltas between
 // consecutive StatePackets (the protocol carries no explicit kill events).
 struct KillFeed {
@@ -34,3 +36,4 @@ struct HudState {
 
 void drawHUD(Renderer& r, const GameState& gs, int localID,
              const HudState& hud, bool scoreboard, bool online);
+void drawConnectPrompt(Renderer& r, const ConnectPrompt& prompt);

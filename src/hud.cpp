@@ -1,4 +1,5 @@
 #include "hud.h"
+#include "connect_prompt.h"
 #include <cstdio>
 #include <cstring>
 #include <cmath>
@@ -148,5 +149,22 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
     }
 
     if (scoreboard) drawScoreboard(r, gs, localID);
+    r.endHUD();
+}
+
+void drawConnectPrompt(Renderer& r, const ConnectPrompt& prompt) {
+    if (!prompt.open) return;
+    r.beginHUD();
+    r.drawRect({0, 0}, {2, 2}, {0, 0, 0}, 0.55f);
+    r.drawRect({0, 0.02f}, {1.1f, 0.42f}, {0.08f, 0.08f, 0.10f}, 0.92f);
+    r.drawText("SERVER IP", -0.48f, 0.16f, 0.055f, {0.75f, 0.75f, 0.75f}, 1.0f);
+    r.drawRect({0, -0.02f}, {0.92f, 0.12f}, {0.18f, 0.18f, 0.22f}, 1.0f);
+    if (prompt.ip[0] == '\0')
+        // dim hint — not real content; typing builds the IP from scratch
+        r.drawText("127.0.0.1", -0.43f, -0.05f, 0.065f, {0.40f, 0.40f, 0.45f}, 1.0f);
+    else
+        r.drawText(prompt.ip, -0.43f, -0.05f, 0.065f, {1, 1, 1}, 1.0f);
+    r.drawText("ENTER CONNECT   ESC CANCEL", -0.48f, -0.16f, 0.04f,
+               {0.55f, 0.55f, 0.55f}, 0.95f);
     r.endHUD();
 }

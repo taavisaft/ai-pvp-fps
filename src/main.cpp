@@ -1,5 +1,5 @@
 // Client: connects to dedicated server at 127.0.0.1 by default (override with
-// `./game <ip>` or C to retry). Offline practice vs dummy if connect fails.
+// `./game <ip>`). Press C for an in-game IP prompt (127.0.0.1 pre-filled).
 #include <SDL.h>
 #include <cstdio>
 #include <cstdlib>
@@ -16,6 +16,7 @@
 #include "hud.h"
 #include "audio.h"
 #include "material.h"
+#include "connect_prompt.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
@@ -71,7 +72,8 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
 static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int localID,
                         const HudState& hud, bool scoreboard, bool online,
                         const ViewModel& vm,
-                        const glm::vec3* rangeMarks, int rangeMarkCount, bool drawRange) {
+                        const glm::vec3* rangeMarks, int rangeMarkCount, bool drawRange,
+                        const ConnectPrompt& connectPrompt) {
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
 
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
@@ -107,8 +109,9 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         r.drawCube(b.pos, {0.1f, 0.1f, 0.1f}, own ? COLOR_BULLET_OWN : COLOR_BULLET_ENEMY);
         r.drawCube({b.pos.x, 0.01f, b.pos.z}, {0.22f, 0.001f, 0.22f}, COLOR_BLOB);
     }
-    if (gs.players[localID].alive) drawViewModel(r, cam, vm);
+    if (gs.players[localID].alive && !connectPrompt.open) drawViewModel(r, cam, vm);
     drawHUD(r, gs, localID, hud, scoreboard, online);
+    drawConnectPrompt(r, connectPrompt);
     r.endFrame();
 }
 
@@ -202,6 +205,16 @@ int main(int argc, char** argv) {
     float       sinceShot    = 1e9f;    // seconds since last shot (recovery gating)
 
     bool wasOnline = false;
+    ConnectPrompt connectPrompt;
+    bool connectPromptActive = false;
+
+    auto closeConnectPrompt = [&]() {
+        if (!connectPromptActive) return;
+        connectPrompt.close();
+        SDL_StopTextInput();
+        SDL_SetRelativeMouseMode(SDL_TRUE);
+        connectPromptActive = false;
+    };
 
     printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
     printf("offline shooting range: fire at the wall to see your spread; G clears the marks\n");
@@ -217,15 +230,30 @@ int main(int argc, char** argv) {
         }
         if (dt > 0.05f) dt = 0.05f;   // cap to avoid spiral
 
-        pollInput(input, cam);
+        pollInput(input, cam, &connectPrompt);
         if (input.quit) running = false;
         if (input.wireframeToggle) renderer.toggleWireframe();
         if (input.clearRange) { rangeMarkCount = 0; rangeMarkHead = 0; }
-        if (input.connectRequested && !net.connected && !net.connecting) {
-            printf("connecting to %s...\n", DEFAULT_SERVER_IP);
-            if (!net.connect(DEFAULT_SERVER_IP))
+
+        if (connectPromptActive && !connectPrompt.open) closeConnectPrompt();
+
+        // C opens the modal anytime — even mid-connect or already connected, so you
+        // can switch servers without quitting. Game keeps running behind the modal.
+        if (input.connectRequested && !connectPrompt.open) {
+            connectPrompt.show(DEFAULT_SERVER_IP);
+            SDL_SetRelativeMouseMode(SDL_FALSE);
+            SDL_StartTextInput();
+            connectPromptActive = true;
+        }
+
+        if (connectPrompt.open && input.connectSubmit) {
+            const char* ip = connectPrompt.ip[0] ? connectPrompt.ip : DEFAULT_SERVER_IP;
+            closeConnectPrompt();
+            printf("connecting to %s...\n", ip);
+            if (!net.connect(ip))
                 printf("connect failed — offline practice mode\n");
         }
+
 
         net.update(dt);
 
@@ -489,13 +517,14 @@ int main(int argc, char** argv) {
         }
 
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
-                    rangeMarks, rangeMarkCount, !online);
+                    rangeMarks, rangeMarkCount, !online, connectPrompt);
 
         static int frameCount = 0;
         const char* shotPath = getenv("FPS_SHOT");
         if (shotPath && ++frameCount == 60) dumpFrame(renderer, shotPath);
     }
 
+    closeConnectPrompt();
     net.disconnect();
     audio.shutdown();
     renderer.shutdown();
