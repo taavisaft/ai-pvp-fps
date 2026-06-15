@@ -29,11 +29,16 @@ void Camera::applyRecoil(float dPitch, float dYaw) {
 
 void Camera::recoverRecoil(float dt, bool firingRecently) {
     if (firingRecently) return;                 // let the spray climb while firing
-    float k = expf(-dt / RECOIL_RECOVER_TAU);
-    recoilPitch *= k;
-    recoilYaw   *= k;
-    if (fabsf(recoilPitch) < 0.001f) recoilPitch = 0.0f;
-    if (fabsf(recoilYaw)   < 0.001f) recoilYaw   = 0.0f;
+    (void)dt;
+    // Sticky recoil: when firing stops, bake the climbed offset into the real aim so
+    // the view stays where the spray left it — no auto-return to the original aim.
+    // The player pulls back down by hand. Sum is unchanged, so there's no visual jump.
+    pitch += recoilPitch;
+    yaw   += recoilYaw;
+    if (pitch >  89.0f) pitch =  89.0f;
+    if (pitch < -89.0f) pitch = -89.0f;
+    recoilPitch = 0.0f;
+    recoilYaw   = 0.0f;
 }
 
 glm::vec3 Camera::front() const {
