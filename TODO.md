@@ -24,6 +24,9 @@ A simple running list of what's done and what's next.
 - Depth cues: flat shading, ground grid, distance fog, blob shadows
 - Offline practice vs a respawning dummy
 - Offline shooting range: target wall + persistent impact marks (G clears)
+- Default training mode on launch; connect/switch servers anytime
+- In-game server-IP entry overlay (C key) — no more stdin blocking
+- Two maps: training arena (offline) + warehouse yard (online), runtime-selected
 - Lag-compensated hit rewind (server rewinds targets to when you fired)
 - Client-side prediction + prediction-error smoothing
 - Netcode snapshot playout buffer (smooth under jitter and packet loss)
@@ -51,14 +54,15 @@ A simple running list of what's done and what's next.
 - Reload / weapon-swap animations, better muzzle flash
 
 ### Content / world
-- Proper map design (lanes, cover, sightlines)
+- More maps + map rotation/voting; tune warehouse lanes & sightlines
+- Enterable structures (hollow buildings w/ doorways — engine is solid boxes only)
 - Pickups: health, ammo, weapons
 - Grenades (thrown projectile + radius damage)
 - AI bots that roam and shoot
 
 ### Systems / polish
 - Settings menu (sensitivity, FOV, keybinds, volume)
-- Main menu / server browser (replace stdin IP prompt)
+- Main menu / server browser (upgrade the in-game IP overlay; remember last IP)
 - Match flow: round timers, score limits, game modes
 
 ### Platform
