@@ -36,6 +36,9 @@ inline const Box TRAINING_BOXES[] = {
     {{-9.0f, 1.5f,  9.0f}, {0.7f, 1.5f, 0.7f}},
     {{ 9.0f, 1.5f, -9.0f}, {0.7f, 1.5f, 0.7f}},
     {{-9.0f, 1.5f, -9.0f}, {0.7f, 1.5f, 0.7f}},
+    // shooting-range target wall (front face at x=25.4); a normal obstacle so the
+    // shared collision/render handle it — no training-only physics path.
+    {{26.0f, 4.0f,  0.0f}, {0.6f, 4.0f, 13.0f}},
 };
 inline constexpr int TRAINING_BOX_COUNT = (int)(sizeof(TRAINING_BOXES) / sizeof(TRAINING_BOXES[0]));
 

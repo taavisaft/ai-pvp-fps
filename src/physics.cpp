@@ -58,12 +58,12 @@ int playerHitRegions(const glm::vec3& pos, bool crouched, HitRegion out[3]) {
     // stack always fits the body. Boxes are centered on the player's vertical axis
     // (yaw-independent) so they line up with the lag-comp rewind (pos + crouched).
     float s = crouched ? (CROUCH_HEIGHT / STAND_HEIGHT) : 1.0f;
-    // legs (low damage)
-    out[0] = {pos + glm::vec3(0, 0.50f * s, 0), {0.22f, 0.50f * s, 0.22f}, 0.8f};
-    // torso (baseline)
-    out[1] = {pos + glm::vec3(0, 1.30f * s, 0), {0.27f, 0.35f * s, 0.20f}, 1.0f};
-    // head (2x)
-    out[2] = {pos + glm::vec3(0, 1.80f * s, 0), {0.16f, 0.16f * s, 0.16f}, 2.0f};
+    // XZ footprints are square so they cover the arms (which rotate with yaw, not
+    // stored in lag comp) — the body is a solid blocker, no shooting "between" the
+    // arms and torso to tag someone behind.
+    out[0] = {pos + glm::vec3(0, 0.50f * s, 0), {0.32f, 0.50f * s, 0.32f}, 0.8f}; // legs (covers stride)
+    out[1] = {pos + glm::vec3(0, 1.30f * s, 0), {0.28f, 0.35f * s, 0.28f}, 1.0f}; // torso+arms
+    out[2] = {pos + glm::vec3(0, 1.80f * s, 0), {0.17f, 0.16f * s, 0.17f}, 2.0f}; // head
     return 3;
 }
 

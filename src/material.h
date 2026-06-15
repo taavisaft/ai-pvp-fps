@@ -34,6 +34,7 @@ inline const MaterialId TRAINING_MAT[TRAINING_BOX_COUNT] = {
     MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, // axis walls
     MAT_WOOD, MAT_WOOD, MAT_WOOD, MAT_WOOD,                 // crates
     MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, // outer pillars
+    MAT_CONCRETE,                                           // shooting-range wall
 };
 inline const MaterialId WAREHOUSE_MAT[WAREHOUSE_BOX_COUNT] = {
     MAT_CONCRETE,                                           // central block

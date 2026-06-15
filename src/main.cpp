@@ -92,6 +92,7 @@ static void drawPlayerModel(Renderer& r, const glm::vec3& pos, float yaw,
                             const glm::vec3& bodyCol) {
     const glm::vec3 headCol = {0.90f, 0.78f, 0.62f};
     const glm::vec3 limbCol = bodyCol * 0.85f;
+    const glm::vec3 handCol = {0.30f, 0.30f, 0.33f};   // dark gloves (still hittable)
     float s  = crouched ? (CROUCH_HEIGHT / STAND_HEIGHT) : 1.0f;   // vertical squash
     float yr = glm::radians(yaw);
     glm::mat4 root = glm::translate(glm::mat4(1.0f), pos)
@@ -107,18 +108,30 @@ static void drawPlayerModel(Renderer& r, const glm::vec3& pos, float yaw,
                     * glm::translate(glm::mat4(1.0f), glm::vec3(0, -len * 0.5f, 0));
         part(m, glm::vec3(w, len, w), c);
     };
+    // Arm (body color) + dark glove hand. Arms are tucked within the torso hitbox
+    // footprint, so they register and block bullets like the rest of the body.
+    auto arm = [&](glm::vec3 pivot, float ang) {
+        float len = 0.60f * s;
+        limb(pivot, ang, len, 0.13f, limbCol);
+        glm::mat4 m = root * glm::translate(glm::mat4(1.0f), pivot)
+                    * glm::rotate(glm::mat4(1.0f), ang, glm::vec3(1, 0, 0))
+                    * glm::translate(glm::mat4(1.0f), glm::vec3(0, -len, 0));
+        part(m, glm::vec3(0.15f, 0.13f, 0.15f), handCol);
+    };
 
-    float swing = sinf(phase) * amp * (crouched ? 0.30f : 0.6f);   // walk swing, rad
+    // Swing capped so the feet stay inside the leg hitbox (foot reach = len*sin),
+    // keeping the visible legs and the hitbox aligned for moving players.
+    float swing = sinf(phase) * amp * (crouched ? 0.20f : 0.34f);  // walk swing, rad
     float legF = swing, legB = -swing, armF = -swing, armB = swing;
-    if (airborne) { legF = 0.5f; legB = -0.35f; armF = -0.4f; armB = 0.4f; }  // tuck
-    else if (crouched) { legF = 0.7f; legB = 0.7f; }              // squat (thighs up)
+    if (airborne) { legF = 0.34f; legB = -0.30f; armF = -0.4f; armB = 0.4f; }  // tuck
+    else if (crouched) { legF = 0.34f; legB = 0.34f; }            // squat (thighs up)
 
     part(root * glm::translate(glm::mat4(1.0f), glm::vec3(0, 1.30f * s, 0)),
          {0.50f, 0.60f * s, 0.28f}, bodyCol);                      // torso
     part(root * glm::translate(glm::mat4(1.0f), glm::vec3(0, 1.80f * s, 0)),
          {0.32f, 0.32f, 0.32f}, headCol);                          // head
-    limb({-0.31f, 1.55f * s, 0}, armF, 0.60f * s, 0.15f, limbCol); // left arm
-    limb({ 0.31f, 1.55f * s, 0}, armB, 0.60f * s, 0.15f, limbCol); // right arm
+    arm({-0.20f, 1.55f * s, 0}, armF);                            // left arm + hand
+    arm({ 0.20f, 1.55f * s, 0}, armB);                            // right arm + hand
     limb({-0.13f, 0.90f * s, 0}, legF, 0.90f * s, 0.20f, limbCol); // left leg
     limb({ 0.13f, 0.90f * s, 0}, legB, 0.90f * s, 0.20f, limbCol); // right leg
 }
@@ -128,15 +141,15 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
                         const ViewModel& vm,
                         const glm::vec3* rangeMarks, int rangeMarkCount, bool drawRange,
                         const ConnectPrompt& connectPrompt,
-                        const float* walkPhase, const float* walkAmp) {
+                        const float* walkPhase, const float* walkAmp, bool showHitboxes) {
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
 
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
     r.drawGround();
 
     if (drawRange) {
-        r.drawCube(RANGE_WALL_CENTER, RANGE_WALL_HALF * 2.0f, MAT_CONCRETE);
-        // aim reference: a red cross at standing eye height, dead center
+        // the wall itself is a training-map box (drawn by the map loop). Just the
+        // aim reference: a red cross at standing eye height, dead center.
         glm::vec3 c = {RANGE_WALL_FACE - 0.03f, RANGE_BULLSEYE_Y, 0.0f};
         r.drawCube(c, {0.06f, 1.0f, 0.10f}, {0.85f, 0.25f, 0.20f});
         r.drawCube(c, {0.06f, 0.10f, 1.0f}, {0.85f, 0.25f, 0.20f});
@@ -156,8 +169,21 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         const Player& pl = gs.players[i];
         const glm::vec3& p = pl.pos;
         bool airborne = p.y > 0.05f;
-        drawPlayerModel(r, p, pl.yaw, pl.crouched, airborne,
-                        walkPhase[i], walkAmp[i], COLOR_ENEMY);
+        if (showHitboxes) {
+            // Debug: draw the actual gameplay hit regions, color-coded by multiplier.
+            static const glm::vec3 regionCol[3] = {
+                {0.20f, 0.45f, 0.95f},   // legs  (0.8x) — blue
+                {0.20f, 0.85f, 0.25f},   // torso (1.0x) — green
+                {0.95f, 0.20f, 0.20f},   // head  (2.0x) — red
+            };
+            HitRegion rg[3];
+            int nr = playerHitRegions(p, pl.crouched, rg);
+            for (int k = 0; k < nr; k++)
+                r.drawCube(rg[k].center, rg[k].half * 2.0f, regionCol[k]);
+        } else {
+            drawPlayerModel(r, p, pl.yaw, pl.crouched, airborne,
+                            walkPhase[i], walkAmp[i], COLOR_ENEMY);
+        }
         r.drawCube({p.x, 0.01f, p.z}, {1.1f, 0.001f, 1.1f}, COLOR_BLOB);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
@@ -278,6 +304,7 @@ int main(int argc, char** argv) {
     float     walkSpeed[MAX_PLAYERS] = {0};   // smoothed horizontal speed (m/s)
     glm::vec3 prevPlayerPos[MAX_PLAYERS];
     bool      prevPosValid[MAX_PLAYERS] = {false};
+    bool      showHitboxes = false;           // H: draw color-coded hit regions
 
     auto closeConnectPrompt = [&]() {
         if (!connectPromptActive) return;
@@ -288,7 +315,7 @@ int main(int argc, char** argv) {
     };
 
     printf("controls: WASD move, mouse look, LMB shoot, 1/2 or scroll weapon (Uzi/Glock), "
-           "C connect, F wireframe, ESC quit\n");
+           "C connect, F wireframe, H hitboxes, ESC quit\n");
     printf("offline shooting range: fire at the wall to see your spread; G clears the marks\n");
 
     while (running) {
@@ -305,6 +332,7 @@ int main(int argc, char** argv) {
         pollInput(input, cam, &connectPrompt);
         if (input.quit) running = false;
         if (input.wireframeToggle) renderer.toggleWireframe();
+        if (input.hitboxToggle) showHitboxes = !showHitboxes;
         if (input.clearRange) { rangeMarkCount = 0; rangeMarkHead = 0; }
 
         // Weapon select (1 = Uzi, 2 = Glock). Offline re-arms now; online the server
@@ -440,39 +468,26 @@ int main(int argc, char** argv) {
                     spawnBullet(offline, origin, dir, 0);
                     offlineShoot = false;
                 }
-                movePlayer(self, input.state, FIXED_DT);
-                // The range wall is offline-only (not in MAP_BOXES), so push the
-                // player's footprint out of it here along the least-overlap axis.
-                {
-                    const float FOOT_R = 0.4f;
-                    float dx = (RANGE_WALL_HALF.x + FOOT_R) - fabsf(self.pos.x - RANGE_WALL_CENTER.x);
-                    float dz = (RANGE_WALL_HALF.z + FOOT_R) - fabsf(self.pos.z - RANGE_WALL_CENTER.z);
-                    if (dx > 0.0f && dz > 0.0f) {
-                        if (dx < dz) self.pos.x += (self.pos.x < RANGE_WALL_CENTER.x) ? -dx : dx;
-                        else         self.pos.z += (self.pos.z < RANGE_WALL_CENTER.z) ? -dz : dz;
-                    }
-                }
+                movePlayer(self, input.state, FIXED_DT);   // wall push-out via collideXZ
                 updateReload(self, input.state.reload, FIXED_DT);
                 if (self.mag == 0 && self.reserve == 0)                       // keep practice stocked
                     self.reserve = weaponDef(self.weaponId).reservePerLife;
-                // The range wall isn't in the map (offline-only), so sweep each of our
-                // bullets' tick segment against it before updateBullets moves them:
-                // stamp the exact impact and stop the round. Works at any velocity.
+                // The wall is a normal map box now, so updateBullets stops rounds on it
+                // exactly like live. Snapshot our live rounds, then stamp a mark wherever
+                // one came to rest on the wall face this tick (i.e. missed the dummy).
+                bool wasOwn[MAX_BULLETS];
+                for (int bi = 0; bi < MAX_BULLETS; bi++)
+                    wasOwn[bi] = offline.bullets[bi].active && offline.bullets[bi].ownerID == 0;
+                updateBullets(offline, FIXED_DT);
                 for (int bi = 0; bi < MAX_BULLETS; bi++) {
-                    Bullet& b = offline.bullets[bi];
-                    if (!b.active || b.ownerID != 0) continue;
-                    glm::vec3 step = b.vel; step.y -= GRAVITY * FIXED_DT;
-                    glm::vec3 p1   = b.pos + step * FIXED_DT;
-                    float t;
-                    if (segmentAabb(b.pos, p1, RANGE_WALL_CENTER, RANGE_WALL_HALF, t)) {
-                        glm::vec3 impact = b.pos + (p1 - b.pos) * t;
-                        rangeMarks[rangeMarkHead] = {RANGE_WALL_FACE - 0.02f, impact.y, impact.z};
+                    if (!wasOwn[bi] || offline.bullets[bi].active) continue;
+                    const glm::vec3& ip = offline.bullets[bi].pos;   // updateBullets left it at the impact
+                    if (fabsf(ip.x - RANGE_WALL_CENTER.x) <= RANGE_WALL_HALF.x + 0.05f) {
+                        rangeMarks[rangeMarkHead] = {RANGE_WALL_FACE - 0.02f, ip.y, ip.z};
                         rangeMarkHead = (rangeMarkHead + 1) % RANGE_MARK_MAX;
                         if (rangeMarkCount < RANGE_MARK_MAX) rangeMarkCount++;
-                        b.active = false;
                     }
                 }
-                updateBullets(offline, FIXED_DT);
                 if (!dummy.alive) {                                 // offline dummy respawn
                     dummy.respawnTimer -= FIXED_DT;
                     if (dummy.respawnTimer <= 0.0f) {
@@ -623,7 +638,8 @@ int main(int argc, char** argv) {
         }
 
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
-                    rangeMarks, rangeMarkCount, !online, connectPrompt, walkPhase, walkAmp);
+                    rangeMarks, rangeMarkCount, !online, connectPrompt, walkPhase, walkAmp,
+                    showHitboxes);
 
         static int frameCount = 0;
         const char* shotPath = getenv("FPS_SHOT");

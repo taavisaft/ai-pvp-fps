@@ -15,6 +15,7 @@ struct FrameInput {
     bool clearRange       = false; // G pressed this frame (clear offline target marks)
     bool connectSubmit    = false; // Enter pressed while connect prompt is open
     int  weaponSelect     = -1;    // weapon id when 1/2 pressed this frame, else -1
+    bool hitboxToggle     = false; // H pressed this frame (debug hitbox view)
 };
 
 // Polls all pending SDL events. Updates camera look from mouse motion,
