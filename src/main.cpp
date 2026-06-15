@@ -378,21 +378,24 @@ int main(int argc, char** argv) {
                 }
                 updateReload(self, input.state.reload, FIXED_DT);
                 if (self.mag == 0 && self.reserve == 0) self.reserve = RESERVE_PER_LIFE;  // keep practice stocked
-                updateBullets(offline, FIXED_DT);
-                // Stamp a persistent mark where each of our bullets meets the range
-                // wall (wall is >1 m thick, bullets step <0.85 m/tick, so no tunnel).
+                // The range wall isn't in the map (offline-only), so sweep each of our
+                // bullets' tick segment against it before updateBullets moves them:
+                // stamp the exact impact and stop the round. Works at any velocity.
                 for (int bi = 0; bi < MAX_BULLETS; bi++) {
                     Bullet& b = offline.bullets[bi];
                     if (!b.active || b.ownerID != 0) continue;
-                    if (fabsf(b.pos.x - RANGE_WALL_CENTER.x) < RANGE_WALL_HALF.x &&
-                        fabsf(b.pos.y - RANGE_WALL_CENTER.y) < RANGE_WALL_HALF.y &&
-                        fabsf(b.pos.z - RANGE_WALL_CENTER.z) < RANGE_WALL_HALF.z) {
-                        rangeMarks[rangeMarkHead] = {RANGE_WALL_FACE - 0.02f, b.pos.y, b.pos.z};
+                    glm::vec3 step = b.vel; step.y -= GRAVITY * FIXED_DT;
+                    glm::vec3 p1   = b.pos + step * FIXED_DT;
+                    float t;
+                    if (segmentAabb(b.pos, p1, RANGE_WALL_CENTER, RANGE_WALL_HALF, t)) {
+                        glm::vec3 impact = b.pos + (p1 - b.pos) * t;
+                        rangeMarks[rangeMarkHead] = {RANGE_WALL_FACE - 0.02f, impact.y, impact.z};
                         rangeMarkHead = (rangeMarkHead + 1) % RANGE_MARK_MAX;
                         if (rangeMarkCount < RANGE_MARK_MAX) rangeMarkCount++;
                         b.active = false;
                     }
                 }
+                updateBullets(offline, FIXED_DT);
                 if (!dummy.alive) {                                 // offline dummy respawn
                     dummy.respawnTimer -= FIXED_DT;
                     if (dummy.respawnTimer <= 0.0f) {

@@ -12,6 +12,47 @@ bool aabbHit(glm::vec3 p, glm::vec3 playerPos, bool crouched) {
            fabsf(p.z - center.z) < half.z;
 }
 
+// Slab method: segment p0->p1 vs AABB. tHit = entry fraction in [0,1]. A segment
+// that starts inside the box returns tHit = 0 (immediate hit).
+bool segmentAabb(const glm::vec3& p0, const glm::vec3& p1,
+                 const glm::vec3& center, const glm::vec3& half, float& tHit) {
+    glm::vec3 d = p1 - p0;
+    float tmin = 0.0f, tmax = 1.0f;
+    for (int a = 0; a < 3; a++) {
+        float lo = center[a] - half[a];
+        float hi = center[a] + half[a];
+        if (fabsf(d[a]) < 1e-8f) {
+            if (p0[a] < lo || p0[a] > hi) return false;  // parallel, outside the slab
+        } else {
+            float inv = 1.0f / d[a];
+            float t1 = (lo - p0[a]) * inv;
+            float t2 = (hi - p0[a]) * inv;
+            if (t1 > t2) { float tmp = t1; t1 = t2; t2 = tmp; }
+            if (t1 > tmin) tmin = t1;
+            if (t2 < tmax) tmax = t2;
+            if (tmin > tmax) return false;
+        }
+    }
+    tHit = tmin;
+    return true;
+}
+
+// Segment vs the y=0 ground plane. tHit = fraction where it crosses, if it does.
+static bool segmentGround(const glm::vec3& p0, const glm::vec3& p1, float& tHit) {
+    if (p1.y > 0.0f) return false;            // stays above ground this tick
+    if (p0.y <= 0.0f) { tHit = 0.0f; return true; }
+    tHit = p0.y / (p0.y - p1.y);
+    return true;
+}
+
+// Distance-based damage scale: full up to falloffStart, lerps to falloffMin by end.
+static float dmgScale(float dist) {
+    if (dist <= gWeapon.falloffStart) return 1.0f;
+    if (dist >= gWeapon.falloffEnd)   return gWeapon.falloffMin;
+    float u = (dist - gWeapon.falloffStart) / (gWeapon.falloffEnd - gWeapon.falloffStart);
+    return 1.0f + (gWeapon.falloffMin - 1.0f) * u;
+}
+
 glm::vec3 dirFromYawPitch(float yaw, float pitch) {
     return glm::normalize(glm::vec3(
         cos(glm::radians(yaw)) * cos(glm::radians(pitch)),
@@ -56,11 +97,6 @@ void weaponShot(float yaw, float pitch, const glm::vec3& eye, bool ads,
     outDir    = applySpread(front, spreadDeg);
 }
 
-static bool pointInBox(glm::vec3 p, const Box& b) {
-    return fabsf(p.x - b.center.x) < b.half.x &&
-           fabsf(p.y - b.center.y) < b.half.y &&
-           fabsf(p.z - b.center.z) < b.half.z;
-}
 
 static constexpr float FOOT_R = 0.4f;  // player XZ footprint half-extent
 
@@ -93,10 +129,10 @@ static void collideXZ(Player& p) {
         if (dx < dz) p.pos.x += (p.pos.x < b.center.x) ? -dx : dx;
         else         p.pos.z += (p.pos.z < b.center.z) ? -dz : dz;
     }
-    if (p.pos.x >  ARENA_HALF) p.pos.x =  ARENA_HALF;
-    if (p.pos.x < -ARENA_HALF) p.pos.x = -ARENA_HALF;
-    if (p.pos.z >  ARENA_HALF) p.pos.z =  ARENA_HALF;
-    if (p.pos.z < -ARENA_HALF) p.pos.z = -ARENA_HALF;
+    if (p.pos.x >  gArenaHalf) p.pos.x =  gArenaHalf;
+    if (p.pos.x < -gArenaHalf) p.pos.x = -gArenaHalf;
+    if (p.pos.z >  gArenaHalf) p.pos.z =  gArenaHalf;
+    if (p.pos.z < -gArenaHalf) p.pos.z = -gArenaHalf;
 }
 
 void movePlayer(Player& p, const InputState& in, float dt) {
@@ -150,6 +186,7 @@ bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, i
         Bullet& b = gs.bullets[i];
         if (b.active) continue;
         b.pos        = eyePos;
+        b.origin     = eyePos;
         b.vel        = dir * BULLET_SPEED;
         b.lifetime   = BULLET_TTL;
         b.ownerID    = ownerID;
@@ -185,16 +222,27 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
         Bullet& b = gs.bullets[i];
         if (!b.active) continue;
 
-        b.vel.y    -= GRAVITY * dt;
-        b.pos      += b.vel * dt;
-        b.lifetime -= dt;
-        if (b.lifetime <= 0.0f) { b.active = false; continue; }
-        if (b.pos.y <= 0.0f) { b.active = false; continue; }  // hit the ground
-
-        for (int m = 0; m < gMapBoxCount; m++) {
-            if (pointInBox(b.pos, gMapBoxes[m])) { b.active = false; break; }
+        // Integrate velocity (gravity + quadratic air drag), then sweep the segment
+        // the bullet travels this tick against the world — velocity-independent, so
+        // fast rounds can't tunnel through cover or players.
+        b.vel.y -= GRAVITY * dt;
+        if (gWeapon.dragK > 0.0f) {
+            float speed = glm::length(b.vel);
+            if (speed > 0.0f) b.vel -= (gWeapon.dragK * speed * dt) * b.vel;
         }
-        if (!b.active) continue;
+        glm::vec3 p0 = b.pos;
+        glm::vec3 p1 = p0 + b.vel * dt;
+        b.lifetime -= dt;
+
+        // Nearest surface along p0->p1. World (box/ground) blocks; a player is a hit.
+        float bestT  = 2.0f;
+        int   hitPid = -1;
+        float t;
+        for (int m = 0; m < gMapBoxCount; m++)
+            if (segmentAabb(p0, p1, gMapBoxes[m].center, gMapBoxes[m].half, t) && t < bestT) {
+                bestT = t; hitPid = -1;
+            }
+        if (segmentGround(p0, p1, t) && t < bestT) { bestT = t; hitPid = -1; }
 
         for (int pid = 0; pid < MAX_PLAYERS; pid++) {
             if (pid == b.ownerID) continue;
@@ -205,32 +253,48 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
             // Test against the rewound hitbox (lag comp) when a history lookup is
             // provided, else against the current position. Damage/kills always
             // apply to the current authoritative player.
-            glm::vec3 hitPos     = target.pos;
+            glm::vec3 hitPos      = target.pos;
             bool      hitCrouched = target.crouched;
             if (lookup) {
                 bool wasAlive = false;
                 if (!lookup(ctx, pid, b.compRewind, hitPos, hitCrouched, wasAlive)) continue;
                 if (!wasAlive) continue;
             }
-            if (!aabbHit(b.pos, hitPos, hitCrouched)) continue;
-
-            target.hp -= (int)BULLET_DMG;
-            b.active = false;
-            if (b.ownerID >= 0) {                       // record for the shooter's hit marker
-                Player& shooter = gs.players[b.ownerID];
-                shooter.hits++;
-                shooter.lastHitPos = b.pos;
-            }
-            if (target.hp <= 0) {
-                target.hp           = 0;
-                target.alive        = false;
-                target.respawnTimer = RESPAWN_TIME;
-                target.deaths++;
-                if (b.ownerID >= 0) gs.players[b.ownerID].kills++;
-            }
-            break;
+            float h = (hitCrouched ? CROUCH_HEIGHT : STAND_HEIGHT) * 0.5f;
+            glm::vec3 center = hitPos + glm::vec3(0, h, 0);
+            glm::vec3 half   = {0.4f, h, 0.4f};
+            if (segmentAabb(p0, p1, center, half, t) && t < bestT) { bestT = t; hitPid = pid; }
         }
-        if (b.active) active++;
+
+        if (bestT <= 1.0f) {                        // something stopped the bullet
+            glm::vec3 impact = p0 + (p1 - p0) * bestT;
+            b.pos    = impact;
+            b.active = false;
+            if (hitPid >= 0) {                      // closest surface was a player → hit
+                Player& target = gs.players[hitPid];
+                float dist = glm::length(impact - b.origin);
+                int   dmg  = (int)(gWeapon.dmg * dmgScale(dist));
+                if (dmg < 1) dmg = 1;
+                target.hp -= dmg;
+                if (b.ownerID >= 0) {               // record for the shooter's hit marker
+                    Player& shooter = gs.players[b.ownerID];
+                    shooter.hits++;
+                    shooter.lastHitPos = impact;
+                }
+                if (target.hp <= 0) {
+                    target.hp           = 0;
+                    target.alive        = false;
+                    target.respawnTimer = RESPAWN_TIME;
+                    target.deaths++;
+                    if (b.ownerID >= 0) gs.players[b.ownerID].kills++;
+                }
+            }
+            continue;
+        }
+
+        b.pos = p1;                                 // free flight this tick
+        if (b.lifetime <= 0.0f) { b.active = false; continue; }
+        active++;
     }
     gs.bulletCount = active;
 }

@@ -1,16 +1,19 @@
 #pragma once
 #include <cstdint>
 #include <glm/glm.hpp>
+#include "weapon.h"
 
 constexpr int   MAX_PLAYERS    = 16;
 constexpr int   MAX_BULLETS    = 256;    // global active pool (server-side cap)
-constexpr int   MAG_SIZE        = 10;    // rounds per magazine
-constexpr int   RESERVE_PER_LIFE = 30;   // spare rounds, refilled on respawn
-constexpr float RELOAD_TIME     = 2.0f;  // seconds to reload
+// Per-weapon stats now live in weapon.h; these alias the active weapon so the
+// existing call sites keep compiling. Change gWeapon to retune everything.
+constexpr int   MAG_SIZE        = gWeapon.magSize;       // rounds per magazine
+constexpr int   RESERVE_PER_LIFE = gWeapon.reservePerLife; // spare rounds, refilled on respawn
+constexpr float RELOAD_TIME     = gWeapon.reloadTime;   // seconds to reload
 constexpr int   PLAYER_HP      = 100;
 constexpr float RESPAWN_TIME   = 3.0f;   // seconds dead before respawn
-constexpr float BULLET_SPEED   = 50.0f;  // m/s
-constexpr float BULLET_TTL     = 3.0f;   // seconds
+constexpr float BULLET_SPEED   = gWeapon.muzzleVel; // m/s (real muzzle velocity)
+constexpr float BULLET_TTL     = gWeapon.ttl;       // seconds
 constexpr float MOVE_SPEED     = 5.0f;   // m/s
 constexpr float SPRINT_SPEED   = 8.0f;   // m/s, shift held
 constexpr float JUMP_SPEED      = 6.0f;   // m/s upward; ~1.8 m peak, clears crates
@@ -18,7 +21,7 @@ constexpr float CROUCH_SPEED   = 2.5f;   // m/s, left-ctrl held
 constexpr float STAND_HEIGHT   = 2.0f;   // full body height
 constexpr float CROUCH_HEIGHT  = 1.2f;   // crouched body height (hitbox + render)
 constexpr float GRAVITY        = 9.8f;   // m/s²
-constexpr float BULLET_DMG     = 25;     // HP per hit
+constexpr float BULLET_DMG     = gWeapon.dmg; // HP per hit at point blank (see falloff)
 constexpr int   NET_HZ         = 20;     // state sync rate
 constexpr int   PHYS_HZ        = 60;     // physics tick rate
 constexpr int   UDP_PORT       = 7777;
@@ -65,10 +68,10 @@ constexpr float RECOIL_FIRST_MULT   = 1.25f;  // extra kick on the first (cold) 
 
 // Fire modes (client-side only — decides when shots are registered)
 enum FireMode { FIRE_SEMI = 0, FIRE_BURST, FIRE_AUTO, FIRE_MODE_COUNT };
-constexpr float FIRE_SEMI_INT  = 0.12f;  // min seconds between shots, semi
-constexpr float FIRE_BURST_INT = 0.07f;  // within a burst
-constexpr float FIRE_AUTO_INT  = 0.10f;  // ~600 rpm full-auto
-constexpr int   BURST_COUNT    = 3;
+constexpr float FIRE_SEMI_INT  = gWeapon.fireSemiInt;  // min seconds between shots, semi
+constexpr float FIRE_BURST_INT = gWeapon.fireBurstInt; // within a burst
+constexpr float FIRE_AUTO_INT  = gWeapon.fireAutoInt;  // full-auto interval (RoF)
+constexpr int   BURST_COUNT    = gWeapon.burstCount;
 
 struct Player {
     glm::vec3 pos          = {0, 0, 0};  // feet; Y rises when jumping
@@ -93,6 +96,7 @@ struct Player {
 struct Bullet {
     glm::vec3 pos;
     glm::vec3 vel;
+    glm::vec3 origin     = {0, 0, 0}; // muzzle position, for distance damage falloff
     float     lifetime   = 0.0f;
     int       ownerID    = -1;     // 0..MAX_PLAYERS-1
     bool      active     = false;

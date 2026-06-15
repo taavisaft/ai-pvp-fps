@@ -4,6 +4,12 @@
 // Returns true if point p is inside the player's AABB (shorter when crouched)
 bool aabbHit(glm::vec3 p, glm::vec3 playerPos, bool crouched);
 
+// Swept collision: does segment p0->p1 hit AABB(center, half)? tHit = entry point
+// as a fraction [0,1] along the segment. Velocity-independent — used for bullets
+// so fast rounds can't tunnel through cover or players in one tick.
+bool segmentAabb(const glm::vec3& p0, const glm::vec3& p1,
+                 const glm::vec3& center, const glm::vec3& half, float& tHit);
+
 // Look direction from yaw/pitch in degrees (matches camera front)
 glm::vec3 dirFromYawPitch(float yaw, float pitch);
 

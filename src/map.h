@@ -69,15 +69,19 @@ inline const Box WAREHOUSE_BOXES[] = {
 };
 inline constexpr int WAREHOUSE_BOX_COUNT = (int)(sizeof(WAREHOUSE_BOXES) / sizeof(WAREHOUSE_BOXES[0]));
 
+inline constexpr float ARENA_HALF = 45.0f;  // default hard clamp on X/Z (walls seal sooner)
+
 // --- active map (runtime-selected; default training) ----------------------
 inline const Box* gMapBoxes    = TRAINING_BOXES;
 inline int        gMapBoxCount = TRAINING_BOX_COUNT;
 inline MapId      gMapId       = MAP_TRAINING;
+inline float      gArenaHalf   = ARENA_HALF;  // per-map clamp (grows for bigger maps)
 
 inline void setMap(MapId id) {
     gMapId = id;
-    if (id == MAP_WAREHOUSE) { gMapBoxes = WAREHOUSE_BOXES; gMapBoxCount = WAREHOUSE_BOX_COUNT; }
-    else                     { gMapBoxes = TRAINING_BOXES;  gMapBoxCount = TRAINING_BOX_COUNT;  }
+    if (id == MAP_WAREHOUSE) {
+        gMapBoxes = WAREHOUSE_BOXES; gMapBoxCount = WAREHOUSE_BOX_COUNT; gArenaHalf = 45.0f;
+    } else {
+        gMapBoxes = TRAINING_BOXES;  gMapBoxCount = TRAINING_BOX_COUNT;  gArenaHalf = 45.0f;
+    }
 }
-
-inline constexpr float ARENA_HALF = 45.0f;  // hard clamp on X/Z (walls seal sooner)

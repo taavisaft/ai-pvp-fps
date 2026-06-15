@@ -27,6 +27,9 @@ A simple running list of what's done and what's next.
 - Default training mode on launch; connect/switch servers anytime
 - In-game server-IP entry overlay (C key) — no more stdin blocking
 - Two maps: training arena (offline) + warehouse yard (online), runtime-selected
+- Realistic projectile ballistics: swept-segment collision, real muzzle velocity
+  (~400 m/s) + bullet drop, no tunneling at any speed
+- Per-weapon stats (WeaponDef table, Uzi); distance damage falloff + air drag
 - Lag-compensated hit rewind (server rewinds targets to when you fired)
 - Client-side prediction + prediction-error smoothing
 - Netcode snapshot playout buffer (smooth under jitter and packet loss)
@@ -43,7 +46,10 @@ A simple running list of what's done and what's next.
 - Collision edge cases (no getting stuck in / tunneling through boxes)
 
 ### Gunplay
-- Multiple weapons with distinct stats (AR, SMG, sniper)
+- Multiple weapons with distinct stats (AR, SMG, sniper) — WeaponDef table is ready
+- Deterministic projectile netcode: send each shot as an (origin, dir, speed) event,
+  clients simulate the trajectory — fast bullets are near-invisible to other players
+  at 20 Hz position streaming (needed for proper tracers on big maps)
 - Per-weapon authored recoil patterns (learnable spray)
 - Hitboxes with damage multipliers (headshot / limb)
 - Bullet penetration + damage falloff over distance
