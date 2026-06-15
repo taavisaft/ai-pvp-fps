@@ -29,9 +29,11 @@ constexpr float CROUCH_EYE     = 1.0f;   // camera height while crouched
 // Weapon: aim-down-sights vs hipfire (PUBG-style)
 constexpr float HIP_FOV        = 75.0f;  // degrees
 constexpr float ADS_FOV        = 55.0f;  // zoomed in
-// Bullets exit the barrel along the aim; inaccuracy comes from recoil, not spread.
-constexpr float HIP_SPREAD_DEG = 0.5f;   // tiny residual hipfire bloom (0 = laser)
-constexpr float ADS_SPREAD_DEG = 0.0f;   // dead-on when aiming
+// The muzzle fires along the crosshair ray, so a stationary first shot is dead-on
+// at any range (minus drop). All inaccuracy comes from recoil and movement, not a
+// base cone, so both hip and ADS start at zero spread.
+constexpr float HIP_SPREAD_DEG = 0.0f;
+constexpr float ADS_SPREAD_DEG = 0.0f;
 constexpr float ADS_LERP_SPEED = 12.0f;  // viewmodel/FOV transition rate
 
 // Movement accuracy penalties (spread bloom added on top of the base, in degrees).

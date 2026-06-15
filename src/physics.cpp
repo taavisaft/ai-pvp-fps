@@ -49,14 +49,11 @@ float aimSpread(const Player& p, const InputState& in) {
 void weaponShot(float yaw, float pitch, const glm::vec3& eye, bool ads,
                 float spreadDeg, glm::vec3& outOrigin, glm::vec3& outDir) {
     glm::vec3 front = dirFromYawPitch(yaw, pitch);
-    outDir = applySpread(front, spreadDeg);
-    if (ads) {
-        outOrigin = eye;                      // sight line — dead on crosshair
-    } else {
-        glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0, 1, 0)));
-        glm::vec3 up    = glm::cross(right, front);
-        outOrigin = eye + front * 0.3f + right * 0.2f - up * 0.2f;  // barrel muzzle
-    }
+    // The muzzle sits on the crosshair ray and fires straight along it, so shots are
+    // dead-center at every range (point-blank included), minus bullet drop. A small
+    // forward offset for hipfire just makes the tracer read as leaving the barrel.
+    outOrigin = eye + front * (ads ? 0.0f : 0.25f);
+    outDir    = applySpread(front, spreadDeg);
 }
 
 static bool pointInBox(glm::vec3 p, const Box& b) {
