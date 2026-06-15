@@ -1,8 +1,26 @@
 #include "texture.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include <cmath>
 #include <cstdlib>
 
+GLuint loadTexture(const char* path) {
+    stbi_set_flip_vertically_on_load(1);          // GL texture origin is bottom-left
+    int w = 0, h = 0, c = 0;
+    unsigned char* px = stbi_load(path, &w, &h, &c, 3);  // force RGB
+    if (!px) return 0;                            // missing/unreadable -> caller falls back
+    GLuint tex = uploadTextureRGB(px, w, h);
+    stbi_image_free(px);
+    return tex;
+}
+
 static float fractf(float x) { return x - floorf(x); }
+
+static float smoothstepf(float a, float b, float x) {
+    float t = (x - a) / (b - a);
+    if (t < 0.0f) t = 0.0f; else if (t > 1.0f) t = 1.0f;
+    return t * t * (3.0f - 2.0f * t);
+}
 
 static float hash2(float x, float y) {
     return fractf(sinf(x * 127.1f + y * 311.7f) * 43758.5453f);
@@ -85,20 +103,34 @@ GLuint makeConcreteTexture() {
 
 GLuint makeMetalTexture() {
     return makeTex([](float u, float v, float n, float& r, float& g, float& b) {
-        float scratch = sinf(v * 80.0f + n * 6.0f) * 0.04f;
-        float g0 = 0.38f + n * 0.08f + scratch;
-        r = g0; g = g0 * 1.02f; b = g0 * 1.05f;
-        (void)u;
+        // Corrugated industrial steel: ridges + fine brushing + grime + sparse scratches.
+        float corr    = sinf(v * 6.2831853f * 4.0f) * 0.10f;            // sheet-metal ridges
+        float brush   = (noise2(u * 220.0f, v * 5.0f) - 0.5f) * 0.07f;  // fine anisotropic brushing
+        float grime   = (n - 0.5f) * 0.12f;                            // broad tonal variation
+        float sc      = noise2(u * 70.0f + 3.1f, v * 70.0f);
+        float scratch = sc > 0.85f ? 0.12f : 0.0f;                     // sparse bright scratches
+        float base = 0.46f + corr + brush + grime + scratch;
+        if (base < 0.12f) base = 0.12f;
+        r = base * 0.94f; g = base * 0.98f; b = base * 1.07f;          // cool steel tint
     });
 }
 
 GLuint makeWoodTexture() {
     return makeTex([](float u, float v, float n, float& r, float& g, float& b) {
-        float ring = sinf(v * 28.0f + n * 3.0f) * 0.08f;
-        r = 0.45f + ring + n * 0.06f;
-        g = 0.30f + ring * 0.6f + n * 0.04f;
-        b = 0.18f + n * 0.03f;
-        (void)u;
+        // Stacked planks with grain running ALONG each plank (horizontal), dark gaps.
+        float plankH = 0.25f;                                    // ~4 planks per tile
+        float pidx   = floorf(v / plankH);
+        float vin    = fractf(v / plankH);                       // 0..1 across a plank
+        float ptone  = (hash2(pidx, 7.0f) - 0.5f) * 0.14f;       // each plank a bit different
+        float wave   = noise2(u * 2.5f, pidx * 4.0f) * 3.0f;     // gentle grain waviness
+        float grain  = sinf(vin * 11.0f + wave) * 0.5f + 0.5f;
+        grain = powf(grain, 1.7f);                               // sharpen the dark grain lines
+        float fiber  = (noise2(u * 60.0f, v * 6.0f) - 0.5f) * 0.08f;  // lengthwise fibers
+        float seam   = smoothstepf(0.0f, 0.05f, fminf(vin, 1.0f - vin)); // 0 in the plank gap
+        float light  = 0.70f + ptone - grain * 0.22f + fiber + (n - 0.5f) * 0.05f;
+        light *= 0.45f + 0.55f * seam;                           // darken the gaps
+        if (light < 0.12f) light = 0.12f;
+        r = light * 0.60f; g = light * 0.40f; b = light * 0.22f; // warm brown
     });
 }
 

@@ -171,7 +171,9 @@ void Renderer::drawGround(MaterialId mat) {
     bindMaterial(shader, materials, mat);
     shader.setMat4(shader.locModel, glm::mat4(1.0f));
     shader.setVec3(shader.locColor, glm::vec3(1.0f));
-    shader.setInt(shader.locGrass, 1);   // procedural grass, ground only
+    // Use the procedural grass shader only when no ground image is loaded; otherwise
+    // the triplanar path samples the grass photo (textures/ground.*).
+    shader.setInt(shader.locGrass, materials.groundHasImage ? 0 : 1);
     ground.draw();
     shader.setInt(shader.locGrass, 0);
 }

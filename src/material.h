@@ -22,8 +22,9 @@ struct Material {
 
 struct MaterialLib {
     Material mats[MAT_COUNT]{};
+    bool     groundHasImage = false;   // true if textures/ground.* loaded (vs procedural grass)
 
-    bool init();                       // procedural tileable textures at startup
+    bool init();                       // image textures if present, else procedural
     void bind(MaterialId id) const;    // texture unit 0
     void destroy();
 };
