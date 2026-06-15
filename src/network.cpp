@@ -22,6 +22,14 @@ float frand01()     { return (float)rand() / (float)RAND_MAX; }
 }  // namespace
 
 bool ClientNet::connect(const char* ip) {
+    if (fd >= 0) disconnect();   // close any prior socket / session
+    playerID   = -1;
+    hasState   = false;
+    newestSeq  = 0;
+    playSeq    = 0.0f;
+    playInit   = false;
+    for (int i = 0; i < SNAP_HIST; i++) snapUsed[i] = false;
+
     if (!netOpen(fd)) return false;
     if (!netResolve(ip, UDP_PORT, server)) {
         fprintf(stderr, "net: bad address %s\n", ip);
@@ -130,6 +138,12 @@ void ClientNet::update(float dt) {
             sendRaw(&h, sizeof(h));
             helloTimer = 0.0f;
         }
+        silence += dt;
+        if (silence > 10.0f) {   // no ACCEPT from server — give up
+            printf("net: connect timed out\n");
+            disconnect();
+            return;
+        }
     }
 
     if (connected) {
@@ -181,6 +195,7 @@ void ClientNet::update(float dt) {
     // easing toward that target so jitter/late packets don't jolt the render.
     if (connected && hasState) {
         float target = (float)newestSeq - INTERP_DELAY;
+        if (target < 0.0f) target = 0.0f;
         if (!playInit) { playSeq = target; playInit = true; }
         else {
             playSeq += dt * NET_HZ;
@@ -258,6 +273,7 @@ void unpackState(const StatePacket& a, const StatePacket& b, float alpha, GameSt
 
 bool ClientNet::sampleRender(StatePacket& a, StatePacket& b, float& alpha) const {
     if (!hasState) return false;
+    if (playSeq < 0.0f) { a = b = lastState; alpha = 0.0f; return true; }
     uint32_t base = (uint32_t)floorf(playSeq);
 
     // newest snapshot at or before the playout position
@@ -284,13 +300,14 @@ bool ClientNet::sampleRender(StatePacket& a, StatePacket& b, float& alpha) const
 }
 
 void ClientNet::disconnect() {
-    if (fd < 0) return;
-    if (connected) {
-        ByePacket b{PKT_BYE};
-        netSend(fd, &b, sizeof(b), server);
+    if (fd >= 0) {
+        if (connected) {
+            ByePacket b{PKT_BYE};
+            netSend(fd, &b, sizeof(b), server);
+        }
+        closeSocket(fd);
+        fd = -1;
     }
-    closeSocket(fd);
-    fd = -1;
     connected  = false;
     connecting = false;
     hasState   = false;

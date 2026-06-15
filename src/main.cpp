@@ -1,8 +1,9 @@
-// Client: offline practice vs dummy by default; connects to dedicated server
-// via `./game <ip>` or the C key (IP prompt on stdin). Drop-in FFA, 16 players.
+// Client: connects to dedicated server at 127.0.0.1 by default (override with
+// `./game <ip>` or C to retry). Offline practice vs dummy if connect fails.
 #include <SDL.h>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 #include "platform.h"
@@ -132,17 +133,7 @@ static void dumpFrame(const Renderer& r, const char* path) {
     free(px);
 }
 
-static bool promptConnect(ClientNet& net) {
-    char ip[64] = {0};
-    SDL_SetRelativeMouseMode(SDL_FALSE);
-    printf("server IP: ");
-    fflush(stdout);
-    if (scanf("%63s", ip) != 1) ip[0] = '\0';
-    SDL_SetRelativeMouseMode(SDL_TRUE);
-    if (!ip[0]) return false;
-    printf("connecting to %s...\n", ip);
-    return net.connect(ip);
-}
+static const char* DEFAULT_SERVER_IP = "127.0.0.1";
 
 int main(int argc, char** argv) {
     platformSocketInit();
@@ -182,10 +173,10 @@ int main(int argc, char** argv) {
     cam.yaw = 0.0f;  // offline spawn looks down the range (+X) at the target wall
     FrameInput input;
 
-    if (argc > 1) {
-        printf("connecting to %s...\n", argv[1]);
-        net.connect(argv[1]);
-    }
+    const char* serverIp = (argc > 1) ? argv[1] : DEFAULT_SERVER_IP;
+    printf("connecting to %s...\n", serverIp);
+    if (!net.connect(serverIp))
+        printf("connect failed — offline practice mode\n");
 
     const float FIXED_DT    = 1.0f / PHYS_HZ;
     float       accumulator = 0.0f;
@@ -210,6 +201,8 @@ int main(int argc, char** argv) {
     float       recoilHeat   = 0.0f;    // ramps recoil kick over a sustained spray
     float       sinceShot    = 1e9f;    // seconds since last shot (recovery gating)
 
+    bool wasOnline = false;
+
     printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
     printf("offline shooting range: fire at the wall to see your spread; G clears the marks\n");
 
@@ -229,14 +222,28 @@ int main(int argc, char** argv) {
         if (input.wireframeToggle) renderer.toggleWireframe();
         if (input.clearRange) { rangeMarkCount = 0; rangeMarkHead = 0; }
         if (input.connectRequested && !net.connected && !net.connecting) {
-            promptConnect(net);
-            last = SDL_GetPerformanceCounter();  // stdin blocked; don't count it as dt
+            printf("connecting to %s...\n", DEFAULT_SERVER_IP);
+            if (!net.connect(DEFAULT_SERVER_IP))
+                printf("connect failed — offline practice mode\n");
         }
 
         net.update(dt);
 
         bool online  = net.connected && net.hasState;
         int  localID = online ? net.playerID : 0;
+        if (localID < 0 || localID >= MAX_PLAYERS) localID = 0;
+
+        if (online && !wasOnline) {   // reset offline→online client state
+            prevOwnHP       = PLAYER_HP;
+            prevOwnHits     = 0;
+            prevOwnAlive    = true;
+            appliedStateSeq = 0;
+            predicted       = Player{};
+            posError        = glm::vec3(0.0f);
+            rangeMarkCount  = 0;
+            rangeMarkHead   = 0;
+        }
+        wasOnline = online;
 
         // --- fire control: pick shots this frame by fire mode, gate on ammo ---
         if (input.fireModeToggle) { fireMode = (fireMode + 1) % FIRE_MODE_COUNT; burstRemaining = 0; }
