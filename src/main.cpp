@@ -1,5 +1,5 @@
-// Client: connects to dedicated server at 127.0.0.1 by default (override with
-// `./game <ip>`). Press C for an in-game IP prompt (127.0.0.1 pre-filled).
+// Client: starts in training mode (offline) by default. Auto-connects only with
+// `./game <ip>`. Press C for an in-game IP prompt (127.0.0.1 pre-filled).
 #include <SDL.h>
 #include <cstdio>
 #include <cstdlib>
@@ -176,10 +176,15 @@ int main(int argc, char** argv) {
     cam.yaw = 0.0f;  // offline spawn looks down the range (+X) at the target wall
     FrameInput input;
 
-    const char* serverIp = (argc > 1) ? argv[1] : DEFAULT_SERVER_IP;
-    printf("connecting to %s...\n", serverIp);
-    if (!net.connect(serverIp))
-        printf("connect failed — offline practice mode\n");
+    // Default: training mode (offline). Only auto-connect when an IP arg is given;
+    // otherwise press C to connect to a server.
+    if (argc > 1) {
+        printf("connecting to %s...\n", argv[1]);
+        if (!net.connect(argv[1]))
+            printf("connect failed — training mode\n");
+    } else {
+        printf("training mode — press C to connect to a server\n");
+    }
 
     const float FIXED_DT    = 1.0f / PHYS_HZ;
     float       accumulator = 0.0f;
