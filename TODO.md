@@ -31,7 +31,12 @@ A simple running list of what's done and what's next.
   (~400 m/s) + bullet drop, no tunneling at any speed
 - Per-weapon stats (WeaponDef table); distance damage falloff + air drag
 - Two weapons — Uzi (SMG) + Glock 19 (semi pistol), per-player + server-authoritative,
-  switch with 1/2 keys (weaponId in InputPacket)
+  switch with 1/2 keys or scroll (weaponId in InputPacket); distinct viewmodels
+- Articulated character model (head/torso/arms/legs) with a speed-driven walk cycle
+  (crouch/jump poses), client-side cosmetic
+- Regional hitboxes with damage multipliers — 2x head, 1x torso, 0.8x legs;
+  lag-comp-safe (depends only on pos + crouched)
+- Sticky recoil: spray climbs and stays, you pull it back down
 - Lag-compensated hit rewind (server rewinds targets to when you fired)
 - Client-side prediction + prediction-error smoothing
 - Netcode snapshot playout buffer (smooth under jitter and packet loss)
@@ -53,9 +58,11 @@ A simple running list of what's done and what's next.
 - Deterministic projectile netcode: send each shot as an (origin, dir, speed) event,
   clients simulate the trajectory — fast bullets are near-invisible to other players
   at 20 Hz position streaming (needed for proper tracers on big maps)
-- Per-weapon authored recoil patterns (learnable spray)
-- Hitboxes with damage multipliers (headshot / limb)
-- Bullet penetration + damage falloff over distance
+- Per-weapon authored recoil patterns (learnable spray); per-weapon recoil feel
+  (both weapons still share the global recoil constants)
+- Headshot feedback (distinct hit marker / sound) — server doesn't yet send hit region
+- Arm hitboxes / animation-following hitboxes (needs yaw + pose in lag-comp snapshot)
+- Bullet penetration through thin cover
 
 ### Feel / visuals
 - Bullet tracers + impact effects (spark/puff, decals)

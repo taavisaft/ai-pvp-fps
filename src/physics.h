@@ -4,6 +4,14 @@
 // Returns true if point p is inside the player's AABB (shorter when crouched)
 bool aabbHit(glm::vec3 p, glm::vec3 playerPos, bool crouched);
 
+// A regional hitbox: an AABB plus a damage multiplier (head 2x, torso 1x, legs 0.8x).
+struct HitRegion { glm::vec3 center; glm::vec3 half; float mult; };
+
+// Fills the player's three stacked hit regions (head/torso/legs) for the stance.
+// Depends only on pos + crouched (no yaw/animation) so it matches lag-comp rewind.
+// Returns the region count (3).
+int playerHitRegions(const glm::vec3& pos, bool crouched, HitRegion out[3]);
+
 // Swept collision: does segment p0->p1 hit AABB(center, half)? tHit = entry point
 // as a fraction [0,1] along the segment. Velocity-independent — used for bullets
 // so fast rounds can't tunnel through cover or players in one tick.

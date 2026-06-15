@@ -53,6 +53,20 @@ static float dmgScale(const WeaponDef& w, float dist) {
     return 1.0f + (w.falloffMin - 1.0f) * u;
 }
 
+int playerHitRegions(const glm::vec3& pos, bool crouched, HitRegion out[3]) {
+    // Heights authored for STAND_HEIGHT (2.0); scaled down when crouched so the
+    // stack always fits the body. Boxes are centered on the player's vertical axis
+    // (yaw-independent) so they line up with the lag-comp rewind (pos + crouched).
+    float s = crouched ? (CROUCH_HEIGHT / STAND_HEIGHT) : 1.0f;
+    // legs (low damage)
+    out[0] = {pos + glm::vec3(0, 0.50f * s, 0), {0.22f, 0.50f * s, 0.22f}, 0.8f};
+    // torso (baseline)
+    out[1] = {pos + glm::vec3(0, 1.30f * s, 0), {0.27f, 0.35f * s, 0.20f}, 1.0f};
+    // head (2x)
+    out[2] = {pos + glm::vec3(0, 1.80f * s, 0), {0.16f, 0.16f * s, 0.16f}, 2.0f};
+    return 3;
+}
+
 glm::vec3 dirFromYawPitch(float yaw, float pitch) {
     return glm::normalize(glm::vec3(
         cos(glm::radians(yaw)) * cos(glm::radians(pitch)),
@@ -239,8 +253,9 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
         b.lifetime -= dt;
 
         // Nearest surface along p0->p1. World (box/ground) blocks; a player is a hit.
-        float bestT  = 2.0f;
-        int   hitPid = -1;
+        float bestT   = 2.0f;
+        int   hitPid  = -1;
+        float hitMult = 1.0f;       // damage multiplier of the nearest player region
         float t;
         for (int m = 0; m < gMapBoxCount; m++)
             if (segmentAabb(p0, p1, gMapBoxes[m].center, gMapBoxes[m].half, t) && t < bestT) {
@@ -264,10 +279,13 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
                 if (!lookup(ctx, pid, b.compRewind, hitPos, hitCrouched, wasAlive)) continue;
                 if (!wasAlive) continue;
             }
-            float h = (hitCrouched ? CROUCH_HEIGHT : STAND_HEIGHT) * 0.5f;
-            glm::vec3 center = hitPos + glm::vec3(0, h, 0);
-            glm::vec3 half   = {0.4f, h, 0.4f};
-            if (segmentAabb(p0, p1, center, half, t) && t < bestT) { bestT = t; hitPid = pid; }
+            // Sweep each body region; nearest one wins and carries its multiplier.
+            HitRegion rg[3];
+            int nr = playerHitRegions(hitPos, hitCrouched, rg);
+            for (int k = 0; k < nr; k++)
+                if (segmentAabb(p0, p1, rg[k].center, rg[k].half, t) && t < bestT) {
+                    bestT = t; hitPid = pid; hitMult = rg[k].mult;
+                }
         }
 
         if (bestT <= 1.0f) {                        // something stopped the bullet
@@ -277,7 +295,7 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
             if (hitPid >= 0) {                      // closest surface was a player → hit
                 Player& target = gs.players[hitPid];
                 float dist = glm::length(impact - b.origin);
-                int   dmg  = (int)(wd.dmg * dmgScale(wd, dist));
+                int   dmg  = (int)(wd.dmg * dmgScale(wd, dist) * hitMult);
                 if (dmg < 1) dmg = 1;
                 target.hp -= dmg;
                 if (b.ownerID >= 0) {               // record for the shooter's hit marker

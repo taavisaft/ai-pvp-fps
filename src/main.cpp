@@ -84,11 +84,51 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
     }
 }
 
+// Articulated cube figure for a remote player. Cosmetic only — driven from the
+// networked pos/yaw/crouched plus a client-side walk phase/amplitude. The gameplay
+// hitboxes (physics playerHitRegions) are separate stacked boxes.
+static void drawPlayerModel(Renderer& r, const glm::vec3& pos, float yaw,
+                            bool crouched, bool airborne, float phase, float amp,
+                            const glm::vec3& bodyCol) {
+    const glm::vec3 headCol = {0.90f, 0.78f, 0.62f};
+    const glm::vec3 limbCol = bodyCol * 0.85f;
+    float s  = crouched ? (CROUCH_HEIGHT / STAND_HEIGHT) : 1.0f;   // vertical squash
+    float yr = glm::radians(yaw);
+    glm::mat4 root = glm::translate(glm::mat4(1.0f), pos)
+                   * glm::rotate(glm::mat4(1.0f), 1.5707963f - yr, glm::vec3(0, 1, 0));
+
+    auto part = [&](const glm::mat4& m, glm::vec3 sz, const glm::vec3& c) {
+        r.drawCubeModel(m * glm::scale(glm::mat4(1.0f), sz), c);
+    };
+    // A limb swings about its pivot (shoulder/hip) and hangs down by len/2.
+    auto limb = [&](glm::vec3 pivot, float ang, float len, float w, const glm::vec3& c) {
+        glm::mat4 m = root * glm::translate(glm::mat4(1.0f), pivot)
+                    * glm::rotate(glm::mat4(1.0f), ang, glm::vec3(1, 0, 0))
+                    * glm::translate(glm::mat4(1.0f), glm::vec3(0, -len * 0.5f, 0));
+        part(m, glm::vec3(w, len, w), c);
+    };
+
+    float swing = sinf(phase) * amp * (crouched ? 0.30f : 0.6f);   // walk swing, rad
+    float legF = swing, legB = -swing, armF = -swing, armB = swing;
+    if (airborne) { legF = 0.5f; legB = -0.35f; armF = -0.4f; armB = 0.4f; }  // tuck
+    else if (crouched) { legF = 0.7f; legB = 0.7f; }              // squat (thighs up)
+
+    part(root * glm::translate(glm::mat4(1.0f), glm::vec3(0, 1.30f * s, 0)),
+         {0.50f, 0.60f * s, 0.28f}, bodyCol);                      // torso
+    part(root * glm::translate(glm::mat4(1.0f), glm::vec3(0, 1.80f * s, 0)),
+         {0.32f, 0.32f, 0.32f}, headCol);                          // head
+    limb({-0.31f, 1.55f * s, 0}, armF, 0.60f * s, 0.15f, limbCol); // left arm
+    limb({ 0.31f, 1.55f * s, 0}, armB, 0.60f * s, 0.15f, limbCol); // right arm
+    limb({-0.13f, 0.90f * s, 0}, legF, 0.90f * s, 0.20f, limbCol); // left leg
+    limb({ 0.13f, 0.90f * s, 0}, legB, 0.90f * s, 0.20f, limbCol); // right leg
+}
+
 static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int localID,
                         const HudState& hud, bool scoreboard, bool online,
                         const ViewModel& vm,
                         const glm::vec3* rangeMarks, int rangeMarkCount, bool drawRange,
-                        const ConnectPrompt& connectPrompt) {
+                        const ConnectPrompt& connectPrompt,
+                        const float* walkPhase, const float* walkAmp) {
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
 
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
@@ -113,9 +153,11 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         if (i == localID) continue;
         if (!(gs.usedMask & (1u << i))) continue;
         if (!gs.players[i].alive) continue;
-        const glm::vec3& p = gs.players[i].pos;
-        float bodyH = gs.players[i].crouched ? CROUCH_HEIGHT : STAND_HEIGHT;
-        r.drawCube(p + glm::vec3(0, bodyH * 0.5f, 0), {1, bodyH, 1}, COLOR_ENEMY);
+        const Player& pl = gs.players[i];
+        const glm::vec3& p = pl.pos;
+        bool airborne = p.y > 0.05f;
+        drawPlayerModel(r, p, pl.yaw, pl.crouched, airborne,
+                        walkPhase[i], walkAmp[i], COLOR_ENEMY);
         r.drawCube({p.x, 0.01f, p.z}, {1.1f, 0.001f, 1.1f}, COLOR_BLOB);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
@@ -228,6 +270,14 @@ int main(int argc, char** argv) {
     bool wasOnline = false;
     ConnectPrompt connectPrompt;
     bool connectPromptActive = false;
+
+    // Per-remote-player walk animation state (client-side, cosmetic). Phase advances
+    // with horizontal speed derived from the interpolated render positions.
+    float     walkPhase[MAX_PLAYERS] = {0};
+    float     walkAmp[MAX_PLAYERS]   = {0};   // smoothed 0..1 move amount
+    float     walkSpeed[MAX_PLAYERS] = {0};   // smoothed horizontal speed (m/s)
+    glm::vec3 prevPlayerPos[MAX_PLAYERS];
+    bool      prevPosValid[MAX_PLAYERS] = {false};
 
     auto closeConnectPrompt = [&]() {
         if (!connectPromptActive) return;
@@ -554,8 +604,26 @@ int main(int argc, char** argv) {
             for (int i = 0; i < MAX_BULLETS; i++) heardBullet[i] = false;
         }
 
+        // Advance each visible remote player's walk animation from how fast their
+        // interpolated position is moving on the ground.
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            bool show = i != localID && (shown->usedMask & (1u << i)) && shown->players[i].alive;
+            if (!show) { walkAmp[i] = 0.0f; prevPosValid[i] = false; continue; }
+            glm::vec3 pp = shown->players[i].pos;
+            float sp = 0.0f;
+            if (prevPosValid[i]) {
+                glm::vec3 d = pp - prevPlayerPos[i]; d.y = 0.0f;
+                sp = glm::length(d) / (dt > 1e-4f ? dt : 1e-4f);
+            }
+            prevPlayerPos[i] = pp; prevPosValid[i] = true;
+            walkSpeed[i] += (sp - walkSpeed[i]) * 0.30f;            // smooth the jitter
+            float amp = walkSpeed[i] / MOVE_SPEED;
+            walkAmp[i] = amp > 1.0f ? 1.0f : amp;
+            walkPhase[i] += walkSpeed[i] * 1.8f * dt;               // stride tied to speed
+        }
+
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
-                    rangeMarks, rangeMarkCount, !online, connectPrompt);
+                    rangeMarks, rangeMarkCount, !online, connectPrompt, walkPhase, walkAmp);
 
         static int frameCount = 0;
         const char* shotPath = getenv("FPS_SHOT");
