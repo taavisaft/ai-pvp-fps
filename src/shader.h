@@ -11,6 +11,11 @@ struct Shader {
     GLint  locAlpha = -1;
     GLint  locLit   = -1;
     GLint  locEye   = -1;
+    GLint  locDiffuse = -1;
+    GLint  locUseTex  = -1;
+    GLint  locTile    = -1;
+    GLint  locSpec    = -1;
+    GLint  locTint    = -1;
 
     bool load(const char* vertPath, const char* fragPath);
     void use() const;

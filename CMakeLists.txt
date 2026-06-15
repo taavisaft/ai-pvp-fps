@@ -24,6 +24,8 @@ set(CLIENT_SOURCES
     src/shader.cpp
     src/font.cpp
     src/mesh.cpp
+    src/texture.cpp
+    src/material.cpp
     src/renderer.cpp
     src/hud.cpp
     src/camera.cpp

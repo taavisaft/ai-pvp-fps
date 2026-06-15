@@ -14,6 +14,7 @@
 #include "map.h"
 #include "hud.h"
 #include "audio.h"
+#include "material.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
@@ -76,7 +77,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     r.drawGround();
 
     if (drawRange) {
-        r.drawCube(RANGE_WALL_CENTER, RANGE_WALL_HALF * 2.0f, {0.22f, 0.24f, 0.30f});
+        r.drawCube(RANGE_WALL_CENTER, RANGE_WALL_HALF * 2.0f, MAT_CONCRETE);
         // aim reference: a red cross at standing eye height, dead center
         glm::vec3 c = {RANGE_WALL_FACE - 0.03f, RANGE_BULLSEYE_Y, 0.0f};
         r.drawCube(c, {0.06f, 1.0f, 0.10f}, {0.85f, 0.25f, 0.20f});
@@ -87,7 +88,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
 
     for (int i = 0; i < MAP_BOX_COUNT; i++) {
         const Box& b = MAP_BOXES[i];
-        r.drawCube(b.center, b.half * 2.0f, {0.45f, 0.45f, 0.52f});
+        r.drawCube(b.center, b.half * 2.0f, MAP_BOX_MAT[i]);
     }
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (i == localID) continue;

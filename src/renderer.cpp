@@ -52,6 +52,7 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!createGroundQuad(ground)) return false;
     if (!createQuad2D(quad2d)) return false;
     if (!font.init()) return false;
+    if (!materials.init()) return false;
     return true;
 }
 
@@ -67,6 +68,20 @@ void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const gl
     shader.setFloat(shader.locAlpha, 1.0f);
     shader.setInt(shader.locLit, 1);
     shader.setVec3(shader.locEye, eye);
+    shader.setInt(shader.locDiffuse, 0);
+}
+
+static void bindFlatColor(Shader& sh) {
+    sh.setInt(sh.locUseTex, 0);
+}
+
+static void bindMaterial(Shader& sh, const MaterialLib& lib, MaterialId id) {
+    const Material& m = lib.mats[(int)id];
+    lib.bind(id);
+    sh.setInt(sh.locUseTex, 1);
+    sh.setFloat(sh.locTile, m.tile);
+    sh.setFloat(sh.locSpec, m.spec);
+    sh.setVec3(sh.locTint, m.tint);
 }
 
 void Renderer::beginHUD() {
@@ -81,6 +96,7 @@ void Renderer::beginHUD() {
 void Renderer::drawRect(const glm::vec2& center, const glm::vec2& size,
                         const glm::vec3& color, float alpha) {
     shader.use();  // drawText may have bound the text program
+    bindFlatColor(shader);
     glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(center, 0.0f));
     model = glm::scale(model, glm::vec3(size, 1.0f));
     shader.setMat4(shader.locModel, model);
@@ -92,6 +108,7 @@ void Renderer::drawRect(const glm::vec2& center, const glm::vec2& size,
 void Renderer::drawRectRot(const glm::vec2& center, const glm::vec2& size,
                            const glm::vec3& color, float alpha, float angle) {
     shader.use();
+    bindFlatColor(shader);
     float ia = 1.0f / aspect();
     glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(center, 0.0f));
     model = glm::scale(model, glm::vec3(ia, 1.0f, 1.0f));            // square space -> NDC
@@ -122,20 +139,36 @@ void Renderer::endHUD() {
 void Renderer::drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color) {
     glm::mat4 model = glm::translate(glm::mat4(1.0f), center);
     model = glm::scale(model, scale);
+    bindFlatColor(shader);
     shader.setMat4(shader.locModel, model);
     shader.setVec3(shader.locColor, color);
     cube.draw();
 }
 
+void Renderer::drawCube(const glm::vec3& center, const glm::vec3& scale, MaterialId mat) {
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), center);
+    model = glm::scale(model, scale);
+    bindMaterial(shader, materials, mat);
+    shader.setMat4(shader.locModel, model);
+    shader.setVec3(shader.locColor, glm::vec3(1.0f));
+    cube.draw();
+}
+
 void Renderer::drawCubeModel(const glm::mat4& model, const glm::vec3& color) {
+    bindFlatColor(shader);
     shader.setMat4(shader.locModel, model);
     shader.setVec3(shader.locColor, color);
     cube.draw();
 }
 
 void Renderer::drawGround() {
+    drawGround(MAT_GROUND);
+}
+
+void Renderer::drawGround(MaterialId mat) {
+    bindMaterial(shader, materials, mat);
     shader.setMat4(shader.locModel, glm::mat4(1.0f));
-    shader.setVec3(shader.locColor, glm::vec3(0.30f, 0.50f, 0.30f));
+    shader.setVec3(shader.locColor, glm::vec3(1.0f));
     ground.draw();
 }
 
@@ -149,6 +182,7 @@ void Renderer::toggleWireframe() {
 }
 
 void Renderer::shutdown() {
+    materials.destroy();
     font.destroy();
     quad2d.destroy();
     ground.destroy();

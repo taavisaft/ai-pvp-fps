@@ -4,6 +4,7 @@
 #include "shader.h"
 #include "mesh.h"
 #include "font.h"
+#include "material.h"
 
 struct Renderer {
     SDL_Window*   window    = nullptr;
@@ -17,13 +18,16 @@ struct Renderer {
     Mesh   ground;   // 100x100 quad at y=0
     Mesh   quad2d;   // unit quad for HUD rects
     Font   font;     // bitmap text, HUD pass only
+    MaterialLib materials;
 
     bool  init(const char* title, int w, int h);
     float aspect() const;
     void  beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye);
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color);
+    void  drawCube(const glm::vec3& center, const glm::vec3& scale, MaterialId mat);
     void  drawCubeModel(const glm::mat4& model, const glm::vec3& color);  // oriented (gun)
     void  drawGround();
+    void  drawGround(MaterialId mat);
     // HUD pass: depth off, blending on, coordinates in NDC [-1,1]
     void  beginHUD();
     void  drawRect(const glm::vec2& center, const glm::vec2& size,
