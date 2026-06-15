@@ -321,6 +321,17 @@ int main(int argc, char** argv) {
                     offlineShoot = false;
                 }
                 movePlayer(self, input.state, FIXED_DT);
+                // The range wall is offline-only (not in MAP_BOXES), so push the
+                // player's footprint out of it here along the least-overlap axis.
+                {
+                    const float FOOT_R = 0.4f;
+                    float dx = (RANGE_WALL_HALF.x + FOOT_R) - fabsf(self.pos.x - RANGE_WALL_CENTER.x);
+                    float dz = (RANGE_WALL_HALF.z + FOOT_R) - fabsf(self.pos.z - RANGE_WALL_CENTER.z);
+                    if (dx > 0.0f && dz > 0.0f) {
+                        if (dx < dz) self.pos.x += (self.pos.x < RANGE_WALL_CENTER.x) ? -dx : dx;
+                        else         self.pos.z += (self.pos.z < RANGE_WALL_CENTER.z) ? -dz : dz;
+                    }
+                }
                 updateReload(self, input.state.reload, FIXED_DT);
                 if (self.mag == 0 && self.reserve == 0) self.reserve = RESERVE_PER_LIFE;  // keep practice stocked
                 updateBullets(offline, FIXED_DT);
