@@ -225,6 +225,7 @@ void ClientNet::sendInput(const InputState& in, uint32_t viewSeq, uint8_t viewFr
     p.flags    = (in.ads ? FLAG_ADS : 0) | (in.reload ? FLAG_RELOAD : 0);
     p.viewSeq  = viewSeq;
     p.viewFrac = viewFrac;
+    p.weaponId = in.weaponId;
     sendRaw(&p, sizeof(p));
 }
 

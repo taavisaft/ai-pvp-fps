@@ -46,11 +46,11 @@ static bool segmentGround(const glm::vec3& p0, const glm::vec3& p1, float& tHit)
 }
 
 // Distance-based damage scale: full up to falloffStart, lerps to falloffMin by end.
-static float dmgScale(float dist) {
-    if (dist <= gWeapon.falloffStart) return 1.0f;
-    if (dist >= gWeapon.falloffEnd)   return gWeapon.falloffMin;
-    float u = (dist - gWeapon.falloffStart) / (gWeapon.falloffEnd - gWeapon.falloffStart);
-    return 1.0f + (gWeapon.falloffMin - 1.0f) * u;
+static float dmgScale(const WeaponDef& w, float dist) {
+    if (dist <= w.falloffStart) return 1.0f;
+    if (dist >= w.falloffEnd)   return w.falloffMin;
+    float u = (dist - w.falloffStart) / (w.falloffEnd - w.falloffStart);
+    return 1.0f + (w.falloffMin - 1.0f) * u;
 }
 
 glm::vec3 dirFromYawPitch(float yaw, float pitch) {
@@ -182,14 +182,16 @@ bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, i
                  float compRewind) {
     Player& owner = gs.players[ownerID];
     if (!owner.alive || owner.mag <= 0 || owner.reloading) return false;
+    const WeaponDef& wd = weaponDef(owner.weaponId);
     for (int i = 0; i < MAX_BULLETS; i++) {
         Bullet& b = gs.bullets[i];
         if (b.active) continue;
         b.pos        = eyePos;
         b.origin     = eyePos;
-        b.vel        = dir * BULLET_SPEED;
-        b.lifetime   = BULLET_TTL;
+        b.vel        = dir * wd.muzzleVel;
+        b.lifetime   = wd.ttl;
         b.ownerID    = ownerID;
+        b.weaponId   = owner.weaponId;
         b.active     = true;
         b.compRewind = compRewind;
         owner.mag--;
@@ -201,17 +203,18 @@ bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, i
 // Advance a reload: start one if requested and possible, finish when the timer
 // elapses by topping the magazine from reserve. Authoritative; run per tick.
 void updateReload(Player& p, bool wantReload, float dt) {
+    const WeaponDef& wd = weaponDef(p.weaponId);
     if (p.reloadTimer > 0.0f) {
         p.reloadTimer -= dt;
         if (p.reloadTimer <= 0.0f) {
             p.reloadTimer = 0.0f;
-            int need = MAG_SIZE - p.mag;
+            int need = wd.magSize - p.mag;
             int take = need < p.reserve ? need : p.reserve;
             p.mag     += take;
             p.reserve -= take;
         }
-    } else if (wantReload && p.mag < MAG_SIZE && p.reserve > 0) {
-        p.reloadTimer = RELOAD_TIME;
+    } else if (wantReload && p.mag < wd.magSize && p.reserve > 0) {
+        p.reloadTimer = wd.reloadTime;
     }
     p.reloading = p.reloadTimer > 0.0f;
 }
@@ -225,10 +228,11 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
         // Integrate velocity (gravity + quadratic air drag), then sweep the segment
         // the bullet travels this tick against the world — velocity-independent, so
         // fast rounds can't tunnel through cover or players.
+        const WeaponDef& wd = weaponDef(b.weaponId);
         b.vel.y -= GRAVITY * dt;
-        if (gWeapon.dragK > 0.0f) {
+        if (wd.dragK > 0.0f) {
             float speed = glm::length(b.vel);
-            if (speed > 0.0f) b.vel -= (gWeapon.dragK * speed * dt) * b.vel;
+            if (speed > 0.0f) b.vel -= (wd.dragK * speed * dt) * b.vel;
         }
         glm::vec3 p0 = b.pos;
         glm::vec3 p1 = p0 + b.vel * dt;
@@ -273,7 +277,7 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
             if (hitPid >= 0) {                      // closest surface was a player → hit
                 Player& target = gs.players[hitPid];
                 float dist = glm::length(impact - b.origin);
-                int   dmg  = (int)(gWeapon.dmg * dmgScale(dist));
+                int   dmg  = (int)(wd.dmg * dmgScale(wd, dist));
                 if (dmg < 1) dmg = 1;
                 target.hp -= dmg;
                 if (b.ownerID >= 0) {               // record for the shooter's hit marker

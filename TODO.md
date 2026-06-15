@@ -29,7 +29,9 @@ A simple running list of what's done and what's next.
 - Two maps: training arena (offline) + warehouse yard (online), runtime-selected
 - Realistic projectile ballistics: swept-segment collision, real muzzle velocity
   (~400 m/s) + bullet drop, no tunneling at any speed
-- Per-weapon stats (WeaponDef table, Uzi); distance damage falloff + air drag
+- Per-weapon stats (WeaponDef table); distance damage falloff + air drag
+- Two weapons — Uzi (SMG) + Glock 19 (semi pistol), per-player + server-authoritative,
+  switch with 1/2 keys (weaponId in InputPacket)
 - Lag-compensated hit rewind (server rewinds targets to when you fired)
 - Client-side prediction + prediction-error smoothing
 - Netcode snapshot playout buffer (smooth under jitter and packet loss)
@@ -46,7 +48,8 @@ A simple running list of what's done and what's next.
 - Collision edge cases (no getting stuck in / tunneling through boxes)
 
 ### Gunplay
-- Multiple weapons with distinct stats (AR, SMG, sniper) — WeaponDef table is ready
+- More weapons (AR, sniper) — WeaponDef table + per-player weaponId already in place
+- Weapon pickups / loadout select (currently 1/2 hotkeys give a fresh mag)
 - Deterministic projectile netcode: send each shot as an (origin, dir, speed) event,
   clients simulate the trajectory — fast bullets are near-invisible to other players
   at 20 Hz position streaming (needed for proper tracers on big maps)

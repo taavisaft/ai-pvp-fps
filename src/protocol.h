@@ -30,6 +30,7 @@ struct InputPacket {
     uint8_t    flags;   // FLAG_* bitmask (separate from keys, which is full)
     uint32_t   viewSeq;  // StatePacket seq the client is interpolating from (lag comp)
     uint8_t    viewFrac; // interpolation alpha * 255 toward viewSeq+1 (lag comp)
+    uint8_t    weaponId; // client's selected weapon (server adopts it authoritatively)
 };
 
 struct PlayerNetState {

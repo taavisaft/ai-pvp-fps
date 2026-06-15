@@ -59,12 +59,27 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
     };
     const glm::vec3 metal = {0.12f, 0.12f, 0.14f};
     const glm::vec3 dark  = {0.20f, 0.20f, 0.23f};
-    part({0.0f,  0.00f,  0.00f}, {0.07f,  0.09f,  0.30f}, metal);  // body
-    part({0.0f,  0.02f,  0.27f}, {0.035f, 0.035f, 0.28f}, dark);   // barrel
-    part({0.0f, -0.11f, -0.04f}, {0.05f,  0.14f,  0.07f}, metal);  // grip
+    const glm::vec3 poly  = {0.08f, 0.08f, 0.09f};  // pistol polymer frame
+
+    float flashZ;
+    if (gWeaponId == WEP_GLOCK19) {                 // compact pistol
+        part({0.0f,  0.02f,  0.06f}, {0.050f, 0.060f, 0.20f}, metal); // slide
+        part({0.0f, -0.03f,  0.03f}, {0.045f, 0.050f, 0.15f}, poly);  // frame
+        part({0.0f,  0.02f,  0.17f}, {0.026f, 0.026f, 0.05f}, dark);  // barrel tip
+        part({0.0f, -0.12f, -0.05f}, {0.050f, 0.130f, 0.06f}, poly);  // grip
+        part({0.0f, -0.18f, -0.05f}, {0.046f, 0.040f, 0.05f}, metal); // mag base
+        flashZ = 0.26f;
+    } else {                                        // Uzi — boxy SMG
+        part({0.0f,  0.00f,  0.01f}, {0.078f, 0.10f,  0.26f}, metal); // receiver
+        part({0.0f,  0.06f, -0.02f}, {0.050f, 0.040f, 0.12f}, dark);  // top rail/bolt
+        part({0.0f,  0.02f,  0.22f}, {0.032f, 0.032f, 0.16f}, dark);  // barrel
+        part({0.0f, -0.11f, -0.02f}, {0.050f, 0.140f, 0.07f}, metal); // grip
+        part({0.0f, -0.20f, -0.02f}, {0.044f, 0.190f, 0.05f}, dark);  // long magazine
+        flashZ = 0.36f;
+    }
 
     if (vm.flashTimer > 0.0f) {                                    // muzzle flash
-        glm::vec3 muzzle = anchor + up * 0.02f + front * 0.44f;
+        glm::vec3 muzzle = anchor + up * 0.02f + front * flashZ;
         r.drawCube(muzzle, glm::vec3(0.16f), {1.0f, 0.85f, 0.35f});
     }
 }
@@ -222,7 +237,8 @@ int main(int argc, char** argv) {
         connectPromptActive = false;
     };
 
-    printf("controls: WASD move, mouse look, LMB shoot, C connect, F wireframe, ESC quit\n");
+    printf("controls: WASD move, mouse look, LMB shoot, 1/2 or scroll weapon (Uzi/Glock), "
+           "C connect, F wireframe, ESC quit\n");
     printf("offline shooting range: fire at the wall to see your spread; G clears the marks\n");
 
     while (running) {
@@ -240,6 +256,14 @@ int main(int argc, char** argv) {
         if (input.quit) running = false;
         if (input.wireframeToggle) renderer.toggleWireframe();
         if (input.clearRange) { rangeMarkCount = 0; rangeMarkHead = 0; }
+
+        // Weapon select (1 = Uzi, 2 = Glock). Offline re-arms now; online the server
+        // adopts it from the input packet and stays authoritative.
+        if (input.weaponSelect >= 0 && (uint8_t)input.weaponSelect != gWeaponId) {
+            gWeaponId = (uint8_t)input.weaponSelect;
+            giveWeapon(offline.players[0], gWeaponId);
+        }
+        input.state.weaponId = gWeaponId;
 
         if (connectPromptActive && !connectPrompt.open) closeConnectPrompt();
 
@@ -282,7 +306,9 @@ int main(int argc, char** argv) {
         wasOnline = online;
 
         // --- fire control: pick shots this frame by fire mode, gate on ammo ---
-        if (input.fireModeToggle) { fireMode = (fireMode + 1) % FIRE_MODE_COUNT; burstRemaining = 0; }
+        const WeaponDef& lw = weaponDef(gWeaponId);   // local (selected) weapon
+        if (lw.semiOnly) fireMode = FIRE_SEMI;        // pistols: semi only
+        else if (input.fireModeToggle) { fireMode = (fireMode + 1) % FIRE_MODE_COUNT; burstRemaining = 0; }
         hud.fireMode = fireMode;
 
         bool ownAliveF, ownReloadingF; int ownMagF;   // own weapon state for gating
@@ -295,12 +321,12 @@ int main(int argc, char** argv) {
         }
 
         fireTimer -= dt;
-        if (fireMode == FIRE_BURST && input.state.shoot) burstRemaining = BURST_COUNT;
+        if (fireMode == FIRE_BURST && input.state.shoot) burstRemaining = lw.burstCount;
         bool  wantFire = false;
-        float fireInt  = FIRE_SEMI_INT;
-        if (fireMode == FIRE_SEMI)  { wantFire = input.state.shoot;     fireInt = FIRE_SEMI_INT;  }
-        if (fireMode == FIRE_BURST) { wantFire = burstRemaining > 0;    fireInt = FIRE_BURST_INT; }
-        if (fireMode == FIRE_AUTO)  { wantFire = input.state.shootHeld; fireInt = FIRE_AUTO_INT;  }
+        float fireInt  = lw.fireSemiInt;
+        if (fireMode == FIRE_SEMI)  { wantFire = input.state.shoot;     fireInt = lw.fireSemiInt;  }
+        if (fireMode == FIRE_BURST) { wantFire = burstRemaining > 0;    fireInt = lw.fireBurstInt; }
+        if (fireMode == FIRE_AUTO)  { wantFire = input.state.shootHeld; fireInt = lw.fireAutoInt;  }
 
         bool fired = wantFire && ownAliveF && ownMagF > 0 && !ownReloadingF && fireTimer <= 0.0f;
         if (online) offlineShoot = false;
@@ -377,7 +403,8 @@ int main(int argc, char** argv) {
                     }
                 }
                 updateReload(self, input.state.reload, FIXED_DT);
-                if (self.mag == 0 && self.reserve == 0) self.reserve = RESERVE_PER_LIFE;  // keep practice stocked
+                if (self.mag == 0 && self.reserve == 0)                       // keep practice stocked
+                    self.reserve = weaponDef(self.weaponId).reservePerLife;
                 // The range wall isn't in the map (offline-only), so sweep each of our
                 // bullets' tick segment against it before updateBullets moves them:
                 // stamp the exact impact and stop the round. Works at any velocity.

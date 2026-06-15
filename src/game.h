@@ -5,15 +5,10 @@
 
 constexpr int   MAX_PLAYERS    = 16;
 constexpr int   MAX_BULLETS    = 256;    // global active pool (server-side cap)
-// Per-weapon stats now live in weapon.h; these alias the active weapon so the
-// existing call sites keep compiling. Change gWeapon to retune everything.
-constexpr int   MAG_SIZE        = gWeapon.magSize;       // rounds per magazine
-constexpr int   RESERVE_PER_LIFE = gWeapon.reservePerLife; // spare rounds, refilled on respawn
-constexpr float RELOAD_TIME     = gWeapon.reloadTime;   // seconds to reload
+// Per-weapon stats live in weapon.h and are looked up per player via weaponDef(id);
+// there are no global weapon constants anymore (two weapons can differ).
 constexpr int   PLAYER_HP      = 100;
 constexpr float RESPAWN_TIME   = 3.0f;   // seconds dead before respawn
-constexpr float BULLET_SPEED   = gWeapon.muzzleVel; // m/s (real muzzle velocity)
-constexpr float BULLET_TTL     = gWeapon.ttl;       // seconds
 constexpr float MOVE_SPEED     = 5.0f;   // m/s
 constexpr float SPRINT_SPEED   = 8.0f;   // m/s, shift held
 constexpr float JUMP_SPEED      = 6.0f;   // m/s upward; ~1.8 m peak, clears crates
@@ -21,7 +16,6 @@ constexpr float CROUCH_SPEED   = 2.5f;   // m/s, left-ctrl held
 constexpr float STAND_HEIGHT   = 2.0f;   // full body height
 constexpr float CROUCH_HEIGHT  = 1.2f;   // crouched body height (hitbox + render)
 constexpr float GRAVITY        = 9.8f;   // m/s²
-constexpr float BULLET_DMG     = gWeapon.dmg; // HP per hit at point blank (see falloff)
 constexpr int   NET_HZ         = 20;     // state sync rate
 constexpr int   PHYS_HZ        = 60;     // physics tick rate
 constexpr int   UDP_PORT       = 7777;
@@ -66,12 +60,9 @@ constexpr float RECOIL_RECOVER_TAU  = 0.10f;  // exp decay time constant of reco
 constexpr float RECOIL_PITCH_CAP    = 25.0f;  // max accumulated upward offset
 constexpr float RECOIL_FIRST_MULT   = 1.25f;  // extra kick on the first (cold) shot
 
-// Fire modes (client-side only — decides when shots are registered)
+// Fire modes (client-side only — decides when shots are registered). Per-weapon
+// fire intervals / burst counts now come from weaponDef(id), not constants.
 enum FireMode { FIRE_SEMI = 0, FIRE_BURST, FIRE_AUTO, FIRE_MODE_COUNT };
-constexpr float FIRE_SEMI_INT  = gWeapon.fireSemiInt;  // min seconds between shots, semi
-constexpr float FIRE_BURST_INT = gWeapon.fireBurstInt; // within a burst
-constexpr float FIRE_AUTO_INT  = gWeapon.fireAutoInt;  // full-auto interval (RoF)
-constexpr int   BURST_COUNT    = gWeapon.burstCount;
 
 struct Player {
     glm::vec3 pos          = {0, 0, 0};  // feet; Y rises when jumping
@@ -81,8 +72,9 @@ struct Player {
     bool      crouched     = false;      // affects height, hitbox, speed
     float     yaw          = 0.0f;       // degrees
     int       hp           = PLAYER_HP;
-    int       mag          = MAG_SIZE;       // rounds in magazine
-    int       reserve      = RESERVE_PER_LIFE; // spare rounds
+    uint8_t   weaponId     = WEP_UZI;        // current weapon (per-player)
+    int       mag          = UZI.magSize;    // rounds in magazine
+    int       reserve      = UZI.reservePerLife; // spare rounds
     float     reloadTimer  = 0.0f;           // >0 while reloading (server sim)
     bool      reloading    = false;          // for HUD/clients (mirrors reloadTimer>0)
     int       kills        = 0;          // persists across respawns
@@ -99,6 +91,7 @@ struct Bullet {
     glm::vec3 origin     = {0, 0, 0}; // muzzle position, for distance damage falloff
     float     lifetime   = 0.0f;
     int       ownerID    = -1;     // 0..MAX_PLAYERS-1
+    uint8_t   weaponId   = WEP_UZI; // weapon that fired it (damage/falloff/drag)
     bool      active     = false;
     float     compRewind = 0.0f;   // server-only: seconds to rewind targets for hits
 };
@@ -121,4 +114,16 @@ struct InputState {
     bool  reload;                  // R held
     float yaw;
     float pitch;
+    uint8_t weaponId = WEP_UZI;    // selected weapon (1/2 keys), sent to server
 };
+
+// Switch a player to weapon `id`: re-arm with that weapon's full magazine and
+// reserve, cancelling any reload. Used on selection (1/2) and server adoption.
+inline void giveWeapon(Player& p, uint8_t id) {
+    const WeaponDef& wd = weaponDef(id);
+    p.weaponId    = id;
+    p.mag         = wd.magSize;
+    p.reserve     = wd.reservePerLife;
+    p.reloadTimer = 0.0f;
+    p.reloading   = false;
+}

@@ -102,15 +102,18 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
     snprintf(buf, sizeof(buf), "%d", own.hp);
     r.drawText(buf, -0.33f, -0.885f, TEXT_H, hpColor, 0.9f);
 
+    const WeaponDef& lw = weaponDef(gWeaponId);   // local player's selected weapon
     glm::vec3 ammoCol = {0.95f, 0.85f, 0.25f};
-    drawBar(r, {-0.6f, -0.94f}, {0.5f, 0.03f}, own.mag / (float)MAG_SIZE, ammoCol);
+    drawBar(r, {-0.6f, -0.94f}, {0.5f, 0.03f}, own.mag / (float)lw.magSize, ammoCol);
     if (own.reloading) snprintf(buf, sizeof(buf), "RELOADING");
     else               snprintf(buf, sizeof(buf), "%d / %d", own.mag, own.reserve);
     r.drawText(buf, -0.33f, -0.96f, 0.04f, ammoCol, 0.9f);
 
-    const char* modeStr = hud.fireMode == FIRE_AUTO  ? "AUTO"
+    const char* modeStr = lw.semiOnly                ? "SEMI"
+                        : hud.fireMode == FIRE_AUTO  ? "AUTO"
                         : hud.fireMode == FIRE_BURST ? "BURST" : "SEMI";
-    r.drawText(modeStr, 0.78f, -0.96f, 0.04f, {0.6f, 0.8f, 0.95f}, 0.85f);
+    r.drawText(lw.name,  0.62f, -0.90f, 0.045f, {0.85f, 0.85f, 0.9f}, 0.9f);
+    r.drawText(modeStr,  0.78f, -0.96f, 0.04f,  {0.6f, 0.8f, 0.95f}, 0.85f);
 
     if (own.alive) {
         r.drawRect({0, 0}, {0.006f * ia, 0.045f}, {1, 1, 1}, 0.9f);

@@ -10,6 +10,7 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
     in.fireModeToggle   = false;
     in.clearRange       = false;
     in.connectSubmit    = false;
+    in.weaponSelect     = -1;
 
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
@@ -55,12 +56,21 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
             case SDLK_c:      in.connectRequested = true; break;
             case SDLK_b:      in.fireModeToggle  = true; break;
             case SDLK_g:      in.clearRange      = true; break;
+            case SDLK_1:      in.weaponSelect    = WEP_UZI;     break;
+            case SDLK_2:      in.weaponSelect    = WEP_GLOCK19; break;
             default: break;
             }
             break;
         case SDL_MOUSEMOTION:
             cam.addLook((float)e.motion.xrel, (float)e.motion.yrel);
             break;
+        case SDL_MOUSEWHEEL: {           // cycle weapons (wrap), up = next
+            if (e.wheel.y != 0) {
+                int dir = e.wheel.y > 0 ? 1 : -1;
+                in.weaponSelect = ((int)gWeaponId + dir + WEP_COUNT) % WEP_COUNT;
+            }
+            break;
+        }
         case SDL_MOUSEBUTTONDOWN:
             if (e.button.button == SDL_BUTTON_LEFT) in.state.shoot = true;
             break;

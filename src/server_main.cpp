@@ -191,6 +191,7 @@ static void handlePackets(int fd) {
             c.input.crouch = p.keys & KEY_CROUCH;
             c.input.ads    = p.flags & FLAG_ADS;
             c.input.reload = p.flags & FLAG_RELOAD;
+            c.input.weaponId = p.weaponId;
             c.input.yaw   = p.yaw;
             c.input.pitch = p.pitch;
             c.shotSeq     = p.shotSeq;  // packet is seq-gated newest, so monotonic
@@ -219,6 +220,8 @@ static void tick(float dt) {
             continue;
         }
 
+        if (p.weaponId != c.input.weaponId)   // client swapped weapons (1/2 keys)
+            giveWeapon(p, c.input.weaponId);
         movePlayer(p, c.input, dt);
         updateReload(p, c.input.reload, dt);
         if (c.firedShots < c.shotSeq) {   // one shot per tick; drains any backlog
