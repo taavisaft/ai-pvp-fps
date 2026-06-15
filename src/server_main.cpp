@@ -12,6 +12,7 @@
 #include "protocol.h"
 #include "game.h"
 #include "physics.h"
+#include "map.h"
 
 struct ClientSlot {
     bool        used = false;
@@ -117,7 +118,8 @@ static bool rewindLookup(const void* ctx, int pid, float rewindSec,
 // so deaths don't return you to a campable fixed spot.
 static glm::vec3 spawnPos(int point) {
     float a = glm::radians(point * (360.0f / MAX_PLAYERS));
-    return {15.0f * cosf(a), 0.0f, 15.0f * sinf(a)};
+    // radius 12 keeps every point clear of the warehouse perimeter walls (+/-15 Z)
+    return {12.0f * cosf(a), 0.0f, 12.0f * sinf(a)};
 }
 static float spawnYaw(int point) {
     return point * (360.0f / MAX_PLAYERS) + 180.0f;  // look toward center
@@ -289,6 +291,7 @@ static void broadcast(int fd, uint32_t seq) {
 int main() {
     setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffered even when piped to a log
     srand((unsigned)time(nullptr));
+    setMap(MAP_WAREHOUSE);                 // matches run the warehouse map
     platformSocketInit();
     int fd = -1;
     if (!netOpen(fd) || !netBind(fd, UDP_PORT)) {

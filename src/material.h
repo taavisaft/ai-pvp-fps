@@ -28,10 +28,23 @@ struct MaterialLib {
     void destroy();
 };
 
-// Per-map-box material (parallel to MAP_BOXES; server ignores).
-inline const MaterialId MAP_BOX_MAT[MAP_BOX_COUNT] = {
+// Per-map-box material (parallel to each map's box array; server ignores).
+inline const MaterialId TRAINING_MAT[TRAINING_BOX_COUNT] = {
     MAT_CONCRETE, // center pillar
     MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, // axis walls
     MAT_WOOD, MAT_WOOD, MAT_WOOD, MAT_WOOD,                 // crates
     MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, // outer pillars
 };
+inline const MaterialId WAREHOUSE_MAT[WAREHOUSE_BOX_COUNT] = {
+    MAT_CONCRETE,                                           // central block
+    MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, // perimeter walls
+    MAT_METAL, MAT_METAL, MAT_METAL, MAT_METAL,             // containers (X)
+    MAT_METAL, MAT_METAL,                                   // containers (Z)
+    MAT_WOOD, MAT_WOOD, MAT_WOOD, MAT_WOOD,                 // crates
+    MAT_METAL, MAT_METAL,                                   // pipe stacks
+};
+
+// Material array for the active map (parallel to gMapBoxes).
+inline const MaterialId* activeMapMat() {
+    return gMapId == MAP_WAREHOUSE ? WAREHOUSE_MAT : TRAINING_MAT;
+}

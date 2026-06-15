@@ -89,9 +89,10 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
             r.drawCube(rangeMarks[i], {0.05f, 0.11f, 0.11f}, {1.0f, 0.85f, 0.20f});
     }
 
-    for (int i = 0; i < MAP_BOX_COUNT; i++) {
-        const Box& b = MAP_BOXES[i];
-        r.drawCube(b.center, b.half * 2.0f, MAP_BOX_MAT[i]);
+    const MaterialId* mapMat = activeMapMat();
+    for (int i = 0; i < gMapBoxCount; i++) {
+        const Box& b = gMapBoxes[i];
+        r.drawCube(b.center, b.half * 2.0f, mapMat[i]);
     }
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (i == localID) continue;
@@ -267,6 +268,7 @@ int main(int argc, char** argv) {
         if (localID < 0 || localID >= MAX_PLAYERS) localID = 0;
 
         if (online && !wasOnline) {   // reset offline→online client state
+            setMap(MAP_WAREHOUSE);    // match the server's map
             prevOwnHP       = PLAYER_HP;
             prevOwnHits     = 0;
             prevOwnAlive    = true;
@@ -276,6 +278,7 @@ int main(int argc, char** argv) {
             rangeMarkCount  = 0;
             rangeMarkHead   = 0;
         }
+        if (!online && wasOnline) setMap(MAP_TRAINING);  // back to the practice arena
         wasOnline = online;
 
         // --- fire control: pick shots this frame by fire mode, gate on ammo ---

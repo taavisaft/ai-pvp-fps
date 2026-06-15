@@ -70,8 +70,8 @@ static constexpr float FOOT_R = 0.4f;  // player XZ footprint half-extent
 // crossing a top from above but don't snap onto one you're rising past.
 static float supportHeight(const Player& p, float fromY) {
     float floor = 0.0f;
-    for (int i = 0; i < MAP_BOX_COUNT; i++) {
-        const Box& b = MAP_BOXES[i];
+    for (int i = 0; i < gMapBoxCount; i++) {
+        const Box& b = gMapBoxes[i];
         if (fabsf(p.pos.x - b.center.x) >= b.half.x + FOOT_R) continue;
         if (fabsf(p.pos.z - b.center.z) >= b.half.z + FOOT_R) continue;
         float top = b.center.y + b.half.y;
@@ -83,8 +83,8 @@ static float supportHeight(const Player& p, float fromY) {
 // Push the footprint out of boxes along the axis of least overlap. Skipped for
 // boxes whose top is at/below the feet — you stand on those instead of bumping.
 static void collideXZ(Player& p) {
-    for (int i = 0; i < MAP_BOX_COUNT; i++) {
-        const Box& b = MAP_BOXES[i];
+    for (int i = 0; i < gMapBoxCount; i++) {
+        const Box& b = gMapBoxes[i];
         float top = b.center.y + b.half.y;
         if (p.pos.y >= top - 0.05f) continue;  // on/above the box → no side push
         float dx = (b.half.x + FOOT_R) - fabsf(p.pos.x - b.center.x);
@@ -191,8 +191,8 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
         if (b.lifetime <= 0.0f) { b.active = false; continue; }
         if (b.pos.y <= 0.0f) { b.active = false; continue; }  // hit the ground
 
-        for (int m = 0; m < MAP_BOX_COUNT; m++) {
-            if (pointInBox(b.pos, MAP_BOXES[m])) { b.active = false; break; }
+        for (int m = 0; m < gMapBoxCount; m++) {
+            if (pointInBox(b.pos, gMapBoxes[m])) { b.active = false; break; }
         }
         if (!b.active) continue;
 
