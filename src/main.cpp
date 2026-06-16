@@ -45,7 +45,7 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
     glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0, 1, 0)));
     glm::vec3 up    = glm::cross(right, front);
 
-    glm::vec3 hipOff = right * 0.17f - up * 0.15f + front * 0.35f;
+    glm::vec3 hipOff = right * 0.17f - up * 0.30f + front * 0.35f;
     glm::vec3 adsOff =                - up * 0.05f + front * 0.30f;
     glm::vec3 off    = glm::mix(hipOff, adsOff, vm.adsT);
     glm::vec3 anchor = cam.eye + off - front * (vm.recoilT * 0.08f);
@@ -62,6 +62,7 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
     const glm::vec3 poly  = {0.08f, 0.08f, 0.09f};  // pistol polymer frame
 
     float flashZ;
+    float gripY, gripZ;   // grip center in anchor space; the firing hand wraps here
     if (gWeaponId == WEP_GLOCK19) {                 // compact pistol
         part({0.0f,  0.02f,  0.06f}, {0.050f, 0.060f, 0.20f}, metal); // slide
         part({0.0f, -0.03f,  0.03f}, {0.045f, 0.050f, 0.15f}, poly);  // frame
@@ -69,6 +70,7 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
         part({0.0f, -0.12f, -0.05f}, {0.050f, 0.130f, 0.06f}, poly);  // grip
         part({0.0f, -0.18f, -0.05f}, {0.046f, 0.040f, 0.05f}, metal); // mag base
         flashZ = 0.26f;
+        gripY = -0.10f; gripZ = -0.05f;
     } else {                                        // Uzi — boxy SMG
         part({0.0f,  0.00f,  0.01f}, {0.078f, 0.10f,  0.26f}, metal); // receiver
         part({0.0f,  0.06f, -0.02f}, {0.050f, 0.040f, 0.12f}, dark);  // top rail/bolt
@@ -76,7 +78,23 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
         part({0.0f, -0.11f, -0.02f}, {0.050f, 0.140f, 0.07f}, metal); // grip
         part({0.0f, -0.20f, -0.02f}, {0.044f, 0.190f, 0.05f}, dark);  // long magazine
         flashZ = 0.36f;
+        gripY = -0.09f; gripZ = -0.02f;
     }
+
+    // Right (firing) hand only — PUBG-style, minimal screen space. A fist wrapping
+    // the grip plus a short forearm angled down-back so it leaves frame fast; the gun
+    // sits in front and occludes most of it. ADS/recoil come free from anchor space.
+    const glm::vec3 glove = {0.46f, 0.35f, 0.28f};   // tan fingerless glove
+    glm::vec3 fistC = {0.012f, gripY, gripZ};        // fist centered on the grip
+    r.drawCubeModel(glm::scale(glm::translate(anchorM, fistC),
+                               glm::vec3(0.085f, 0.095f, 0.105f)), glove);
+    // Forearm: pivot at the wrist (just under the fist), tilt back about the right
+    // axis so the limb runs from the lower-right toward the shoulder, then hang it.
+    glm::mat4 fore = glm::translate(anchorM, glm::vec3(0.02f, gripY - 0.05f, gripZ - 0.01f))
+                   * glm::rotate(glm::mat4(1.0f), glm::radians(24.0f), glm::vec3(1, 0, 0))
+                   * glm::rotate(glm::mat4(1.0f), glm::radians(14.0f), glm::vec3(0, 0, 1))
+                   * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.11f, 0.0f));
+    r.drawCubeModel(glm::scale(fore, glm::vec3(0.072f, 0.22f, 0.082f)), glove);
 
     if (vm.flashTimer > 0.0f) {                                    // muzzle flash
         glm::vec3 muzzle = anchor + up * 0.02f + front * flashZ;
