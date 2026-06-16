@@ -37,12 +37,31 @@ bool segmentAabb(const glm::vec3& p0, const glm::vec3& p1,
     return true;
 }
 
-// Segment vs the y=0 ground plane. tHit = fraction where it crosses, if it does.
+// Segment p0->p1 vs the ground. Flat y=0 plane on arena maps; on the field map it
+// marches the heightfield (the bullet can step several metres per tick, so sample
+// along the segment and lerp at the first point that dips to/under the terrain).
 static bool segmentGround(const glm::vec3& p0, const glm::vec3& p1, float& tHit) {
-    if (p1.y > 0.0f) return false;            // stays above ground this tick
-    if (p0.y <= 0.0f) { tHit = 0.0f; return true; }
-    tHit = p0.y / (p0.y - p1.y);
-    return true;
+    if (!gTerrainOn) {
+        if (p1.y > 0.0f) return false;            // stays above ground this tick
+        if (p0.y <= 0.0f) { tHit = 0.0f; return true; }
+        tHit = p0.y / (p0.y - p1.y);
+        return true;
+    }
+    const int N = 8;
+    float prevDiff = p0.y - terrainHeight(p0.x, p0.z);
+    if (prevDiff <= 0.0f) { tHit = 0.0f; return true; }   // already under terrain
+    for (int i = 1; i <= N; i++) {
+        float t = (float)i / N;
+        glm::vec3 s = p0 + (p1 - p0) * t;
+        float diff = s.y - terrainHeight(s.x, s.z);
+        if (diff <= 0.0f) {                                // crossed the surface
+            float frac = prevDiff / (prevDiff - diff);     // lerp within this step
+            tHit = (float)(i - 1) / N + frac / N;
+            return true;
+        }
+        prevDiff = diff;
+    }
+    return false;
 }
 
 // Distance-based damage scale: full up to falloffStart, lerps to falloffMin by end.
@@ -91,7 +110,7 @@ static glm::vec3 applySpread(glm::vec3 dir, float deg) {
 
 float aimSpread(const Player& p, const InputState& in) {
     float base    = in.ads ? ADS_SPREAD_DEG : HIP_SPREAD_DEG;
-    bool  airborne = p.pos.y > 0.05f;
+    bool  airborne = p.pos.y > terrainHeight(p.pos.x, p.pos.z) + 0.05f;
     bool  moving   = in.w || in.a || in.s || in.d;
     float move     = airborne ? JUMP_SPREAD_DEG
                    : (in.sprint && moving) ? SPRINT_SPREAD_DEG
@@ -119,7 +138,7 @@ static constexpr float FOOT_R = 0.4f;  // player XZ footprint half-extent
 // fall — a box counts only if the player was at/above its top, so you land when
 // crossing a top from above but don't snap onto one you're rising past.
 static float supportHeight(const Player& p, float fromY) {
-    float floor = 0.0f;
+    float floor = terrainHeight(p.pos.x, p.pos.z);
     for (int i = 0; i < gMapBoxCount; i++) {
         const Box& b = gMapBoxes[i];
         if (fabsf(p.pos.x - b.center.x) >= b.half.x + FOOT_R) continue;

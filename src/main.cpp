@@ -246,7 +246,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
 
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
-    r.drawGround();
+    if (gMapId == MAP_FIELD) r.drawTerrain(); else r.drawGround();
 
     if (drawRange) {
         // the wall itself is a training-map box (drawn by the map loop). Just the
@@ -259,10 +259,9 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
             r.drawCube(rangeMarks[i], {0.05f, 0.11f, 0.11f}, {1.0f, 0.85f, 0.20f});
     }
 
-    const MaterialId* mapMat = activeMapMat();
     for (int i = 0; i < gMapBoxCount; i++) {
         const Box& b = gMapBoxes[i];
-        r.drawCube(b.center, b.half * 2.0f, mapMat[i]);
+        r.drawCube(b.center, b.half * 2.0f, mapBoxMaterial(i));
     }
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (i == localID) continue;
@@ -270,7 +269,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         if (!gs.players[i].alive) continue;
         const Player& pl = gs.players[i];
         const glm::vec3& p = pl.pos;
-        bool airborne = p.y > 0.05f;
+        bool airborne = p.y > terrainHeight(p.x, p.z) + 0.05f;
         if (showHitboxes) {
             // Debug: draw the actual gameplay hit regions, color-coded by multiplier.
             static const glm::vec3 regionCol[3] = {
@@ -286,14 +285,15 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
             drawPlayerModel(r, p, pl.yaw, pl.crouched, airborne,
                             walkPhase[i], walkAmp[i], COLOR_ENEMY);
         }
-        r.drawCube({p.x, 0.01f, p.z}, {1.1f, 0.001f, 1.1f}, COLOR_BLOB);
+        r.drawCube({p.x, terrainHeight(p.x, p.z) + 0.01f, p.z}, {1.1f, 0.001f, 1.1f}, COLOR_BLOB);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
         const Bullet& b = gs.bullets[i];
         if (!b.active) continue;
         bool own = b.ownerID == localID;
         r.drawCube(b.pos, {0.1f, 0.1f, 0.1f}, own ? COLOR_BULLET_OWN : COLOR_BULLET_ENEMY);
-        r.drawCube({b.pos.x, 0.01f, b.pos.z}, {0.22f, 0.001f, 0.22f}, COLOR_BLOB);
+        r.drawCube({b.pos.x, terrainHeight(b.pos.x, b.pos.z) + 0.01f, b.pos.z},
+                   {0.22f, 0.001f, 0.22f}, COLOR_BLOB);
     }
     if (drawRange) drawMirror(r, cam, gs, localID, walkPhase, walkAmp);
     if (gs.players[localID].alive && !connectPrompt.open) drawViewModel(r, cam, vm);
@@ -363,6 +363,11 @@ int main(int argc, char** argv) {
     Camera     cam;
     cam.yaw = 0.0f;  // offline spawn looks down the range (+X) at the target wall
     FrameInput input;
+
+    // The protocol carries no map id, so the client picks the online map the same
+    // way the server does: FPS_MAP=field for the 1 km^2 terrain, else warehouse.
+    const char* mapEnv = getenv("FPS_MAP");
+    const MapId onlineMap = (mapEnv && strcmp(mapEnv, "field") == 0) ? MAP_FIELD : MAP_WAREHOUSE;
 
     // Default: training mode (offline). Only auto-connect when an IP arg is given;
     // otherwise press C to connect to a server.
@@ -482,7 +487,7 @@ int main(int argc, char** argv) {
         if (localID < 0 || localID >= MAX_PLAYERS) localID = 0;
 
         if (online && !wasOnline) {   // reset offline→online client state
-            setMap(MAP_WAREHOUSE);    // match the server's map
+            setMap(onlineMap);        // match the server's map (FPS_MAP)
             prevOwnHP       = PLAYER_HP;
             prevOwnHits     = 0;
             prevOwnAlive    = true;

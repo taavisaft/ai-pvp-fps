@@ -80,5 +80,5 @@ glm::mat4 Camera::view() const {
 }
 
 glm::mat4 Camera::proj(float aspect) const {
-    return glm::perspective(glm::radians(fov), aspect, 0.1f, 500.0f);
+    return glm::perspective(glm::radians(fov), aspect, 0.1f, 900.0f);
 }

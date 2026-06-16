@@ -51,6 +51,7 @@ bool Renderer::init(const char* title, int w, int h) {
 
     if (!createUnitCube(cube)) return false;
     if (!createGroundQuad(ground)) return false;
+    if (!createTerrainMesh(terrain)) return false;
     if (!createQuad2D(quad2d)) return false;
     if (!font.init()) return false;
     if (!materials.init()) return false;
@@ -199,6 +200,15 @@ void Renderer::drawGround(MaterialId mat) {
     shader.setInt(shader.locGrass, 0);
 }
 
+void Renderer::drawTerrain() {
+    bindMaterial(shader, materials, MAT_GROUND);
+    shader.setMat4(shader.locModel, glm::mat4(1.0f));
+    shader.setVec3(shader.locColor, glm::vec3(1.0f));
+    shader.setInt(shader.locGrass, materials.groundHasImage ? 0 : 1);
+    terrain.draw();
+    shader.setInt(shader.locGrass, 0);
+}
+
 void Renderer::endFrame() {
     SDL_GL_SwapWindow(window);
 }
@@ -212,6 +222,7 @@ void Renderer::shutdown() {
     materials.destroy();
     font.destroy();
     quad2d.destroy();
+    terrain.destroy();
     ground.destroy();
     cube.destroy();
     shader.destroy();

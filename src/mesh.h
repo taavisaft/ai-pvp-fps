@@ -17,3 +17,4 @@ struct Mesh {
 bool createUnitCube(Mesh& m);      // 1x1x1 centered at origin
 bool createGroundQuad(Mesh& m);    // 100x100 at y=0 centered at origin
 bool createQuad2D(Mesh& m);        // 1x1 in XY plane at z=0, facing +z (HUD)
+bool createTerrainMesh(Mesh& m);   // 1 km^2 heightfield grid (MAP_FIELD)

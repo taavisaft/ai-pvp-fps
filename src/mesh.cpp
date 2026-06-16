@@ -1,4 +1,6 @@
 #include "mesh.h"
+#include "map.h"      // FIELD_HALF + terrain.h (terrainElevation)
+#include <vector>
 
 bool Mesh::create(const float* verts, size_t floatCount,
                   const unsigned* indices, size_t idxCount) {
@@ -77,4 +79,29 @@ bool createGroundQuad(Mesh& m) {
     };
     static const unsigned idx[] = { 0, 3, 2,  2, 1, 0 };  // up-facing CCW
     return m.create(verts, 12, idx, 6);
+}
+
+// Heightfield grid spanning the field map, sampled from terrainElevation(). Built
+// once (static VBO); the shader derives normals via dFdx/dFdy, so position-only.
+bool createTerrainMesh(Mesh& m) {
+    const float HALF = FIELD_HALF, STEP = 4.0f;
+    const int   N = (int)(2.0f * HALF / STEP) + 1;   // verts per side
+    std::vector<float> v;
+    v.reserve((size_t)N * N * 3);
+    for (int zi = 0; zi < N; zi++)
+        for (int xi = 0; xi < N; xi++) {
+            float x = -HALF + xi * STEP, z = -HALF + zi * STEP;
+            v.push_back(x);
+            v.push_back(terrainElevation(x, z));
+            v.push_back(z);
+        }
+    std::vector<unsigned> idx;
+    idx.reserve((size_t)(N - 1) * (N - 1) * 6);
+    for (int zi = 0; zi < N - 1; zi++)
+        for (int xi = 0; xi < N - 1; xi++) {
+            unsigned a = zi * N + xi, b = a + 1, c = a + N, d = c + 1;
+            idx.push_back(a); idx.push_back(c); idx.push_back(d);  // up-facing CCW
+            idx.push_back(d); idx.push_back(b); idx.push_back(a);
+        }
+    return m.create(v.data(), v.size(), idx.data(), idx.size());
 }

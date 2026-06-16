@@ -118,8 +118,11 @@ static bool rewindLookup(const void* ctx, int pid, float rewindSec,
 // so deaths don't return you to a campable fixed spot.
 static glm::vec3 spawnPos(int point) {
     float a = glm::radians(point * (360.0f / MAX_PLAYERS));
-    // radius 12 keeps every point clear of the warehouse perimeter walls (+/-15 Z)
-    return {12.0f * cosf(a), 0.0f, 12.0f * sinf(a)};
+    // radius 12 keeps every point clear of the warehouse perimeter walls (+/-15 Z);
+    // the open field spreads players much wider across the km.
+    float r = (gMapId == MAP_FIELD) ? 180.0f : 12.0f;
+    float x = r * cosf(a), z = r * sinf(a);
+    return {x, terrainHeight(x, z), z};   // sit on the ground (terrain or y=0)
 }
 static float spawnYaw(int point) {
     return point * (360.0f / MAX_PLAYERS) + 180.0f;  // look toward center
@@ -301,7 +304,10 @@ static void broadcast(int fd, uint32_t seq) {
 int main() {
     setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffered even when piped to a log
     srand((unsigned)time(nullptr));
-    setMap(MAP_WAREHOUSE);                 // matches run the warehouse map
+    const char* mapEnv = getenv("FPS_MAP");
+    bool fieldMap = mapEnv && strcmp(mapEnv, "field") == 0;
+    setMap(fieldMap ? MAP_FIELD : MAP_WAREHOUSE);   // FPS_MAP=field for the 1 km^2 map
+    printf("server: map = %s\n", fieldMap ? "field" : "warehouse");
     platformSocketInit();
     int fd = -1;
     if (!netOpen(fd) || !netBind(fd, UDP_PORT)) {

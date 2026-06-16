@@ -80,7 +80,7 @@ void main() {
             c += vec3(spec);
         }
 
-        float fog = clamp(length(worldPos - eyePos) / 120.0, 0.0, 1.0);
+        float fog = clamp(length(worldPos - eyePos) / 250.0, 0.0, 1.0);
         c = mix(c, vec3(0.1, 0.1, 0.15), fog * fog);
     }
     fragColor = vec4(c, alpha);

@@ -18,6 +18,7 @@ struct Renderer {
     Shader shader;
     Mesh   cube;     // unit cube, scaled per draw
     Mesh   ground;   // 100x100 quad at y=0
+    Mesh   terrain;  // 1 km^2 heightfield (MAP_FIELD)
     Mesh   quad2d;   // unit quad for HUD rects
     Font   font;     // bitmap text, HUD pass only
     MaterialLib materials;
@@ -33,6 +34,7 @@ struct Renderer {
     void  fillDepthFar();                   // far-plane quad; resets depth in stencil region
     void  drawGround();
     void  drawGround(MaterialId mat);
+    void  drawTerrain();   // heightfield ground for MAP_FIELD
     // HUD pass: depth off, blending on, coordinates in NDC [-1,1]
     void  beginHUD();
     void  drawRect(const glm::vec2& center, const glm::vec2& size,
