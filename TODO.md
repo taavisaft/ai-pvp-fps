@@ -27,7 +27,8 @@ A simple running list of what's done and what's next.
 - Default training mode on launch; connect/switch servers anytime
 - In-game server-IP entry overlay (C key) — no more stdin blocking
 - Three maps: training arena (offline), warehouse yard, and a 1 km² open field —
-  runtime-selected (server + client pick via FPS_MAP=field)
+  server picks via FPS_MAP=field; clients auto-detect it from the join handshake
+  (mapId in AcceptPacket), so connecting alone is enough
 - Large field map: shared procedural heightfield terrain (deterministic noise, same
   on server + client) with scattered cover snapped onto the surface; physics,
   spawns, bullets, and shadows all follow the terrain (arena maps stay flat)

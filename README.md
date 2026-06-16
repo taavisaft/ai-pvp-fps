@@ -44,13 +44,13 @@ Produces two binaries: `build/game` (client) and `build/server` (dedicated serve
 
 For multiple machines, run the server anywhere reachable and pass its IP to each client.
 
-To play the large open-terrain map instead of the warehouse, set `FPS_MAP=field` on
-**both** the server and every client (the map isn't carried in the protocol, so each
-side selects it the same way):
+To play the large open-terrain map instead of the warehouse, launch the **server**
+with `FPS_MAP=field`. Clients auto-detect the server's map on connect (it's sent in
+the join handshake) — no flag needed on the client:
 
 ```bash
 FPS_MAP=field ./build/server
-FPS_MAP=field ./build/game 127.0.0.1
+./build/game 127.0.0.1          # adopts whatever map the server runs
 ```
 
 Starting `./build/game` with no IP launches **training mode** — an offline practice arena with a shooting range and a respawning dummy. Press **C** in-game to bring up the server-IP prompt and connect to a match (default `127.0.0.1` pre-filled); you can switch servers any time without restarting.

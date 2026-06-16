@@ -24,6 +24,7 @@ float frand01()     { return (float)rand() / (float)RAND_MAX; }
 bool ClientNet::connect(const char* ip) {
     if (fd >= 0) disconnect();   // close any prior socket / session
     playerID   = -1;
+    serverMap  = -1;
     hasState   = false;
     newestSeq  = 0;
     playSeq    = 0.0f;
@@ -121,9 +122,10 @@ bool ClientNet::processPacket(const char* buf, int n, const sockaddr_in& from) {
         AcceptPacket a;
         memcpy(&a, buf, sizeof(a));
         playerID   = a.playerID;
+        serverMap  = a.mapId;
         connected  = true;
         connecting = false;
-        printf("net: connected as player %d\n", playerID);
+        printf("net: connected as player %d (map %d)\n", playerID, serverMap);
     } else if (type == PKT_STATE && n >= statePacketSize(0)) {
         StatePacket s{};
         int copy = n <= (int)sizeof(StatePacket) ? n : (int)sizeof(StatePacket);
@@ -340,4 +342,5 @@ void ClientNet::disconnect() {
     hasState   = false;
     playInit   = false;
     playerID   = -1;
+    serverMap  = -1;
 }

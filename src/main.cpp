@@ -364,10 +364,6 @@ int main(int argc, char** argv) {
     cam.yaw = 0.0f;  // offline spawn looks down the range (+X) at the target wall
     FrameInput input;
 
-    // The protocol carries no map id, so the client picks the online map the same
-    // way the server does: FPS_MAP=field for the 1 km^2 terrain, else warehouse.
-    const char* mapEnv = getenv("FPS_MAP");
-    const MapId onlineMap = (mapEnv && strcmp(mapEnv, "field") == 0) ? MAP_FIELD : MAP_WAREHOUSE;
 
     // Default: training mode (offline). Only auto-connect when an IP arg is given;
     // otherwise press C to connect to a server.
@@ -487,7 +483,11 @@ int main(int argc, char** argv) {
         if (localID < 0 || localID >= MAX_PLAYERS) localID = 0;
 
         if (online && !wasOnline) {   // reset offline→online client state
-            setMap(onlineMap);        // match the server's map (FPS_MAP)
+            // Adopt whatever map the server advertised in its ACCEPT (falls back to
+            // warehouse if somehow unset), so the client always matches the server.
+            MapId srv = (net.serverMap >= 0 && net.serverMap < 3) ? (MapId)net.serverMap
+                                                                  : MAP_WAREHOUSE;
+            setMap(srv);
             prevOwnHP       = PLAYER_HP;
             prevOwnHits     = 0;
             prevOwnAlive    = true;

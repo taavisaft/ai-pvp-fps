@@ -8,6 +8,7 @@ struct ClientNet {
     int         fd        = -1;
     sockaddr_in server{};
     int         playerID  = -1;   // assigned by ACCEPT
+    int         serverMap = -1;   // MapId the server runs, learned from ACCEPT
     bool        connecting = false;
     bool        connected  = false;
     uint32_t    inputSeq   = 0;

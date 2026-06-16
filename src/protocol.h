@@ -18,7 +18,7 @@ constexpr int NET_MAX_PLAYERS = 16;   // must equal MAX_PLAYERS
 #pragma pack(push, 1)
 
 struct HelloPacket  { PacketType type; };   // PKT_HELLO
-struct AcceptPacket { PacketType type; uint8_t playerID; };  // 0..15
+struct AcceptPacket { PacketType type; uint8_t playerID; uint8_t mapId; };  // id 0..15, mapId = MapId
 
 struct InputPacket {
     PacketType type;    // PKT_INPUT

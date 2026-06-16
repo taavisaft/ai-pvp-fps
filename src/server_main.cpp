@@ -176,7 +176,7 @@ static void handlePackets(int fd) {
                 for (int i = 0; i < MAX_PLAYERS; i++) online += clients[i].used;
                 printf("server: player %d joined (%d online)\n", id, online);
             }
-            AcceptPacket a{PKT_ACCEPT, (uint8_t)id};
+            AcceptPacket a{PKT_ACCEPT, (uint8_t)id, (uint8_t)gMapId};
             netSend(fd, &a, sizeof(a), from);
         } else if (type == PKT_INPUT && id >= 0 && n >= (int)sizeof(InputPacket)) {
             InputPacket p;
