@@ -24,11 +24,14 @@ set(CLIENT_SOURCES
     src/shader.cpp
     src/font.cpp
     src/mesh.cpp
+    src/texture.cpp
+    src/material.cpp
     src/renderer.cpp
     src/hud.cpp
     src/camera.cpp
     src/input.cpp
-    src/network.cpp)
+    src/network.cpp
+    src/audio.cpp)
 
 add_executable(game ${CLIENT_SOURCES} ${SHARED_SOURCES})
 target_include_directories(game PRIVATE src)
@@ -49,3 +52,8 @@ endif()
 add_custom_command(TARGET game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:game>/shaders)
+
+# Copy image textures next to the binary (optional; procedural fallback if absent)
+add_custom_command(TARGET game POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/textures $<TARGET_FILE_DIR:game>/textures)

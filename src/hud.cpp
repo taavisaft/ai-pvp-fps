@@ -1,4 +1,5 @@
 #include "hud.h"
+#include "connect_prompt.h"
 #include <cstdio>
 #include <cstring>
 #include <cmath>
@@ -101,24 +102,47 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
     snprintf(buf, sizeof(buf), "%d", own.hp);
     r.drawText(buf, -0.33f, -0.885f, TEXT_H, hpColor, 0.9f);
 
-    drawBar(r, {-0.6f, -0.94f}, {0.5f, 0.03f}, own.ammo / (float)AMMO_PER_LIFE,
-            {0.95f, 0.85f, 0.25f});
-    snprintf(buf, sizeof(buf), "%d", own.ammo);
-    r.drawText(buf, -0.33f, -0.96f, 0.04f, {0.95f, 0.85f, 0.25f}, 0.9f);
+    const WeaponDef& lw = weaponDef(gWeaponId);   // local player's selected weapon
+    glm::vec3 ammoCol = {0.95f, 0.85f, 0.25f};
+    drawBar(r, {-0.6f, -0.94f}, {0.5f, 0.03f}, own.mag / (float)lw.magSize, ammoCol);
+    if (own.reloading) snprintf(buf, sizeof(buf), "RELOADING");
+    else               snprintf(buf, sizeof(buf), "%d / %d", own.mag, own.reserve);
+    r.drawText(buf, -0.33f, -0.96f, 0.04f, ammoCol, 0.9f);
+
+    const char* modeStr = lw.semiOnly                ? "SEMI"
+                        : hud.fireMode == FIRE_AUTO  ? "AUTO"
+                        : hud.fireMode == FIRE_BURST ? "BURST" : "SEMI";
+    r.drawText(lw.name,  0.62f, -0.90f, 0.045f, {0.85f, 0.85f, 0.9f}, 0.9f);
+    r.drawText(modeStr,  0.78f, -0.96f, 0.04f,  {0.6f, 0.8f, 0.95f}, 0.85f);
 
     if (own.alive) {
         r.drawRect({0, 0}, {0.006f * ia, 0.045f}, {1, 1, 1}, 0.9f);
         r.drawRect({0, 0}, {0.045f * ia, 0.006f}, {1, 1, 1}, 0.9f);
-    } else {
+    }
+
+    // Hit marker: a small X at the world impact point you last hit (projected
+    // to screen in main.cpp). Two diagonal strokes, fading out over its lifetime.
+    if (hud.hitMarkerTimer > 0.0f && hud.hitMarkerOnScreen) {
+        float a = hud.hitMarkerTimer / HIT_MARKER_TIME;
+        if (a > 1.0f) a = 1.0f;
+        glm::vec2 sz = {0.045f, 0.009f};
+        r.drawRectRot(hud.hitMarkerNDC, sz, {1.0f, 1.0f, 0.9f}, a,  0.7854f);
+        r.drawRectRot(hud.hitMarkerNDC, sz, {1.0f, 1.0f, 0.9f}, a, -0.7854f);
+    }
+
+    if (!own.alive) {
         r.drawRect({0, 0}, {2, 2}, {0.6f, 0.05f, 0.05f}, 0.4f);
         snprintf(buf, sizeof(buf), "RESPAWN IN %d", (int)ceilf(hud.deathTimer));
         r.drawText(buf, -r.textWidth(buf, 0.08f) * 0.5f, -0.04f, 0.08f,
                    {1, 1, 1}, 0.95f);
     }
 
+    snprintf(buf, sizeof(buf), "%d FPS", (int)(hud.fps + 0.5f));
+    r.drawText(buf, -0.98f, 0.93f, 0.04f, {0.6f, 0.9f, 0.6f}, 0.8f);
+
     if (!online)
         r.drawText("OFFLINE PRACTICE - PRESS C TO CONNECT",
-                   -0.98f, 0.93f, 0.04f, {0.8f, 0.8f, 0.8f}, 0.8f);
+                   -0.98f, 0.87f, 0.04f, {0.8f, 0.8f, 0.8f}, 0.8f);
 
     for (int i = 0; i < hud.feed.count; i++) {
         const KillFeed::Entry& e = hud.feed.entries[i];
@@ -128,5 +152,22 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
     }
 
     if (scoreboard) drawScoreboard(r, gs, localID);
+    r.endHUD();
+}
+
+void drawConnectPrompt(Renderer& r, const ConnectPrompt& prompt) {
+    if (!prompt.open) return;
+    r.beginHUD();
+    r.drawRect({0, 0}, {2, 2}, {0, 0, 0}, 0.55f);
+    r.drawRect({0, 0.02f}, {1.1f, 0.42f}, {0.08f, 0.08f, 0.10f}, 0.92f);
+    r.drawText("SERVER IP", -0.48f, 0.16f, 0.055f, {0.75f, 0.75f, 0.75f}, 1.0f);
+    r.drawRect({0, -0.02f}, {0.92f, 0.12f}, {0.18f, 0.18f, 0.22f}, 1.0f);
+    if (prompt.ip[0] == '\0')
+        // dim hint — not real content; typing builds the IP from scratch
+        r.drawText("127.0.0.1", -0.43f, -0.05f, 0.065f, {0.40f, 0.40f, 0.45f}, 1.0f);
+    else
+        r.drawText(prompt.ip, -0.43f, -0.05f, 0.065f, {1, 1, 1}, 1.0f);
+    r.drawText("ENTER CONNECT   ESC CANCEL", -0.48f, -0.16f, 0.04f,
+               {0.55f, 0.55f, 0.55f}, 0.95f);
     r.endHUD();
 }

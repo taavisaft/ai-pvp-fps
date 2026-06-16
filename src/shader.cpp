@@ -67,6 +67,13 @@ bool Shader::load(const char* vertPath, const char* fragPath) {
     locAlpha = glGetUniformLocation(program, "alpha");
     locLit   = glGetUniformLocation(program, "lit");
     locEye   = glGetUniformLocation(program, "eyePos");
+    locDiffuse = glGetUniformLocation(program, "diffuseMap");
+    locUseTex  = glGetUniformLocation(program, "useTexture");
+    locTile    = glGetUniformLocation(program, "tileSize");
+    locSpec    = glGetUniformLocation(program, "specular");
+    locTint    = glGetUniformLocation(program, "tint");
+    locTime    = glGetUniformLocation(program, "time");
+    locGrass   = glGetUniformLocation(program, "grass");
     return true;
 }
 

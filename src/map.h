@@ -4,13 +4,21 @@
 // Static arena geometry, shared by server (collision) and client (collision + render).
 // All boxes sit on the ground. Obstacle thickness stays >= 1.0 so bullets
 // (max step ~0.85 m per physics tick) cannot tunnel through.
+//
+// Two maps exist: TRAINING (offline practice, symmetric cover) and WAREHOUSE
+// (online matches, PUBG-style yard). The active map is chosen at runtime —
+// server forces WAREHOUSE; the client uses TRAINING offline, WAREHOUSE once a
+// server state arrives. Collision and render read the gMap* globals below.
 
 struct Box {
     glm::vec3 center;  // y = half.y (resting on ground)
     glm::vec3 half;
 };
 
-inline const Box MAP_BOXES[] = {
+enum MapId { MAP_TRAINING = 0, MAP_WAREHOUSE = 1 };
+
+// --- TRAINING: the original symmetric arena -------------------------------
+inline const Box TRAINING_BOXES[] = {
     // center pillar
     {{ 0.0f, 1.5f,  0.0f}, {1.0f, 1.5f, 1.0f}},
     // walls on the axes
@@ -28,7 +36,55 @@ inline const Box MAP_BOXES[] = {
     {{-9.0f, 1.5f,  9.0f}, {0.7f, 1.5f, 0.7f}},
     {{ 9.0f, 1.5f, -9.0f}, {0.7f, 1.5f, 0.7f}},
     {{-9.0f, 1.5f, -9.0f}, {0.7f, 1.5f, 0.7f}},
+    // shooting-range target wall (front face at x=25.4); a normal obstacle so the
+    // shared collision/render handle it — no training-only physics path.
+    {{26.0f, 4.0f,  0.0f}, {0.6f, 4.0f, 13.0f}},
 };
-inline constexpr int MAP_BOX_COUNT = (int)(sizeof(MAP_BOXES) / sizeof(MAP_BOXES[0]));
+inline constexpr int TRAINING_BOX_COUNT = (int)(sizeof(TRAINING_BOXES) / sizeof(TRAINING_BOXES[0]));
 
-inline constexpr float ARENA_HALF = 45.0f;  // players clamped to ±this on X/Z
+// --- WAREHOUSE: enclosed yard, central building, shipping containers -------
+// Long axis is X (spawns sit at +/-15 X, facing center). Perimeter walls seal
+// the play space; the central block and containers break sightlines.
+inline const Box WAREHOUSE_BOXES[] = {
+    // central two-story block (solid cover centerpiece)
+    {{  0.0f, 2.5f,  0.0f}, {5.0f, 2.5f, 4.0f}},
+    // perimeter walls (rectangle: X in [-22,22], Z in [-15,15])
+    {{  0.0f, 1.5f,  15.0f}, {22.0f, 1.5f, 0.6f}},   // north
+    {{  0.0f, 1.5f, -15.0f}, {22.0f, 1.5f, 0.6f}},   // south
+    {{ 22.0f, 1.5f,  0.0f }, {0.6f,  1.5f, 15.0f}},  // east
+    {{-22.0f, 1.5f,  0.0f }, {0.6f,  1.5f, 15.0f}},  // west
+    // shipping containers (long on X)
+    {{-13.0f, 1.25f,  8.0f}, {3.0f, 1.25f, 1.25f}},
+    {{ 13.0f, 1.25f,  8.0f}, {3.0f, 1.25f, 1.25f}},
+    {{-13.0f, 1.25f, -8.0f}, {3.0f, 1.25f, 1.25f}},
+    {{ 13.0f, 1.25f, -8.0f}, {3.0f, 1.25f, 1.25f}},
+    // shipping containers (long on Z, flanking the center)
+    {{ -9.0f, 1.25f,  0.0f}, {1.25f, 1.25f, 3.0f}},
+    {{  9.0f, 1.25f,  0.0f}, {1.25f, 1.25f, 3.0f}},
+    // low wooden crates near the building (shoot over)
+    {{ -5.0f, 0.75f,  10.0f}, {0.75f, 0.75f, 0.75f}},
+    {{  5.0f, 0.75f,  10.0f}, {0.75f, 0.75f, 0.75f}},
+    {{ -5.0f, 0.75f, -10.0f}, {0.75f, 0.75f, 0.75f}},
+    {{  5.0f, 0.75f, -10.0f}, {0.75f, 0.75f, 0.75f}},
+    // pipe/crate stacks by the end walls (near each spawn)
+    {{-17.0f, 1.0f,  0.0f}, {1.0f, 1.0f, 2.0f}},
+    {{ 17.0f, 1.0f,  0.0f}, {1.0f, 1.0f, 2.0f}},
+};
+inline constexpr int WAREHOUSE_BOX_COUNT = (int)(sizeof(WAREHOUSE_BOXES) / sizeof(WAREHOUSE_BOXES[0]));
+
+inline constexpr float ARENA_HALF = 45.0f;  // default hard clamp on X/Z (walls seal sooner)
+
+// --- active map (runtime-selected; default training) ----------------------
+inline const Box* gMapBoxes    = TRAINING_BOXES;
+inline int        gMapBoxCount = TRAINING_BOX_COUNT;
+inline MapId      gMapId       = MAP_TRAINING;
+inline float      gArenaHalf   = ARENA_HALF;  // per-map clamp (grows for bigger maps)
+
+inline void setMap(MapId id) {
+    gMapId = id;
+    if (id == MAP_WAREHOUSE) {
+        gMapBoxes = WAREHOUSE_BOXES; gMapBoxCount = WAREHOUSE_BOX_COUNT; gArenaHalf = 45.0f;
+    } else {
+        gMapBoxes = TRAINING_BOXES;  gMapBoxCount = TRAINING_BOX_COUNT;  gArenaHalf = 45.0f;
+    }
+}

@@ -11,6 +11,7 @@ bool Renderer::init(const char* title, int w, int h) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);   // planar mirror reflection mask
 
     window = SDL_CreateWindow(title,
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h,
@@ -25,7 +26,7 @@ bool Renderer::init(const char* title, int w, int h) {
         fprintf(stderr, "SDL_GL_CreateContext: %s\n", SDL_GetError());
         return false;
     }
-    SDL_GL_SetSwapInterval(1);
+    SDL_GL_SetSwapInterval(0);  // VSync off: uncapped frame rate
 
     if (!loadGLFunctions()) return false;
 
@@ -52,6 +53,7 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!createGroundQuad(ground)) return false;
     if (!createQuad2D(quad2d)) return false;
     if (!font.init()) return false;
+    if (!materials.init()) return false;
     return true;
 }
 
@@ -60,13 +62,29 @@ float Renderer::aspect() const {
 }
 
 void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye) {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     shader.use();
     shader.setMat4(shader.locView, view);
     shader.setMat4(shader.locProj, proj);
     shader.setFloat(shader.locAlpha, 1.0f);
     shader.setInt(shader.locLit, 1);
     shader.setVec3(shader.locEye, eye);
+    shader.setInt(shader.locDiffuse, 0);
+    shader.setFloat(shader.locTime, frameTime);
+    shader.setInt(shader.locGrass, 0);
+}
+
+static void bindFlatColor(Shader& sh) {
+    sh.setInt(sh.locUseTex, 0);
+}
+
+static void bindMaterial(Shader& sh, const MaterialLib& lib, MaterialId id) {
+    const Material& m = lib.mats[(int)id];
+    lib.bind(id);
+    sh.setInt(sh.locUseTex, 1);
+    sh.setFloat(sh.locTile, m.tile);
+    sh.setFloat(sh.locSpec, m.spec);
+    sh.setVec3(sh.locTint, m.tint);
 }
 
 void Renderer::beginHUD() {
@@ -81,7 +99,23 @@ void Renderer::beginHUD() {
 void Renderer::drawRect(const glm::vec2& center, const glm::vec2& size,
                         const glm::vec3& color, float alpha) {
     shader.use();  // drawText may have bound the text program
+    bindFlatColor(shader);
     glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(center, 0.0f));
+    model = glm::scale(model, glm::vec3(size, 1.0f));
+    shader.setMat4(shader.locModel, model);
+    shader.setVec3(shader.locColor, color);
+    shader.setFloat(shader.locAlpha, alpha);
+    quad2d.draw();
+}
+
+void Renderer::drawRectRot(const glm::vec2& center, const glm::vec2& size,
+                           const glm::vec3& color, float alpha, float angle) {
+    shader.use();
+    bindFlatColor(shader);
+    float ia = 1.0f / aspect();
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(center, 0.0f));
+    model = glm::scale(model, glm::vec3(ia, 1.0f, 1.0f));            // square space -> NDC
+    model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));  // rotate in square space
     model = glm::scale(model, glm::vec3(size, 1.0f));
     shader.setMat4(shader.locModel, model);
     shader.setVec3(shader.locColor, color);
@@ -108,15 +142,61 @@ void Renderer::endHUD() {
 void Renderer::drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color) {
     glm::mat4 model = glm::translate(glm::mat4(1.0f), center);
     model = glm::scale(model, scale);
+    bindFlatColor(shader);
     shader.setMat4(shader.locModel, model);
     shader.setVec3(shader.locColor, color);
     cube.draw();
 }
 
+void Renderer::drawCube(const glm::vec3& center, const glm::vec3& scale, MaterialId mat) {
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), center);
+    model = glm::scale(model, scale);
+    bindMaterial(shader, materials, mat);
+    shader.setMat4(shader.locModel, model);
+    shader.setVec3(shader.locColor, glm::vec3(1.0f));
+    cube.draw();
+}
+
+void Renderer::drawCubeModel(const glm::mat4& model, const glm::vec3& color) {
+    bindFlatColor(shader);
+    shader.setMat4(shader.locModel, model);
+    shader.setVec3(shader.locColor, color);
+    cube.draw();
+}
+
+void Renderer::setView(const glm::mat4& view) {
+    shader.use();
+    shader.setMat4(shader.locView, view);
+}
+
+void Renderer::fillDepthFar() {
+    // Full-screen quad at the far plane (identity view/proj, z=1 -> depth 1). Used with
+    // a stencil test to reset depth inside the mirror so reflected geometry (which lives
+    // behind the wall in world space) draws instead of being occluded by it. Caller sets
+    // the stencil/colormask/depth-func state; this only issues the geometry.
+    shader.use();
+    bindFlatColor(shader);
+    shader.setMat4(shader.locView, glm::mat4(1.0f));
+    shader.setMat4(shader.locProj, glm::mat4(1.0f));
+    glm::mat4 m = glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 1.0f)),
+                             glm::vec3(2.0f, 2.0f, 1.0f));
+    shader.setMat4(shader.locModel, m);
+    quad2d.draw();
+}
+
 void Renderer::drawGround() {
+    drawGround(MAT_GROUND);
+}
+
+void Renderer::drawGround(MaterialId mat) {
+    bindMaterial(shader, materials, mat);
     shader.setMat4(shader.locModel, glm::mat4(1.0f));
-    shader.setVec3(shader.locColor, glm::vec3(0.30f, 0.50f, 0.30f));
+    shader.setVec3(shader.locColor, glm::vec3(1.0f));
+    // Use the procedural grass shader only when no ground image is loaded; otherwise
+    // the triplanar path samples the grass photo (textures/ground.*).
+    shader.setInt(shader.locGrass, materials.groundHasImage ? 0 : 1);
     ground.draw();
+    shader.setInt(shader.locGrass, 0);
 }
 
 void Renderer::endFrame() {
@@ -129,6 +209,7 @@ void Renderer::toggleWireframe() {
 }
 
 void Renderer::shutdown() {
+    materials.destroy();
     font.destroy();
     quad2d.destroy();
     ground.destroy();

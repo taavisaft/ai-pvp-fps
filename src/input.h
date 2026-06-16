@@ -2,6 +2,7 @@
 #include "game.h"
 
 struct Camera;
+struct ConnectPrompt;
 
 // Per-frame input snapshot + edge-triggered events
 struct FrameInput {
@@ -10,8 +11,13 @@ struct FrameInput {
     bool wireframeToggle  = false; // F pressed this frame
     bool connectRequested = false; // C pressed this frame
     bool scoreboardHeld   = false; // Tab held
+    bool fireModeToggle   = false; // B pressed this frame
+    bool clearRange       = false; // G pressed this frame (clear offline target marks)
+    bool connectSubmit    = false; // Enter pressed while connect prompt is open
+    int  weaponSelect     = -1;    // weapon id when 1/2 pressed this frame, else -1
+    bool hitboxToggle     = false; // H pressed this frame (debug hitbox view)
 };
 
 // Polls all pending SDL events. Updates camera look from mouse motion,
 // fills FrameInput. shoot is true only on the frame the button was pressed.
-void pollInput(FrameInput& in, Camera& cam);
+void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt = nullptr);
