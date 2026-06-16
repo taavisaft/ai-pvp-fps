@@ -6,7 +6,6 @@
 
 enum SoundId {
     SND_SHOOT = 0,
-    SND_JUMP,
     SND_STEP,
     SND_DEATH,
     SND_RESPAWN,

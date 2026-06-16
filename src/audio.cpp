@@ -62,17 +62,6 @@ void genShoot(std::vector<float>& b) {
     }
 }
 
-// Short rising blip.
-void genJump(std::vector<float>& b) {
-    b = makeBuffer(0.12f);
-    for (size_t i = 0; i < b.size(); i++) {
-        float t   = (float)i / SR;
-        float f   = 300.0f + 500.0f * (t / 0.12f);
-        float env = expf(-t * 14.0f);
-        b[i] = sinf(2.0f * (float)M_PI * f * t) * env * 0.3f;
-    }
-}
-
 // Soft low thud.
 void genStep(std::vector<float>& b) {
     b = makeBuffer(0.08f);
@@ -147,7 +136,6 @@ bool Audio::init() {
     }
 
     genShoot(gSounds[SND_SHOOT]);
-    genJump(gSounds[SND_JUMP]);
     genStep(gSounds[SND_STEP]);
     genDeath(gSounds[SND_DEATH]);
     genRespawn(gSounds[SND_RESPAWN]);

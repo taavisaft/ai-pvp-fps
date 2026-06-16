@@ -372,7 +372,6 @@ int main(int argc, char** argv) {
     bool        prevOwnAlive = true;
     bool        offlineShoot = false;  // latch click until a physics tick consumes it
     ViewModel   vm;                     // first-person gun state
-    bool        prevJumpKey  = false;   // for jump-sound edge
     float       stepTimer    = 0.0f;    // footstep cadence
     float       prevOwnPosY  = 0.0f;    // detect airborne (no footsteps in air)
     uint8_t     prevRemoteShots[MAX_PLAYERS] = {0};  // last seen authoritative per-player shot counters
@@ -677,11 +676,7 @@ int main(int argc, char** argv) {
         vm.recoilT -= dt * 8.0f;
         if (vm.recoilT < 0.0f) vm.recoilT = 0.0f;
 
-        // jump sound on key press; footsteps while moving on the ground
-        bool jumpEdge = input.state.jump && !prevJumpKey;
-        if (jumpEdge && own.alive) audioPlay(SND_JUMP, 0.7f);
-        prevJumpKey = input.state.jump;
-
+        // footsteps while moving on the ground
         float dY      = own.pos.y - prevOwnPosY;
         bool  onGround = dY < 0.02f && dY > -0.02f;       // not climbing/falling
         bool  moving   = input.state.w || input.state.a || input.state.s || input.state.d;
