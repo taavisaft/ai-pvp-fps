@@ -17,7 +17,7 @@ Requires CMake 3.20+ and SDL2.
 
 ```bash
 # macOS
-brew install sdl2
+brew install cmake sdl2
 
 # Ubuntu/Debian
 sudo apt install cmake build-essential libsdl2-dev libgl1-mesa-dev
