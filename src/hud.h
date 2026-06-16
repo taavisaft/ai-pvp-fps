@@ -26,6 +26,7 @@ struct HudState {
     float     hitMarkerTimer    = 0.0f;        // >0 while showing the hit X
     glm::vec2 hitMarkerNDC       = {0, 0};      // screen position (set in main.cpp)
     bool      hitMarkerOnScreen = false;        // impact point is in front of camera
+    float     adsT              = 0.0f;         // ADS blend (red-dot reticle on Uzi)
     uint8_t  prevKills[MAX_PLAYERS]  = {0};
     uint8_t  prevDeaths[MAX_PLAYERS] = {0};
     bool     tracked = false;

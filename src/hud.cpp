@@ -116,8 +116,23 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
     r.drawText(modeStr,  0.78f, -0.96f, 0.04f,  {0.6f, 0.8f, 0.95f}, 0.85f);
 
     if (own.alive) {
-        r.drawRect({0, 0}, {0.006f * ia, 0.045f}, {1, 1, 1}, 0.9f);
-        r.drawRect({0, 0}, {0.045f * ia, 0.006f}, {1, 1, 1}, 0.9f);
+        if (gWeaponId == WEP_UZI) {
+            // Hipfire crosshair fades out; red-dot sight picture fades in when ADS.
+            float ads  = hud.adsT;
+            float hipA = 1.0f - (ads * 2.0f > 1.0f ? 1.0f : ads * 2.0f);
+            if (hipA > 0.01f) {
+                r.drawRect({0, 0}, {0.006f * ia, 0.045f}, {1, 1, 1}, 0.9f * hipA);
+                r.drawRect({0, 0}, {0.045f * ia, 0.006f}, {1, 1, 1}, 0.9f * hipA);
+            }
+            float dotA = (ads - 0.25f) * 1.5f;
+            if (dotA < 0.0f) dotA = 0.0f;
+            if (dotA > 1.0f) dotA = 1.0f;
+            if (dotA > 0.01f)
+                r.drawRect({0, 0}, {0.009f * ia, 0.009f}, {0.95f, 0.12f, 0.08f}, 0.95f * dotA);
+        } else {
+            r.drawRect({0, 0}, {0.006f * ia, 0.045f}, {1, 1, 1}, 0.9f);
+            r.drawRect({0, 0}, {0.045f * ia, 0.006f}, {1, 1, 1}, 0.9f);
+        }
     }
 
     // Hit marker: a small X at the world impact point you last hit (projected

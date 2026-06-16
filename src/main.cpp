@@ -47,7 +47,10 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
     glm::vec3 up    = glm::cross(right, front);
 
     glm::vec3 hipOff = right * 0.17f - up * 0.30f + front * 0.35f;
-    glm::vec3 adsOff =                - up * 0.05f + front * 0.30f;
+    // Uzi: align hollow sight center (local y=0.06, z=-0.02) with the aim ray.
+    glm::vec3 adsOff = (gWeaponId == WEP_UZI)
+        ? (-up * 0.06f + front * 0.32f)
+        : (-up * 0.05f + front * 0.30f);
     glm::vec3 off    = glm::mix(hipOff, adsOff, vm.adsT);
     glm::vec3 anchor = cam.eye + off - front * (vm.recoilT * 0.08f);
 
@@ -74,7 +77,15 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
         gripY = -0.10f; gripZ = -0.05f;
     } else {                                        // Uzi — boxy SMG
         part({0.0f,  0.00f,  0.01f}, {0.078f, 0.10f,  0.26f}, metal); // receiver
-        part({0.0f,  0.06f, -0.02f}, {0.050f, 0.040f, 0.12f}, dark);  // top rail/bolt
+        // Red-dot sight — hollow housing (see-through window along barrel axis).
+        {
+            const glm::vec3 sc = {0.0f, 0.06f, -0.02f};
+            const float wx = 0.050f, wy = 0.040f, wz = 0.12f, wt = 0.009f;
+            part({sc.x, sc.y + wy * 0.5f - wt * 0.5f, sc.z}, {wx, wt, wz}, dark); // top
+            part({sc.x, sc.y - wy * 0.5f + wt * 0.5f, sc.z}, {wx, wt, wz}, dark); // bottom
+            part({sc.x - wx * 0.5f + wt * 0.5f, sc.y, sc.z}, {wt, wy - wt * 2.0f, wz}, dark); // left
+            part({sc.x + wx * 0.5f - wt * 0.5f, sc.y, sc.z}, {wt, wy - wt * 2.0f, wz}, dark); // right
+        }
         part({0.0f,  0.02f,  0.22f}, {0.032f, 0.032f, 0.16f}, dark);  // barrel
         part({0.0f, -0.11f, -0.02f}, {0.050f, 0.140f, 0.07f}, metal); // grip
         part({0.0f, -0.20f, -0.02f}, {0.044f, 0.190f, 0.05f}, dark);  // long magazine
@@ -736,6 +747,7 @@ int main(int argc, char** argv) {
 
         gameTime += dt;
         renderer.setTime(gameTime);
+        hud.adsT = vm.adsT;
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
                     rangeMarks, rangeMarkCount, !online, connectPrompt, walkPhase, walkAmp,
                     showHitboxes);
