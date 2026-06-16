@@ -537,11 +537,13 @@ int main(int argc, char** argv) {
             float mult = input.state.ads ? RECOIL_ADS_MULT : RECOIL_HIP_MULT;
             if (recoilHeat == 0.0f) mult *= RECOIL_FIRST_MULT;  // snappier opening shot
             float rs   = (float)rand() / (float)RAND_MAX * 2.0f - 1.0f;  // [-1,1]
-            float vKick = glm::mix(RECOIL_PITCH_MIN, RECOIL_PITCH_MAX, t) * mult;
-            float hKick = RECOIL_YAW * (0.6f + 0.8f * t) * mult * rs;
+            float ramp = glm::min(t, 1.0f);
+            float vKick = glm::mix(RECOIL_PITCH_MIN, RECOIL_PITCH_MAX, ramp) * mult;
+            if (t > 1.0f) vKick += (t - 1.0f) * RECOIL_HEAT_OVER * mult;
+            float hKick = RECOIL_YAW * (0.6f + 0.8f * ramp) * mult * rs;
+            if (t > 1.0f) hKick *= 1.0f + (t - 1.0f) * 0.05f;
             cam.applyRecoil(vKick, hKick);
             recoilHeat += 1.0f;
-            if (recoilHeat > RECOIL_HEAT_CAP) recoilHeat = RECOIL_HEAT_CAP;
             sinceShot = 0.0f;
         }
         sinceShot += dt;

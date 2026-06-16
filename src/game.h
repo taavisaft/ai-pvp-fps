@@ -57,8 +57,8 @@ constexpr float RECOIL_ADS_MULT     = 0.85f;  // aiming is steadier
 constexpr float RECOIL_RECOVER_DELAY = 0.12f; // s after last shot before recovery
                                               // (> FIRE_AUTO_INT so a spray climbs cleanly)
 constexpr float RECOIL_RECOVER_TAU  = 0.10f;  // exp decay time constant of recovery
-constexpr float RECOIL_PITCH_CAP    = 25.0f;  // max accumulated upward offset
 constexpr float RECOIL_FIRST_MULT   = 1.25f;  // extra kick on the first (cold) shot
+constexpr float RECOIL_HEAT_OVER    = 0.25f;  // extra deg/shot per heat unit past ramp
 
 // Fire modes (client-side only — decides when shots are registered). Per-weapon
 // fire intervals / burst counts now come from weaponDef(id), not constants.

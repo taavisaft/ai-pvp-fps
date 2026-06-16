@@ -23,7 +23,6 @@ float Camera::aimPitch() const {
 
 void Camera::applyRecoil(float dPitch, float dYaw) {
     recoilPitch += dPitch;
-    if (recoilPitch > RECOIL_PITCH_CAP) recoilPitch = RECOIL_PITCH_CAP;
     recoilYaw += dYaw;
 }
 
