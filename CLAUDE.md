@@ -3,6 +3,14 @@
 Barebones 3D first-person PvP game. Two players, over internet, built from scratch.
 No game engine. No physics library. No networking library.
 
+## Inspirations for this game
+
+- Unreal Tournament
+- Half Life 2
+- PUBG
+- Tarkov
+- CS2
+
 ## Implemented Deviations from the Spec Below
 
 - **Dedicated server** instead of listen server: separate `server` executable (headless,
