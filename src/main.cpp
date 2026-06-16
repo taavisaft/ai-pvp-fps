@@ -315,6 +315,7 @@ static void dumpFrame(const Renderer& r, const char* path) {
 static const char* DEFAULT_SERVER_IP = "127.0.0.1";
 
 int main(int argc, char** argv) {
+    setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffered so logs flush when piped to a file
     platformSocketInit();
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());

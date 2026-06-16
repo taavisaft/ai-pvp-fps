@@ -93,9 +93,15 @@ void ClientNet::sendRaw(const void* buf, int len) {
 // Handles one received packet. Returns true if the connection was torn down
 // (caller must stop touching this ClientNet).
 bool ClientNet::processPacket(const char* buf, int n, const sockaddr_in& from) {
+    PacketType type = (PacketType)buf[0];
+    // The server's reply can arrive from a different source IP than the one we dialed:
+    // it binds INADDR_ANY, so on a multihomed host the kernel picks the outgoing source
+    // address by route. Latch the address the ACCEPT actually came from, so it passes
+    // the filter here and every later STATE packet matches it too.
+    if (connecting && !connected && type == PKT_ACCEPT && n >= (int)sizeof(AcceptPacket))
+        server = from;
     if (!netSameAddr(from, server)) return false;
     silence = 0.0f;
-    PacketType type = (PacketType)buf[0];
 
     if (type == PKT_ACCEPT && n >= (int)sizeof(AcceptPacket)) {
         AcceptPacket a;
