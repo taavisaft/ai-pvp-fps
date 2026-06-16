@@ -26,7 +26,15 @@ A simple running list of what's done and what's next.
 - Offline shooting range: target wall + persistent impact marks (G clears)
 - Default training mode on launch; connect/switch servers anytime
 - In-game server-IP entry overlay (C key) — no more stdin blocking
-- Two maps: training arena (offline) + warehouse yard (online), runtime-selected
+- Three maps: training arena (offline), warehouse yard, and a 1 km² open field —
+  runtime-selected (server + client pick via FPS_MAP=field)
+- Large field map: shared procedural heightfield terrain (deterministic noise, same
+  on server + client) with scattered cover snapped onto the surface; physics,
+  spawns, bullets, and shadows all follow the terrain (arena maps stay flat)
+- Lean (Q/E): peek around cover — camera roll + upper-body arc, with a
+  server-authoritative shot origin so you fire from the peek
+- Weapon swap preserves each gun's magazine + reserve (no free reload); magazine
+  auto-reloads when it runs dry
 - Realistic projectile ballistics: swept-segment collision, real muzzle velocity
   (~400 m/s) + bullet drop, no tunneling at any speed
 - Per-weapon stats (WeaponDef table); distance damage falloff + air drag
@@ -54,7 +62,7 @@ A simple running list of what's done and what's next.
 
 ### Gunplay
 - More weapons (AR, sniper) — WeaponDef table + per-player weaponId already in place
-- Weapon pickups / loadout select (currently 1/2 hotkeys give a fresh mag)
+- Weapon pickups / loadout select (1/2 hotkeys swap between two fixed weapons)
 - Deterministic projectile netcode: send each shot as an (origin, dir, speed) event,
   clients simulate the trajectory — fast bullets are near-invisible to other players
   at 20 Hz position streaming (needed for proper tracers on big maps)

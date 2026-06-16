@@ -5,9 +5,9 @@ No game engine, no physics library, no networking library — just SDL2, OpenGL 
 
 Up to 16 players drop in and out of a dedicated server and fight across a walled warehouse yard full of shipping containers, crates, and a central building. Move with sprint, jump, and crouch; aim down sights for accurate fire or shoot from the hip with movement spread, and respawn after 3 seconds at a random spawn point.
 
-Two weapons — a 9mm **Uzi** SMG and a **Glock 19** pistol — fire real projectiles with true muzzle velocity (~375–400 m/s), bullet drop, air drag, and distance damage falloff. Collision is swept per bullet, so fast rounds stop dead on cover instead of tunnelling through it. Recoil is sticky: the gun climbs as you spray and stays where it ended — you pull it back down yourself. Switch weapons with the number keys or the scroll wheel.
+Two weapons — a 9mm **Uzi** SMG and a **Glock 19** pistol — fire real projectiles with true muzzle velocity (~375–400 m/s), bullet drop, air drag, and distance damage falloff. Collision is swept per bullet, so fast rounds stop dead on cover instead of tunnelling through it. Recoil is sticky: the gun climbs as you spray and stays where it ended — you pull it back down yourself. Switch weapons with the number keys or the scroll wheel — each gun keeps its own magazine and reserve, so swapping isn't a free reload. The mag reloads automatically when it runs dry, or reload early with R. Lean around cover with Q/E to peek without exposing your body.
 
-Launching the client alone drops you into an offline **training** arena (practice range + dummy); connect to a server and you spawn into the **warehouse** match map.
+Launching the client alone drops you into an offline **training** arena (practice range + dummy); connect to a server and you spawn into the **warehouse** match map — or a 1 km² open **field** map with procedurally generated rolling terrain and scattered cover when the server runs `FPS_MAP=field`.
 
 ![screenshot](screenshot.png)
 
@@ -44,6 +44,15 @@ Produces two binaries: `build/game` (client) and `build/server` (dedicated serve
 
 For multiple machines, run the server anywhere reachable and pass its IP to each client.
 
+To play the large open-terrain map instead of the warehouse, set `FPS_MAP=field` on
+**both** the server and every client (the map isn't carried in the protocol, so each
+side selects it the same way):
+
+```bash
+FPS_MAP=field ./build/server
+FPS_MAP=field ./build/game 127.0.0.1
+```
+
 Starting `./build/game` with no IP launches **training mode** — an offline practice arena with a shooting range and a respawning dummy. Press **C** in-game to bring up the server-IP prompt and connect to a match (default `127.0.0.1` pre-filled); you can switch servers any time without restarting.
 
 ### Testing netcode (lag, jitter, packet loss)
@@ -79,6 +88,7 @@ Without these variables (or on a LAN) there's effectively no delay, so behavior 
 | Shift        | Sprint                            |
 | Space        | Jump                              |
 | Left Ctrl    | Crouch                            |
+| Q / E        | Lean left / right (peek)          |
 | Mouse        | Look                              |
 | Left click   | Shoot                             |
 | Right mouse  | Aim down sights (zoom)            |
