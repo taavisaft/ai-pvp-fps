@@ -21,6 +21,7 @@
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
 static const glm::vec3 COLOR_BULLET_ENEMY = {1.00f, 0.40f, 0.10f};
+static const glm::vec3 COLOR_SELF         = {0.30f, 0.55f, 0.85f};  // own avatar in mirror
 
 // Offline shooting range: a large flat target wall (client-only, not in MAP_BOXES
 // so it never affects online play) that the practice spawn faces. Bullets that
@@ -154,6 +155,77 @@ static void drawPlayerModel(Renderer& r, const glm::vec3& pos, float yaw,
     limb({ 0.13f, 0.90f * s, 0}, legB, 0.90f * s, 0.20f, limbCol); // right leg
 }
 
+// Training-only mirror on the range wall: a stencil-masked planar reflection (no FBO).
+// Mark the glass into the stencil, reset depth there, then redraw the world reflected
+// across the wall plane with the cull winding flipped. The local player IS drawn here
+// (unlike the first-person pass), so you can see yourself. Must run after the wall is
+// drawn this frame and before the HUD.
+static void drawMirror(Renderer& r, const Camera& cam, const GameState& gs, int localID,
+                       const float* walkPhase, const float* walkAmp) {
+    const float     planeX = RANGE_WALL_FACE;               // reflect across the wall face
+    const glm::vec3 mc     = {planeX - 0.02f, 1.10f, 0.0f};  // glass center, dead ahead
+    const glm::vec3 mscale = {0.04f, 2.20f, 1.30f};         // ~2.2 m tall, 1.3 m wide
+    const float     hh = mscale.y * 0.5f, hw = mscale.z * 0.5f;
+    const glm::mat4 proj = cam.proj(r.aspect());
+
+    // 1. Mark the glass rectangle into the stencil (no color, no depth write). REPLACE
+    //    only on depth-pass, so anything in front of the glass correctly masks it out.
+    glEnable(GL_STENCIL_TEST);
+    glStencilFunc(GL_ALWAYS, 1, 0xFF);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+    glDepthMask(GL_FALSE);
+    r.drawCube(mc, mscale, glm::vec3(0.0f));
+
+    // 2. Reset depth to far inside the glass so the reflected geometry (which lives
+    //    behind the wall in world space) isn't occluded by the wall drawn this frame.
+    glStencilFunc(GL_EQUAL, 1, 0xFF);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_ALWAYS);
+    r.fillDepthFar();                       // clobbers view/proj uniforms (restored below)
+    glDepthFunc(GL_LESS);
+
+    // 3. Reflected world, only where stencil==1. Reflection flips winding -> cull front.
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glm::mat4 R(1.0f); R[0][0] = -1.0f; R[3][0] = 2.0f * planeX;  // x -> 2*planeX - x
+    r.shader.setMat4(r.shader.locProj, proj);
+    r.setView(cam.view() * R);
+    glCullFace(GL_FRONT);
+
+    r.drawGround();
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (!(gs.usedMask & (1u << i)) || !gs.players[i].alive) continue;
+        const Player& pl = gs.players[i];
+        drawPlayerModel(r, pl.pos, pl.yaw, pl.crouched, pl.pos.y > 0.05f,
+                        walkPhase[i], walkAmp[i], i == localID ? COLOR_SELF : COLOR_ENEMY);
+    }
+    for (int i = 0; i < MAX_BULLETS; i++) {
+        const Bullet& b = gs.bullets[i];
+        if (b.active)
+            r.drawCube(b.pos, {0.1f, 0.1f, 0.1f},
+                       b.ownerID == localID ? COLOR_BULLET_OWN : COLOR_BULLET_ENEMY);
+    }
+
+    glCullFace(GL_BACK);
+    glDisable(GL_STENCIL_TEST);
+    r.setView(cam.view());
+
+    // 4. Dark frame around the glass + a faint cool sheen, so it reads as a mirror.
+    const glm::vec3 frameCol = {0.09f, 0.09f, 0.11f};
+    const float fx = planeX - 0.05f, ft = 0.07f;
+    r.drawCube({fx, mc.y + hh, mc.z}, {ft, 0.12f, 2 * hw + 0.18f}, frameCol);  // top
+    r.drawCube({fx, mc.y - hh, mc.z}, {ft, 0.12f, 2 * hw + 0.18f}, frameCol);  // bottom
+    r.drawCube({fx, mc.y, mc.z - hw}, {ft, 2 * hh + 0.18f, 0.12f}, frameCol);  // left
+    r.drawCube({fx, mc.y, mc.z + hw}, {ft, 2 * hh + 0.18f, 0.12f}, frameCol);  // right
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    r.shader.setFloat(r.shader.locAlpha, 0.10f);
+    r.drawCube(mc, mscale, {0.55f, 0.68f, 0.80f});       // glass sheen
+    r.shader.setFloat(r.shader.locAlpha, 1.0f);
+    glDisable(GL_BLEND);
+}
+
 static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int localID,
                         const HudState& hud, bool scoreboard, bool online,
                         const ViewModel& vm,
@@ -167,8 +239,9 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
 
     if (drawRange) {
         // the wall itself is a training-map box (drawn by the map loop). Just the
-        // aim reference: a red cross at standing eye height, dead center.
-        glm::vec3 c = {RANGE_WALL_FACE - 0.03f, RANGE_BULLSEYE_Y, 0.0f};
+        // aim reference: a red cross at standing eye height, offset left of the mirror
+        // (which sits dead ahead at z=0) so the two don't overlap.
+        glm::vec3 c = {RANGE_WALL_FACE - 0.03f, RANGE_BULLSEYE_Y, -7.0f};
         r.drawCube(c, {0.06f, 1.0f, 0.10f}, {0.85f, 0.25f, 0.20f});
         r.drawCube(c, {0.06f, 0.10f, 1.0f}, {0.85f, 0.25f, 0.20f});
         for (int i = 0; i < rangeMarkCount; i++)
@@ -211,6 +284,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         r.drawCube(b.pos, {0.1f, 0.1f, 0.1f}, own ? COLOR_BULLET_OWN : COLOR_BULLET_ENEMY);
         r.drawCube({b.pos.x, 0.01f, b.pos.z}, {0.22f, 0.001f, 0.22f}, COLOR_BLOB);
     }
+    if (drawRange) drawMirror(r, cam, gs, localID, walkPhase, walkAmp);
     if (gs.players[localID].alive && !connectPrompt.open) drawViewModel(r, cam, vm);
     drawHUD(r, gs, localID, hud, scoreboard, online);
     drawConnectPrompt(r, connectPrompt);

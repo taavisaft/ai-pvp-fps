@@ -11,6 +11,7 @@ bool Renderer::init(const char* title, int w, int h) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);   // planar mirror reflection mask
 
     window = SDL_CreateWindow(title,
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h,
@@ -61,7 +62,7 @@ float Renderer::aspect() const {
 }
 
 void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye) {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     shader.use();
     shader.setMat4(shader.locView, view);
     shader.setMat4(shader.locProj, proj);
@@ -161,6 +162,26 @@ void Renderer::drawCubeModel(const glm::mat4& model, const glm::vec3& color) {
     shader.setMat4(shader.locModel, model);
     shader.setVec3(shader.locColor, color);
     cube.draw();
+}
+
+void Renderer::setView(const glm::mat4& view) {
+    shader.use();
+    shader.setMat4(shader.locView, view);
+}
+
+void Renderer::fillDepthFar() {
+    // Full-screen quad at the far plane (identity view/proj, z=1 -> depth 1). Used with
+    // a stencil test to reset depth inside the mirror so reflected geometry (which lives
+    // behind the wall in world space) draws instead of being occluded by it. Caller sets
+    // the stencil/colormask/depth-func state; this only issues the geometry.
+    shader.use();
+    bindFlatColor(shader);
+    shader.setMat4(shader.locView, glm::mat4(1.0f));
+    shader.setMat4(shader.locProj, glm::mat4(1.0f));
+    glm::mat4 m = glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 1.0f)),
+                             glm::vec3(2.0f, 2.0f, 1.0f));
+    shader.setMat4(shader.locModel, m);
+    quad2d.draw();
 }
 
 void Renderer::drawGround() {
