@@ -1,5 +1,6 @@
 #include "audio.h"
 #include <SDL.h>
+#include <glm/geometric.hpp>
 #include <vector>
 #include <cmath>
 #include <cstdlib>
@@ -183,4 +184,14 @@ void audioPlay(SoundId id, float volume) {
     slot->vol    = volume;
     slot->active = true;
     SDL_UnlockAudioDevice(gDevice);
+}
+
+void audioPlayAt(SoundId id, const glm::vec3& sourcePos, const glm::vec3& listenerPos,
+                 const glm::vec3& listenerForward, float gain) {
+    (void)listenerForward;  // reserved for stereo panning in a future pass
+    float d = glm::length(sourcePos - listenerPos);
+    float att = 1.0f - d / 60.0f;
+    if (att <= 0.08f) return;
+    if (att > 1.0f) att = 1.0f;
+    audioPlay(id, att * gain);
 }

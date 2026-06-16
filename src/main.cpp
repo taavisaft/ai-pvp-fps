@@ -375,7 +375,8 @@ int main(int argc, char** argv) {
     bool        prevJumpKey  = false;   // for jump-sound edge
     float       stepTimer    = 0.0f;    // footstep cadence
     float       prevOwnPosY  = 0.0f;    // detect airborne (no footsteps in air)
-    bool        heardBullet[MAX_BULLETS] = {false};  // enemy-shot sound: bullets already sounded
+    uint8_t     prevRemoteShots[MAX_PLAYERS] = {0};  // last seen authoritative per-player shot counters
+    bool        remoteShotsSeeded = false;           // seed once when entering online play
     float       fpsAvg       = 0.0f;    // smoothed FPS readout
     int         fireMode     = FIRE_SEMI;
     float       fireTimer    = 0.0f;    // cooldown until next allowed shot
@@ -473,8 +474,10 @@ int main(int argc, char** argv) {
             posError        = glm::vec3(0.0f);
             rangeMarkCount  = 0;
             rangeMarkHead   = 0;
+            remoteShotsSeeded = false;
         }
         if (!online && wasOnline) setMap(MAP_TRAINING);  // back to the practice arena
+        if (!online) remoteShotsSeeded = false;
         wasOnline = online;
 
         // --- fire control: pick shots this frame by fire mode, gate on ammo ---
@@ -693,24 +696,27 @@ int main(int argc, char** argv) {
         }
         prevOwnPosY = own.pos.y;
 
-        // enemy gunshots: a bullet pool slot newly appearing = someone fired.
-        // Track by stable poolIdx from the raw state; volume falls off with distance.
+        // Enemy gunshots: use per-player authoritative shot counters (from server).
+        // This is robust under packet loss/jitter and independent from bullet replication.
         if (online) {
-            bool nowSeen[MAX_BULLETS] = {false};
             const StatePacket& st = net.lastState;
-            int bc = st.bulletCount <= NET_MAX_BULLETS ? st.bulletCount : NET_MAX_BULLETS;
-            for (int k = 0; k < bc; k++) {
-                const BulletNetState& nb = st.bullets[k];  // poolIdx is uint8_t, always < MAX_BULLETS (256)
-                nowSeen[nb.poolIdx] = true;
-                if (!heardBullet[nb.poolIdx] && nb.owner != localID) {
-                    float d   = glm::length(glm::vec3(nb.x, nb.y, nb.z) - cam.eye);
-                    float vol = 1.0f - d / 60.0f;
-                    if (vol > 0.08f) audioPlay(SND_SHOOT, vol > 1.0f ? 1.0f : vol);
-                }
+            if (!remoteShotsSeeded) {
+                for (int i = 0; i < MAX_PLAYERS; i++)
+                    prevRemoteShots[i] = st.players[i].shotsFired;
+                remoteShotsSeeded = true;
             }
-            for (int i = 0; i < MAX_BULLETS; i++) heardBullet[i] = nowSeen[i];
-        } else {
-            for (int i = 0; i < MAX_BULLETS; i++) heardBullet[i] = false;
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                uint8_t cur = st.players[i].shotsFired;
+                uint8_t delta = (uint8_t)(cur - prevRemoteShots[i]);  // wrap-safe
+                prevRemoteShots[i] = cur;
+                if (i == localID) continue;
+                if (!(st.usedMask & (1u << i))) continue;
+                if (delta == 0 || delta >= 128) continue;  // ignore resets / stale jumps
+
+                int plays = delta <= 4 ? (int)delta : 4;  // cap catch-up bursts
+                for (int n = 0; n < plays; n++)
+                    audioPlayAt(SND_SHOOT, shown->players[i].pos, cam.eye, cam.front());
+            }
         }
 
         // Advance each visible remote player's walk animation from how fast their

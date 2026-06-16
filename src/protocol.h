@@ -42,6 +42,7 @@ struct PlayerNetState {
     uint8_t reloading; // 1 while reloading
     uint8_t kills;     // saturates at 255
     uint8_t deaths;
+    uint8_t shotsFired; // authoritative spawned-shot counter (wraps naturally)
     uint8_t crouched;
 };
 

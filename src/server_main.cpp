@@ -262,11 +262,13 @@ static void broadcast(int fd, uint32_t seq) {
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         const Player& p = game.players[i];
+        const uint8_t shots = (uint8_t)clients[i].firedShots;  // wraps naturally for delta-on-client
         s.players[i] = {p.pos.x, p.pos.y, p.pos.z, p.yaw,
                         p.hp, (uint8_t)(p.alive ? 1 : 0),
                         (uint8_t)p.mag, (uint8_t)p.reserve, (uint8_t)(p.reloading ? 1 : 0),
                         (uint8_t)(p.kills  > 255 ? 255 : p.kills),
                         (uint8_t)(p.deaths > 255 ? 255 : p.deaths),
+                        shots,
                         (uint8_t)(p.crouched ? 1 : 0)};
     }
 
