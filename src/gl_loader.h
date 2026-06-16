@@ -39,6 +39,7 @@
       X(PFNGLBINDBUFFERPROC,              fps_glBindBuffer,              glBindBuffer) \
       X(PFNGLBUFFERDATAPROC,              fps_glBufferData,              glBufferData) \
       X(PFNGLDELETEBUFFERSPROC,           fps_glDeleteBuffers,           glDeleteBuffers) \
+      X(PFNGLGENERATEMIPMAPPROC,          fps_glGenerateMipmap,          glGenerateMipmap) \
       X(PFNGLENABLEVERTEXATTRIBARRAYPROC, fps_glEnableVertexAttribArray, glEnableVertexAttribArray) \
       X(PFNGLVERTEXATTRIBPOINTERPROC,     fps_glVertexAttribPointer,     glVertexAttribPointer)
 
@@ -73,6 +74,7 @@
   #define glBindBuffer              fps_glBindBuffer
   #define glBufferData              fps_glBufferData
   #define glDeleteBuffers           fps_glDeleteBuffers
+  #define glGenerateMipmap          fps_glGenerateMipmap
   #define glEnableVertexAttribArray fps_glEnableVertexAttribArray
   #define glVertexAttribPointer     fps_glVertexAttribPointer
 
