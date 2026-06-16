@@ -94,13 +94,27 @@ void ClientNet::sendRaw(const void* buf, int len) {
 // (caller must stop touching this ClientNet).
 bool ClientNet::processPacket(const char* buf, int n, const sockaddr_in& from) {
     PacketType type = (PacketType)buf[0];
-    // The server's reply can arrive from a different source IP than the one we dialed:
-    // it binds INADDR_ANY, so on a multihomed host the kernel picks the outgoing source
-    // address by route. Latch the address the ACCEPT actually came from, so it passes
-    // the filter here and every later STATE packet matches it too.
-    if (connecting && !connected && type == PKT_ACCEPT && n >= (int)sizeof(AcceptPacket))
-        server = from;
-    if (!netSameAddr(from, server)) return false;
+    // The server can be multihomed (Wi-Fi + Ethernet): replies may come from a
+    // different source IP than the one we dialed even though it's the same UDP
+    // socket/port. Latch to whichever endpoint delivers valid control/state traffic.
+    bool sameAddr = netSameAddr(from, server);
+    bool samePort = from.sin_port == server.sin_port;
+    if (!sameAddr && samePort) {
+        if (connecting && !connected && type == PKT_ACCEPT && n >= (int)sizeof(AcceptPacket)) {
+            server = from;
+            sameAddr = true;
+        } else if (type == PKT_STATE && n >= statePacketSize(0)) {
+            StatePacket probe{};
+            int copy = n <= (int)sizeof(StatePacket) ? n : (int)sizeof(StatePacket);
+            memcpy(&probe, buf, copy);
+            int need = statePacketSize(probe.bulletCount <= NET_MAX_BULLETS ? probe.bulletCount : NET_MAX_BULLETS);
+            if (n >= need) {
+                server = from;
+                sameAddr = true;
+            }
+        }
+    }
+    if (!sameAddr) return false;
     silence = 0.0f;
 
     if (type == PKT_ACCEPT && n >= (int)sizeof(AcceptPacket)) {
@@ -114,6 +128,8 @@ bool ClientNet::processPacket(const char* buf, int n, const sockaddr_in& from) {
         StatePacket s{};
         int copy = n <= (int)sizeof(StatePacket) ? n : (int)sizeof(StatePacket);
         memcpy(&s, buf, copy);  // truncated packet; bulletCount guards the tail
+        int need = statePacketSize(s.bulletCount <= NET_MAX_BULLETS ? s.bulletCount : NET_MAX_BULLETS);
+        if (n < need) return false;  // malformed/truncated packet
         uint32_t seq = s.seq;
         // Drop only snapshots too old to fit the ring; dups/out-of-order within the
         // window just refill their slot (the seq key keeps lookups correct).
