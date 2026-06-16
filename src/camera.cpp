@@ -12,6 +12,12 @@ void Camera::addLook(float xrel, float yrel) {
     if (pitch < -89.0f) pitch = -89.0f;
 }
 
+void Camera::updateLean(float target, float dt) {
+    float k = dt * LEAN_LERP_SPEED;
+    if (k > 1.0f) k = 1.0f;
+    lean += (target - lean) * k;
+}
+
 float Camera::aimYaw() const { return yaw + recoilYaw; }
 
 float Camera::aimPitch() const {
@@ -49,8 +55,28 @@ glm::vec3 Camera::front() const {
     ));
 }
 
+glm::vec3 Camera::rightFlat() const {
+    // Horizontal right of the look direction (y=0), independent of pitch.
+    return glm::normalize(glm::cross(front(), glm::vec3(0, 1, 0)));
+}
+
+glm::vec3 Camera::eyePos() const {
+    LeanShift s = leanShift(lean);                 // head arcs sideways + dips
+    return eye + rightFlat() * s.lateral - glm::vec3(0.0f, s.drop, 0.0f);
+}
+
+glm::vec3 Camera::up() const {
+    glm::vec3 f = front();
+    glm::vec3 baseUp = glm::normalize(glm::cross(rightFlat(), f));
+    if (lean == 0.0f) return baseUp;
+    // Roll the up vector by the same body-tilt angle so the head leans with the arc.
+    glm::mat4 rot = glm::rotate(glm::mat4(1.0f), lean * glm::radians(LEAN_ANGLE_DEG), f);
+    return glm::vec3(rot * glm::vec4(baseUp, 0.0f));
+}
+
 glm::mat4 Camera::view() const {
-    return glm::lookAt(eye, eye + front(), glm::vec3(0, 1, 0));
+    glm::vec3 e = eyePos();
+    return glm::lookAt(e, e + front(), up());
 }
 
 glm::mat4 Camera::proj(float aspect) const {

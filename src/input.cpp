@@ -96,6 +96,8 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
     in.state.jump   = keys[SDL_SCANCODE_SPACE];
     in.state.crouch = keys[SDL_SCANCODE_LCTRL] || keys[SDL_SCANCODE_RCTRL];
     in.state.reload = keys[SDL_SCANCODE_R];
+    in.state.leanLeft  = keys[SDL_SCANCODE_Q];
+    in.state.leanRight = keys[SDL_SCANCODE_E];
     Uint32 mouse = SDL_GetMouseState(nullptr, nullptr);
     in.state.ads       = (mouse & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
     in.state.shootHeld = (mouse & SDL_BUTTON(SDL_BUTTON_LEFT))  != 0;

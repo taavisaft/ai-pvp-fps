@@ -192,6 +192,7 @@ static void handlePackets(int fd) {
             c.input.ads    = p.flags & FLAG_ADS;
             c.input.reload = p.flags & FLAG_RELOAD;
             c.input.weaponId = p.weaponId;
+            c.input.lean  = p.lean / 127.0f;
             c.input.yaw   = p.yaw;
             c.input.pitch = p.pitch;
             c.shotSeq     = p.shotSeq;  // packet is seq-gated newest, so monotonic
@@ -227,6 +228,10 @@ static void tick(float dt) {
         if (c.firedShots < c.shotSeq) {   // one shot per tick; drains any backlog
             float eyeH = p.crouched ? CROUCH_EYE : EYE_HEIGHT;
             glm::vec3 eye = p.pos + glm::vec3(0, eyeH, 0);
+            LeanShift ls = leanShift(c.input.lean);        // peek: head arcs out + dips
+            float yr = glm::radians(c.input.yaw);
+            eye += glm::vec3(-sinf(yr), 0.0f, cosf(yr)) * ls.lateral;
+            eye.y -= ls.drop;
             glm::vec3 origin, dir;
             float spread = aimSpread(p, c.input);   // stance/movement accuracy
             weaponShot(c.input.yaw, c.input.pitch, eye, c.input.ads, spread, origin, dir);

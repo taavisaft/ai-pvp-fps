@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
+#include <cmath>
 #include <glm/glm.hpp>
+#include <glm/gtc/constants.hpp>
 #include "weapon.h"
 
 constexpr int   MAX_PLAYERS    = 16;
@@ -22,6 +24,23 @@ constexpr int   UDP_PORT       = 7777;
 
 constexpr float EYE_HEIGHT     = 1.7f;
 constexpr float CROUCH_EYE     = 1.0f;   // camera height while crouched
+
+// Lean (Q/E): the upper body pivots around a hip point, so the head arcs out
+// sideways (and dips slightly) and the view rolls — not a flat sideways slide.
+// The same arc moves the authoritative shot origin so you shoot from the peek;
+// the body hitbox stays put (classic corner-peek). All tunable.
+constexpr float LEAN_ANGLE_DEG  = 22.0f; // upper-body tilt at full lean
+constexpr float LEAN_PIVOT      = 0.95f; // m from eye down to the hip pivot
+constexpr float LEAN_LERP_SPEED = 12.0f; // smoothing rate toward target lean
+
+// Eye displacement produced by leaning: lateral arc + small vertical dip, from
+// rotating the (pivot→eye) arm about the hip. Shared by camera + server so the
+// shot origin matches the view. lateral is signed (>0 = lean right).
+struct LeanShift { float lateral; float drop; };
+inline LeanShift leanShift(float lean) {
+    float a = lean * glm::radians(LEAN_ANGLE_DEG);
+    return { LEAN_PIVOT * std::sin(a), LEAN_PIVOT * (1.0f - std::cos(a)) };
+}
 
 // Weapon: aim-down-sights vs hipfire (PUBG-style)
 constexpr float HIP_FOV        = 75.0f;  // degrees
@@ -73,8 +92,12 @@ struct Player {
     float     yaw          = 0.0f;       // degrees
     int       hp           = PLAYER_HP;
     uint8_t   weaponId     = WEP_UZI;        // current weapon (per-player)
-    int       mag          = UZI.magSize;    // rounds in magazine
-    int       reserve      = UZI.reservePerLife; // spare rounds
+    int       mag          = UZI.magSize;    // rounds in magazine (held weapon)
+    int       reserve      = UZI.reservePerLife; // spare rounds (held weapon)
+    // Per-weapon ammo so swapping preserves each gun's state instead of refilling.
+    // mag/reserve above mirror the held weapon; the holstered weapons live here.
+    int       magW[WEP_COUNT]     = { UZI.magSize, GLOCK19.magSize };
+    int       reserveW[WEP_COUNT] = { UZI.reservePerLife, GLOCK19.reservePerLife };
     float     reloadTimer  = 0.0f;           // >0 while reloading (server sim)
     bool      reloading    = false;          // for HUD/clients (mirrors reloadTimer>0)
     int       kills        = 0;          // persists across respawns
@@ -112,18 +135,26 @@ struct InputState {
     bool  crouch;                  // left-ctrl held
     bool  ads;                     // right-mouse held (aim down sights)
     bool  reload;                  // R held
+    bool  leanLeft;                // Q held
+    bool  leanRight;               // E held
+    float lean = 0.0f;             // smoothed lean -1 (left)..+1 (right), sent to server
     float yaw;
     float pitch;
     uint8_t weaponId = WEP_UZI;    // selected weapon (1/2 keys), sent to server
 };
 
-// Switch a player to weapon `id`: re-arm with that weapon's full magazine and
-// reserve, cancelling any reload. Used on selection (1/2) and server adoption.
+// Switch a player to weapon `id`: stash the held weapon's ammo, restore the
+// target weapon's saved ammo. No refill — swapping is not a faster reload.
+// A reload in progress is cancelled (it doesn't carry to the other gun).
+// Used on selection (1/2) and server adoption. Respawn resets via Player{}.
 inline void giveWeapon(Player& p, uint8_t id) {
-    const WeaponDef& wd = weaponDef(id);
+    if (id >= WEP_COUNT) id = WEP_UZI;
+    if (id == p.weaponId) return;            // already holding it; no-op
+    p.magW[p.weaponId]     = p.mag;          // holster current weapon's state
+    p.reserveW[p.weaponId] = p.reserve;
     p.weaponId    = id;
-    p.mag         = wd.magSize;
-    p.reserve     = wd.reservePerLife;
+    p.mag         = p.magW[id];              // draw target weapon's saved state
+    p.reserve     = p.reserveW[id];
     p.reloadTimer = 0.0f;
     p.reloading   = false;
 }

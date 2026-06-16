@@ -32,7 +32,7 @@ inline constexpr WeaponDef UZI = {
     /*dmg*/           18.0f,
     /*magSize*/       32,
     /*reservePerLife*/ 64,
-    /*reloadTime*/    2.6f,
+    /*reloadTime*/    1.1f,
     /*fireSemiInt*/   0.12f,
     /*fireBurstInt*/  0.07f,
     /*fireAutoInt*/   0.10f,   // ~600 rpm
@@ -54,7 +54,7 @@ inline constexpr WeaponDef GLOCK19 = {
     /*dmg*/           24.0f,
     /*magSize*/       15,
     /*reservePerLife*/ 45,
-    /*reloadTime*/    1.8f,
+    /*reloadTime*/    1.1f,
     /*fireSemiInt*/   0.12f,   // trigger-limited (~8 rps max)
     /*fireBurstInt*/  0.12f,
     /*fireAutoInt*/   0.12f,

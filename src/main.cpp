@@ -43,8 +43,8 @@ struct ViewModel {
 // lerped between hipfire (lower-right) and ADS (centered under crosshair).
 static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
     glm::vec3 front = cam.front();
-    glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0, 1, 0)));
-    glm::vec3 up    = glm::cross(right, front);
+    glm::vec3 up    = cam.up();                                   // rolled by lean
+    glm::vec3 right = glm::normalize(glm::cross(front, up));
 
     glm::vec3 hipOff = right * 0.17f - up * 0.30f + front * 0.35f;
     // Uzi: align hollow sight center (local y=0.06, z=-0.02) with the aim ray.
@@ -52,7 +52,7 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
         ? (-up * 0.06f + front * 0.32f)
         : (-up * 0.05f + front * 0.30f);
     glm::vec3 off    = glm::mix(hipOff, adsOff, vm.adsT);
-    glm::vec3 anchor = cam.eye + off - front * (vm.recoilT * 0.08f);
+    glm::vec3 anchor = cam.eyePos() + off - front * (vm.recoilT * 0.08f);
 
     glm::mat4 basis(glm::vec4(right, 0), glm::vec4(up, 0),
                     glm::vec4(front, 0), glm::vec4(0, 0, 0, 1));
@@ -419,8 +419,8 @@ int main(int argc, char** argv) {
         connectPromptActive = false;
     };
 
-    printf("controls: WASD move, mouse look, LMB shoot, 1/2 or scroll weapon (Uzi/Glock), "
-           "C connect, F wireframe, H hitboxes, ESC quit\n");
+    printf("controls: WASD move, mouse look, LMB shoot, Q/E lean, 1/2 or scroll weapon "
+           "(Uzi/Glock), C connect, F wireframe, H hitboxes, ESC quit\n");
     printf("offline shooting range: fire at the wall to see your spread; G clears the marks\n");
 
     while (running) {
@@ -447,6 +447,13 @@ int main(int argc, char** argv) {
             giveWeapon(offline.players[0], gWeaponId);
         }
         input.state.weaponId = gWeaponId;
+
+        // Lean (Q/E): smooth toward the held direction; the result drives the camera
+        // roll/peek and is sent to the server for the authoritative shot origin.
+        float leanTarget = (input.state.leanRight ? 1.0f : 0.0f) -
+                           (input.state.leanLeft  ? 1.0f : 0.0f);
+        cam.updateLean(leanTarget, dt);
+        input.state.lean = cam.lean;
 
         if (connectPromptActive && !connectPrompt.open) closeConnectPrompt();
 
@@ -572,7 +579,7 @@ int main(int argc, char** argv) {
                 if (offlineShoot && self.alive) {
                     glm::vec3 origin, dir;
                     float spread = aimSpread(self, input.state);
-                    weaponShot(input.state.yaw, input.state.pitch, cam.eye, input.state.ads,
+                    weaponShot(input.state.yaw, input.state.pitch, cam.eyePos(), input.state.ads,
                                spread, origin, dir);
                     spawnBullet(offline, origin, dir, 0);
                     offlineShoot = false;

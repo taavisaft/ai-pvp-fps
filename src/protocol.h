@@ -31,6 +31,7 @@ struct InputPacket {
     uint32_t   viewSeq;  // StatePacket seq the client is interpolating from (lag comp)
     uint8_t    viewFrac; // interpolation alpha * 255 toward viewSeq+1 (lag comp)
     uint8_t    weaponId; // client's selected weapon (server adopts it authoritatively)
+    int8_t     lean;     // smoothed lean * 127, -127 (left)..+127 (right); shot origin
 };
 
 struct PlayerNetState {

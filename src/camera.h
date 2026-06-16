@@ -12,12 +12,18 @@ struct Camera {
     float     recoilYaw   = 0.0f;
     float     recoilPitch = 0.0f;
 
+    float     lean = 0.0f;        // smoothed lean -1 (left)..+1 (right), Q/E
+
     void      addLook(float xrel, float yrel);  // mouse deltas, sensitivity 0.1
+    void      updateLean(float target, float dt); // lerp lean toward target (-1..1)
     float     aimYaw() const;                   // yaw + recoil
     float     aimPitch() const;                 // pitch + recoil, clamped
     void      applyRecoil(float dPitch, float dYaw);
     void      recoverRecoil(float dt, bool firingRecently);
     glm::vec3 front() const;                    // full 3D look direction (uses aim)
+    glm::vec3 rightFlat() const;                // horizontal right of aim (lean axis)
+    glm::vec3 eyePos() const;                   // eye shifted by current lean
+    glm::vec3 up() const;                        // world up rolled by current lean
     glm::mat4 view() const;
     glm::mat4 proj(float aspect) const;
 };

@@ -248,6 +248,10 @@ void ClientNet::sendInput(const InputState& in, uint32_t viewSeq, uint8_t viewFr
     p.viewSeq  = viewSeq;
     p.viewFrac = viewFrac;
     p.weaponId = in.weaponId;
+    float ql = in.lean * 127.0f;
+    if (ql >  127.0f) ql =  127.0f;
+    if (ql < -127.0f) ql = -127.0f;
+    p.lean = (int8_t)ql;
     sendRaw(&p, sizeof(p));
 }
 

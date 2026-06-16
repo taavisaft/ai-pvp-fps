@@ -215,9 +215,11 @@ bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, i
 }
 
 // Advance a reload: start one if requested and possible, finish when the timer
-// elapses by topping the magazine from reserve. Authoritative; run per tick.
+// elapses by topping the magazine from reserve. Auto-starts when the mag runs
+// dry (no R needed). Authoritative; run per tick.
 void updateReload(Player& p, bool wantReload, float dt) {
     const WeaponDef& wd = weaponDef(p.weaponId);
+    bool autoEmpty = p.mag <= 0;            // dry mag → reload without pressing R
     if (p.reloadTimer > 0.0f) {
         p.reloadTimer -= dt;
         if (p.reloadTimer <= 0.0f) {
@@ -227,7 +229,7 @@ void updateReload(Player& p, bool wantReload, float dt) {
             p.mag     += take;
             p.reserve -= take;
         }
-    } else if (wantReload && p.mag < wd.magSize && p.reserve > 0) {
+    } else if ((wantReload || autoEmpty) && p.mag < wd.magSize && p.reserve > 0) {
         p.reloadTimer = wd.reloadTime;
     }
     p.reloading = p.reloadTimer > 0.0f;
