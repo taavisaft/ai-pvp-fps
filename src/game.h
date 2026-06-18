@@ -90,6 +90,8 @@ struct Player {
     float     airVZ        = 0.0f;       // (no mid-air steering)
     bool      crouched     = false;      // affects height, hitbox, speed
     float     yaw          = 0.0f;       // degrees
+    float     pitch        = 0.0f;       // degrees; client-side render (aim tilt) only
+    float     lean         = 0.0f;       // -1..+1; client-side render (peek pose) only
     int       hp           = PLAYER_HP;
     uint8_t   weaponId     = WEP_UZI;        // current weapon (per-player)
     int       mag          = UZI.magSize;    // rounds in magazine (held weapon)

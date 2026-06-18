@@ -114,56 +114,137 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
     }
 }
 
+// 2-bone IK: given root joint S and end target T (world space) and bone lengths L1/L2,
+// return the middle joint position. The joint bulges toward `bendHint` (the perpendicular
+// component of it) — pass world-down for elbows, the body's forward for knees. The limb
+// is then drawn as two boxes S->mid->T, so it stays correct at any yaw/pitch/lean.
+static glm::vec3 ikJoint(glm::vec3 S, glm::vec3 T, float L1, float L2, glm::vec3 bendHint) {
+    glm::vec3 v = T - S;
+    float d = glm::length(v);
+    float dmax = L1 + L2 - 1e-3f, dmin = fabsf(L1 - L2) + 1e-3f;
+    if (d > dmax)            { v *= dmax / d; d = dmax; }
+    else if (d < dmin && d > 1e-5f) { v *= dmin / d; d = dmin; }
+    glm::vec3 dir = (d > 1e-5f) ? v / d : glm::vec3(0, 0, 1);
+    float cosA = (L1 * L1 + d * d - L2 * L2) / (2.0f * L1 * d);
+    cosA = cosA < -1.0f ? -1.0f : cosA > 1.0f ? 1.0f : cosA;
+    float proj = L1 * cosA, perp = L1 * sqrtf(1.0f - cosA * cosA);
+    glm::vec3 bend = bendHint - dir * glm::dot(bendHint, dir);   // perpendicular to dir
+    bend = (glm::length(bend) > 1e-4f) ? glm::normalize(bend) : glm::vec3(0, 0, 1);
+    return S + dir * proj + bend * perp;
+}
+
 // Articulated cube figure for a remote player. Cosmetic only — driven from the
-// networked pos/yaw/crouched plus a client-side walk phase/amplitude. The gameplay
-// hitboxes (physics playerHitRegions) are separate stacked boxes.
-static void drawPlayerModel(Renderer& r, const glm::vec3& pos, float yaw,
-                            bool crouched, bool airborne, float phase, float amp,
-                            const glm::vec3& bodyCol) {
+// networked pos/yaw/pitch/lean/crouched/weaponId plus a client-side walk phase. The
+// gameplay hitboxes (physics playerHitRegions) are separate stacked boxes. Local
+// forward is +Z after the root yaw spin. The legs ride `root`; the torso/head/arms/
+// gun ride `upper`, which rolls about a hip pivot for the lean peek. The arms hold the
+// weapon out front, pitched by aim, instead of swinging — so you read where they aim.
+static void drawPlayerModel(Renderer& r, const glm::vec3& pos, float yaw, float pitch,
+                            float lean, uint8_t weaponId, bool crouched, bool airborne,
+                            float phase, float amp, const glm::vec3& bodyCol) {
     const glm::vec3 headCol = {0.90f, 0.78f, 0.62f};
     const glm::vec3 limbCol = bodyCol * 0.85f;
     const glm::vec3 handCol = {0.30f, 0.30f, 0.33f};   // dark gloves (still hittable)
+    const glm::vec3 gunMetal = {0.12f, 0.12f, 0.14f};
+    const glm::vec3 gunDark  = {0.20f, 0.20f, 0.23f};
     float s  = crouched ? (CROUCH_HEIGHT / STAND_HEIGHT) : 1.0f;   // vertical squash
     float yr = glm::radians(yaw);
+    float pr = glm::radians(pitch);
     glm::mat4 root = glm::translate(glm::mat4(1.0f), pos)
                    * glm::rotate(glm::mat4(1.0f), 1.5707963f - yr, glm::vec3(0, 1, 0));
+
+    // Upper body leans (rolls) about a hip pivot for the corner peek.
+    float la   = lean * glm::radians(LEAN_ANGLE_DEG);
+    float hipY = 1.00f * s;
+    glm::mat4 upper = root
+        * glm::translate(glm::mat4(1.0f), glm::vec3(0, hipY, 0))
+        * glm::rotate(glm::mat4(1.0f), -la, glm::vec3(0, 0, 1))    // roll about forward
+        * glm::translate(glm::mat4(1.0f), glm::vec3(0, -hipY, 0));
 
     auto part = [&](const glm::mat4& m, glm::vec3 sz, const glm::vec3& c) {
         r.drawCubeModel(m * glm::scale(glm::mat4(1.0f), sz), c);
     };
-    // A limb swings about its pivot (shoulder/hip) and hangs down by len/2.
-    auto limb = [&](glm::vec3 pivot, float ang, float len, float w, const glm::vec3& c) {
-        glm::mat4 m = root * glm::translate(glm::mat4(1.0f), pivot)
-                    * glm::rotate(glm::mat4(1.0f), ang, glm::vec3(1, 0, 0))
-                    * glm::translate(glm::mat4(1.0f), glm::vec3(0, -len * 0.5f, 0));
-        part(m, glm::vec3(w, len, w), c);
-    };
-    // Arm (body color) + dark glove hand. Arms are tucked within the torso hitbox
-    // footprint, so they register and block bullets like the rest of the body.
-    auto arm = [&](glm::vec3 pivot, float ang) {
-        float len = 0.60f * s;
-        limb(pivot, ang, len, 0.13f, limbCol);
-        glm::mat4 m = root * glm::translate(glm::mat4(1.0f), pivot)
-                    * glm::rotate(glm::mat4(1.0f), ang, glm::vec3(1, 0, 0))
-                    * glm::translate(glm::mat4(1.0f), glm::vec3(0, -len, 0));
-        part(m, glm::vec3(0.15f, 0.13f, 0.15f), handCol);
+    // Box spanning world points A..B (its local +Y axis), width w. For IK limbs whose
+    // endpoints are solved, not swung from a fixed pivot.
+    auto segment = [&](glm::vec3 A, glm::vec3 B, float w, const glm::vec3& c) {
+        glm::vec3 mid = (A + B) * 0.5f, dir = B - A;
+        float len = glm::length(dir);
+        if (len < 1e-5f) return;
+        dir /= len;
+        glm::vec3 up = fabsf(dir.y) > 0.99f ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
+        glm::vec3 bx = glm::normalize(glm::cross(up, dir));
+        glm::vec3 bz = glm::cross(dir, bx);
+        glm::mat4 m(1.0f);
+        m[0] = glm::vec4(bx * w, 0.0f);
+        m[1] = glm::vec4(dir * len, 0.0f);
+        m[2] = glm::vec4(bz * w, 0.0f);
+        m[3] = glm::vec4(mid, 1.0f);
+        r.drawCubeModel(m, c);     // m already encodes size; no extra scale
     };
 
-    // Swing capped so the feet stay inside the leg hitbox (foot reach = len*sin),
-    // keeping the visible legs and the hitbox aligned for moving players.
-    float swing = sinf(phase) * amp * (crouched ? 0.20f : 0.34f);  // walk swing, rad
-    float legF = swing, legB = -swing, armF = -swing, armB = swing;
-    if (airborne) { legF = 0.34f; legB = -0.30f; armF = -0.4f; armB = 0.4f; }  // tuck
-    else if (crouched) { legF = 0.34f; legB = 0.34f; }            // squat (thighs up)
-
-    part(root * glm::translate(glm::mat4(1.0f), glm::vec3(0, 1.30f * s, 0)),
+    part(upper * glm::translate(glm::mat4(1.0f), glm::vec3(0, 1.30f * s, 0)),
          {0.50f, 0.60f * s, 0.28f}, bodyCol);                      // torso
-    part(root * glm::translate(glm::mat4(1.0f), glm::vec3(0, 1.80f * s, 0)),
+    part(upper * glm::translate(glm::mat4(1.0f), glm::vec3(0, 1.80f * s, 0)),
          {0.32f, 0.32f, 0.32f}, headCol);                          // head
-    arm({-0.20f, 1.55f * s, 0}, armF);                            // left arm + hand
-    arm({ 0.20f, 1.55f * s, 0}, armB);                            // right arm + hand
-    limb({-0.13f, 0.90f * s, 0}, legF, 0.90f * s, 0.20f, limbCol); // left leg
-    limb({ 0.13f, 0.90f * s, 0}, legB, 0.90f * s, 0.20f, limbCol); // right leg
+
+    // --- Weapon at the chest (pitched by aim); both hands IK'd onto its grips so the
+    // elbows bend naturally toward the ground and the gun actually sits in the hands. ---
+    const float upArm = 0.30f * s, foreArm = 0.30f * s;
+    float bob = sinf(phase) * amp * 0.03f;                         // subtle walk bob
+    glm::mat4 hold = upper
+        * glm::translate(glm::mat4(1.0f), glm::vec3(0.05f, 1.45f * s + bob, 0.20f))
+        * glm::rotate(glm::mat4(1.0f), -pr, glm::vec3(1, 0, 0));    // aim pitch, out front
+    auto gun = [&](glm::vec3 lp, glm::vec3 sz, const glm::vec3& c) {
+        part(hold * glm::translate(glm::mat4(1.0f), lp), sz, c);
+    };
+    glm::vec3 gripFire, gripSupport;                               // grip points, gun-local
+    if (weaponId == WEP_GLOCK19) {
+        gun({0.0f,  0.00f, 0.10f}, {0.05f, 0.07f, 0.22f}, gunMetal); // slide
+        gun({0.0f, -0.10f, 0.04f}, {0.05f, 0.14f, 0.06f}, gunDark);  // grip
+        gripFire = {0.0f, -0.06f, 0.04f};  gripSupport = {0.0f, 0.0f, 0.13f};
+    } else {                                                        // Uzi
+        gun({0.0f,  0.02f, 0.16f}, {0.08f, 0.11f, 0.40f}, gunMetal); // receiver + barrel
+        gun({0.0f, -0.14f, 0.06f}, {0.05f, 0.22f, 0.05f}, gunDark);  // magazine
+        gripFire = {0.0f, -0.06f, 0.04f};  gripSupport = {0.0f, 0.0f, 0.26f};
+    }
+    // Each arm: shoulder->elbow->hand, elbow solved by IK so the hand reaches the grip.
+    auto holdArm = [&](glm::vec3 shoulderLocal, glm::vec3 gripLocal) {
+        glm::vec3 S = glm::vec3(upper * glm::vec4(shoulderLocal, 1.0f));
+        glm::vec3 T = glm::vec3(hold  * glm::vec4(gripLocal, 1.0f));
+        glm::vec3 E = ikJoint(S, T, upArm, foreArm, glm::vec3(0, -1, 0));  // elbow hangs down
+        segment(S, E, 0.12f, limbCol);                            // upper arm
+        segment(E, T, 0.11f, limbCol);                            // forearm
+        part(glm::translate(glm::mat4(1.0f), T), {0.13f, 0.12f, 0.13f}, handCol);  // hand
+    };
+    holdArm({ 0.20f, 1.55f * s, 0.0f}, gripFire);                 // firing arm
+    holdArm({-0.20f, 1.55f * s, 0.0f}, gripSupport);              // support arm
+
+    // --- Legs: feet IK'd onto the ground. Each foot steps fore/aft over its half of the
+    // stride and lifts in an arc; the knee bends forward to reach. Foot height is the
+    // terrain under that foot, so legs follow slopes and never sink/float. Bones keep
+    // full length while the hip lowers with the stance — so crouch deep-bends the knees
+    // and standing keeps a slight natural bend. ---
+    const float thighL = 0.48f, shinL = 0.46f;          // unscaled: low hip => deep bend
+    const glm::vec3 fwd = {cosf(yr), 0.0f, sinf(yr)};   // facing; knees bend toward it
+    float stride = (crouched ? 0.18f : 0.38f) * amp;
+    float lift   = (crouched ? 0.07f : 0.16f) * amp;
+    auto leg = [&](glm::vec3 hipLocal, float ph) {
+        glm::vec3 hip = glm::vec3(root * glm::vec4(hipLocal, 1.0f));
+        glm::vec3 foot;
+        if (airborne) {                                 // tuck: feet hang below the body
+            foot = hip + fwd * (sinf(ph) * 0.10f) - glm::vec3(0, 0.55f, 0);
+        } else {
+            glm::vec3 fxz = hip + fwd * (sinf(ph) * stride);
+            float up = fmaxf(0.0f, sinf(ph + 1.5708f)) * lift;   // lift on the swing half
+            foot = glm::vec3(fxz.x, terrainHeight(fxz.x, fxz.z) + up, fxz.z);
+        }
+        glm::vec3 knee = ikJoint(hip, foot, thighL, shinL, fwd);  // knee leads forward
+        segment(hip, knee, 0.20f, limbCol);                       // thigh
+        segment(knee, foot, 0.18f, limbCol);                      // shin
+        segment(foot, foot + fwd * 0.16f, 0.12f, limbCol);        // foot, pointing ahead
+    };
+    leg({-0.13f, 0.90f * s, 0}, phase);
+    leg({ 0.13f, 0.90f * s, 0}, phase + 3.14159f);
 }
 
 // Training-only mirror on the range wall: a stencil-masked planar reflection (no FBO).
@@ -208,8 +289,9 @@ static void drawMirror(Renderer& r, const Camera& cam, const GameState& gs, int 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (!(gs.usedMask & (1u << i)) || !gs.players[i].alive) continue;
         const Player& pl = gs.players[i];
-        drawPlayerModel(r, pl.pos, pl.yaw, pl.crouched, pl.pos.y > 0.05f,
-                        walkPhase[i], walkAmp[i], i == localID ? COLOR_SELF : COLOR_ENEMY);
+        drawPlayerModel(r, pl.pos, pl.yaw, pl.pitch, pl.lean, pl.weaponId, pl.crouched,
+                        pl.pos.y > 0.05f, walkPhase[i], walkAmp[i],
+                        i == localID ? COLOR_SELF : COLOR_ENEMY);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
         const Bullet& b = gs.bullets[i];
@@ -269,8 +351,8 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
             for (int k = 0; k < nr; k++)
                 r.drawCube(rg[k].center, rg[k].half * 2.0f, regionCol[k]);
         } else {
-            drawPlayerModel(r, p, pl.yaw, pl.crouched, airborne,
-                            walkPhase[i], walkAmp[i], COLOR_ENEMY);
+            drawPlayerModel(r, p, pl.yaw, pl.pitch, pl.lean, pl.weaponId, pl.crouched,
+                            airborne, walkPhase[i], walkAmp[i], COLOR_ENEMY);
         }
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
@@ -765,10 +847,11 @@ int main(int argc, char** argv) {
             }
         }
 
-        // Advance each visible remote player's walk animation from how fast their
-        // interpolated position is moving on the ground.
+        // Advance each visible player's walk animation from how fast their rendered
+        // position moves on the ground. Includes the local player so the training
+        // mirror's self-reflection animates while you walk.
         for (int i = 0; i < MAX_PLAYERS; i++) {
-            bool show = i != localID && (shown->usedMask & (1u << i)) && shown->players[i].alive;
+            bool show = (shown->usedMask & (1u << i)) && shown->players[i].alive;
             if (!show) { walkAmp[i] = 0.0f; prevPosValid[i] = false; continue; }
             glm::vec3 pp = shown->players[i].pos;
             float sp = 0.0f;

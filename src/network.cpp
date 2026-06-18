@@ -263,14 +263,21 @@ void unpackState(const StatePacket& a, const StatePacket& b, float alpha, GameSt
     for (int i = 0; i < MAX_PLAYERS; i++) {
         const PlayerNetState& pb = b.players[i];
         glm::vec3 pos{pb.x, pb.y, pb.z};
-        float     yaw = pb.yaw;
+        float     yaw   = pb.yaw;
+        float     pitch = pb.pitch;
+        float     lean  = pb.lean / 127.0f;
         if ((a.usedMask & b.usedMask) & (1u << i)) {
             const PlayerNetState& pa = a.players[i];
             pos = glm::mix(glm::vec3{pa.x, pa.y, pa.z}, pos, alpha);
             yaw = pa.yaw + (pb.yaw - pa.yaw) * alpha;
+            pitch = pa.pitch + (pb.pitch - pa.pitch) * alpha;
+            lean  = (pa.lean / 127.0f) + (lean - pa.lean / 127.0f) * alpha;
         }
         out.players[i].pos   = pos;
         out.players[i].yaw   = yaw;
+        out.players[i].pitch = pitch;
+        out.players[i].lean  = lean;
+        out.players[i].weaponId = pb.weaponId;
         out.players[i].hp      = pb.hp;
         out.players[i].mag     = pb.mag;
         out.players[i].reserve = pb.reserve;

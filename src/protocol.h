@@ -45,6 +45,9 @@ struct PlayerNetState {
     uint8_t deaths;
     uint8_t shotsFired; // authoritative spawned-shot counter (wraps naturally)
     uint8_t crouched;
+    uint8_t weaponId;   // held weapon, so other clients draw the right third-person gun
+    float   pitch;      // aim pitch (deg), for third-person aim tilt
+    int8_t  lean;       // smoothed lean * 127, -127..+127, for third-person peek pose
 };
 
 struct BulletNetState {
