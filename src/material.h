@@ -51,10 +51,8 @@ inline const MaterialId* activeMapMat() {
     return gMapId == MAP_WAREHOUSE ? WAREHOUSE_MAT : TRAINING_MAT;
 }
 
-// Material for box i of the active map. Field cover is generated at runtime (no
-// parallel array), so it's keyed by index: mostly rock with the odd wooden crate.
+// Material for box i of the active map. (FIELD has no boxes, so it's never asked.)
 inline MaterialId mapBoxMaterial(int i) {
-    if (gMapId == MAP_FIELD)     return (i % 4 == 0) ? MAT_WOOD : MAT_ROCK;
     if (gMapId == MAP_WAREHOUSE) return WAREHOUSE_MAT[i];
     return TRAINING_MAT[i];
 }

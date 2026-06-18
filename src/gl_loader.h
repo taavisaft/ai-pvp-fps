@@ -41,7 +41,12 @@
       X(PFNGLDELETEBUFFERSPROC,           fps_glDeleteBuffers,           glDeleteBuffers) \
       X(PFNGLGENERATEMIPMAPPROC,          fps_glGenerateMipmap,          glGenerateMipmap) \
       X(PFNGLENABLEVERTEXATTRIBARRAYPROC, fps_glEnableVertexAttribArray, glEnableVertexAttribArray) \
-      X(PFNGLVERTEXATTRIBPOINTERPROC,     fps_glVertexAttribPointer,     glVertexAttribPointer)
+      X(PFNGLVERTEXATTRIBPOINTERPROC,     fps_glVertexAttribPointer,     glVertexAttribPointer) \
+      X(PFNGLGENFRAMEBUFFERSPROC,         fps_glGenFramebuffers,         glGenFramebuffers) \
+      X(PFNGLBINDFRAMEBUFFERPROC,         fps_glBindFramebuffer,         glBindFramebuffer) \
+      X(PFNGLFRAMEBUFFERTEXTURE2DPROC,    fps_glFramebufferTexture2D,    glFramebufferTexture2D) \
+      X(PFNGLCHECKFRAMEBUFFERSTATUSPROC,  fps_glCheckFramebufferStatus,  glCheckFramebufferStatus) \
+      X(PFNGLDELETEFRAMEBUFFERSPROC,      fps_glDeleteFramebuffers,      glDeleteFramebuffers)
 
   #define GL_DECLARE(type, name, symbol) extern type name;
   GL_CORE_FUNCS(GL_DECLARE)
@@ -77,6 +82,11 @@
   #define glGenerateMipmap          fps_glGenerateMipmap
   #define glEnableVertexAttribArray fps_glEnableVertexAttribArray
   #define glVertexAttribPointer     fps_glVertexAttribPointer
+  #define glGenFramebuffers         fps_glGenFramebuffers
+  #define glBindFramebuffer         fps_glBindFramebuffer
+  #define glFramebufferTexture2D    fps_glFramebufferTexture2D
+  #define glCheckFramebufferStatus  fps_glCheckFramebufferStatus
+  #define glDeleteFramebuffers      fps_glDeleteFramebuffers
 
   bool loadGLFunctions();
 #endif

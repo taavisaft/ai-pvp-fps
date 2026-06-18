@@ -18,6 +18,16 @@ struct Shader {
     GLint  locTint    = -1;
     GLint  locTime    = -1;
     GLint  locGrass   = -1;
+    // Daylight palette (basic + sky programs share these names where present)
+    GLint  locSunDir    = -1;
+    GLint  locSkyZenith = -1;
+    GLint  locSkyHorizon= -1;
+    GLint  locGroundAmb = -1;
+    GLint  locInvVP     = -1;  // sky program only
+    GLint  locLightSpace= -1;  // basic + depth programs
+    GLint  locShadowMap = -1;  // basic program; sampler on texture unit 1
+    GLint  locUseShadow = -1;  // basic program; 1 = sample shadow map
+    GLint  locHasNormal = -1;  // basic program; 1 = use supplied vertex normal
 
     bool load(const char* vertPath, const char* fragPath);
     void use() const;

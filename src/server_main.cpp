@@ -305,9 +305,14 @@ int main() {
     setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffered even when piped to a log
     srand((unsigned)time(nullptr));
     const char* mapEnv = getenv("FPS_MAP");
-    bool fieldMap = mapEnv && strcmp(mapEnv, "field") == 0;
-    setMap(fieldMap ? MAP_FIELD : MAP_WAREHOUSE);   // FPS_MAP=field for the 1 km^2 map
-    printf("server: map = %s\n", fieldMap ? "field" : "warehouse");
+    // 1 km^2 terrain is the shared online map; FPS_MAP=warehouse/training overrides.
+    MapId mapSel = MAP_FIELD;
+    if (mapEnv && strcmp(mapEnv, "warehouse") == 0) mapSel = MAP_WAREHOUSE;
+    else if (mapEnv && strcmp(mapEnv, "training") == 0) mapSel = MAP_TRAINING;
+    setMap(mapSel);
+    const char* mapName = mapSel == MAP_FIELD ? "field"
+                        : mapSel == MAP_WAREHOUSE ? "warehouse" : "training";
+    printf("server: map = %s\n", mapName);
     platformSocketInit();
     int fd = -1;
     if (!netOpen(fd) || !netBind(fd, UDP_PORT)) {

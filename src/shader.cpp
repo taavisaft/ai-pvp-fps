@@ -33,7 +33,7 @@ static GLuint compileStage(GLenum type, const char* src, const char* label) {
 }
 
 bool Shader::load(const char* vertPath, const char* fragPath) {
-    char vsrc[4096], fsrc[4096];
+    char vsrc[8192], fsrc[8192];
     if (!readFile(vertPath, vsrc, sizeof(vsrc))) return false;
     if (!readFile(fragPath, fsrc, sizeof(fsrc))) return false;
 
@@ -74,6 +74,15 @@ bool Shader::load(const char* vertPath, const char* fragPath) {
     locTint    = glGetUniformLocation(program, "tint");
     locTime    = glGetUniformLocation(program, "time");
     locGrass   = glGetUniformLocation(program, "grass");
+    locSunDir     = glGetUniformLocation(program, "sunDir");
+    locSkyZenith  = glGetUniformLocation(program, "skyZenith");
+    locSkyHorizon = glGetUniformLocation(program, "skyHorizon");
+    locGroundAmb  = glGetUniformLocation(program, "groundAmbient");
+    locInvVP      = glGetUniformLocation(program, "invViewProj");
+    locLightSpace = glGetUniformLocation(program, "lightSpace");
+    locShadowMap  = glGetUniformLocation(program, "shadowMap");
+    locUseShadow  = glGetUniformLocation(program, "useShadow");
+    locHasNormal  = glGetUniformLocation(program, "hasNormal");
     return true;
 }
 

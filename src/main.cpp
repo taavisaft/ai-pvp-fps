@@ -237,27 +237,14 @@ static void drawMirror(Renderer& r, const Camera& cam, const GameState& gs, int 
     glDisable(GL_BLEND);
 }
 
-static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int localID,
-                        const HudState& hud, bool scoreboard, bool online,
-                        const ViewModel& vm,
-                        const glm::vec3* rangeMarks, int rangeMarkCount, bool drawRange,
-                        const ConnectPrompt& connectPrompt,
-                        const float* walkPhase, const float* walkAmp, bool showHitboxes) {
-    static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
-
-    r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
+// Shadow casters + receivers: ground/terrain, cover boxes, remote players, bullets.
+// Drawn twice per frame — once into the sun's depth map, once into the main view —
+// so it must contain only real world geometry (no HUD, viewmodel, mirror, or the
+// cosmetic ground blobs / aim cross, which are added in the main pass only).
+static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
+                              const float* walkPhase, const float* walkAmp,
+                              bool showHitboxes) {
     if (gMapId == MAP_FIELD) r.drawTerrain(); else r.drawGround();
-
-    if (drawRange) {
-        // the wall itself is a training-map box (drawn by the map loop). Just the
-        // aim reference: a red cross at standing eye height, offset left of the mirror
-        // (which sits dead ahead at z=0) so the two don't overlap.
-        glm::vec3 c = {RANGE_WALL_FACE - 0.03f, RANGE_BULLSEYE_Y, -7.0f};
-        r.drawCube(c, {0.06f, 1.0f, 0.10f}, {0.85f, 0.25f, 0.20f});
-        r.drawCube(c, {0.06f, 0.10f, 1.0f}, {0.85f, 0.25f, 0.20f});
-        for (int i = 0; i < rangeMarkCount; i++)
-            r.drawCube(rangeMarks[i], {0.05f, 0.11f, 0.11f}, {1.0f, 0.85f, 0.20f});
-    }
 
     for (int i = 0; i < gMapBoxCount; i++) {
         const Box& b = gMapBoxes[i];
@@ -285,18 +272,57 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
             drawPlayerModel(r, p, pl.yaw, pl.crouched, airborne,
                             walkPhase[i], walkAmp[i], COLOR_ENEMY);
         }
-        r.drawCube({p.x, terrainHeight(p.x, p.z) + 0.01f, p.z}, {1.1f, 0.001f, 1.1f}, COLOR_BLOB);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
         const Bullet& b = gs.bullets[i];
         if (!b.active) continue;
         bool own = b.ownerID == localID;
         r.drawCube(b.pos, {0.1f, 0.1f, 0.1f}, own ? COLOR_BULLET_OWN : COLOR_BULLET_ENEMY);
+    }
+}
+
+static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int localID,
+                        const HudState& hud, bool scoreboard, bool online,
+                        const ViewModel& vm,
+                        const glm::vec3* rangeMarks, int rangeMarkCount, bool drawRange,
+                        const ConnectPrompt& connectPrompt,
+                        const float* walkPhase, const float* walkAmp, bool showHitboxes) {
+    static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
+
+    // Pass 1: scene depth from the sun, focused on the camera (near-field shadows).
+    r.beginShadowPass(cam.eye);
+    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, showHitboxes);
+    r.endShadowPass();
+
+    // Pass 2: lit main view, sampling the shadow map built above.
+    r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
+    r.drawSky(cam.view(), cam.proj(r.aspect()));
+    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, showHitboxes);
+
+    if (drawRange) {
+        // the wall itself is a training-map box (drawn by the map loop). Just the
+        // aim reference: a red cross at standing eye height, offset left of the mirror
+        // (which sits dead ahead at z=0) so the two don't overlap.
+        glm::vec3 c = {RANGE_WALL_FACE - 0.03f, RANGE_BULLSEYE_Y, -7.0f};
+        r.drawCube(c, {0.06f, 1.0f, 0.10f}, {0.85f, 0.25f, 0.20f});
+        r.drawCube(c, {0.06f, 0.10f, 1.0f}, {0.85f, 0.25f, 0.20f});
+        for (int i = 0; i < rangeMarkCount; i++)
+            r.drawCube(rangeMarks[i], {0.05f, 0.11f, 0.11f}, {1.0f, 0.85f, 0.20f});
+    }
+    // Bullet ground blobs (real shadows replace the old per-player blob).
+    for (int i = 0; i < MAX_BULLETS; i++) {
+        const Bullet& b = gs.bullets[i];
+        if (!b.active) continue;
         r.drawCube({b.pos.x, terrainHeight(b.pos.x, b.pos.z) + 0.01f, b.pos.z},
                    {0.22f, 0.001f, 0.22f}, COLOR_BLOB);
     }
     if (drawRange) drawMirror(r, cam, gs, localID, walkPhase, walkAmp);
-    if (gs.players[localID].alive && !connectPrompt.open) drawViewModel(r, cam, vm);
+    // First-person gun is an overlay — don't world-shadow it (FPS convention).
+    if (gs.players[localID].alive && !connectPrompt.open) {
+        r.shader.setInt(r.shader.locUseShadow, 0);
+        drawViewModel(r, cam, vm);
+        r.shader.setInt(r.shader.locUseShadow, 1);
+    }
     drawHUD(r, gs, localID, hud, scoreboard, online);
     drawConnectPrompt(r, connectPrompt);
     r.endFrame();

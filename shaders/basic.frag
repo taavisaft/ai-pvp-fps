@@ -1,6 +1,9 @@
 #version 330 core
 in vec3 worldPos;
+in vec3 vNormal;
+in vec4 lightSpacePos;
 uniform vec3 color;
+uniform int  hasNormal;   // 1 = use supplied vertex normal (terrain), 0 = derivative
 uniform float alpha;
 uniform int lit;        // 1 = world pass (lighting/grid/fog), 0 = HUD
 uniform vec3 eyePos;
@@ -14,7 +17,34 @@ uniform vec3 tint;
 uniform float time;       // seconds, for wind shimmer
 uniform int   grass;      // 1 = procedural grass (ground only)
 
+// Shared daylight palette (same values fed to the sky pass — see Renderer).
+uniform vec3 sunDir;       // direction TOWARD the sun, normalized
+uniform vec3 skyZenith;    // hemispheric ambient from above
+uniform vec3 skyHorizon;   // horizon / distance-fog color
+uniform vec3 groundAmbient;// ambient + bounce from below
+
+uniform sampler2D shadowMap;  // sun depth, texture unit 1
+uniform int useShadow;        // 1 = sample shadow map, 0 = fully lit
+
 out vec4 fragColor;
+
+// Fraction of the sun reaching this fragment (0 = full shadow, 1 = lit). 3x3 PCF
+// with a slope-scaled bias. Anything outside the light frustum is treated as lit.
+float sunVisibility(vec3 n, vec3 L) {
+    if (useShadow == 0) return 1.0;
+    vec3 p = lightSpacePos.xyz / lightSpacePos.w;
+    p = p * 0.5 + 0.5;
+    if (p.z > 1.0 || p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) return 1.0;
+    float bias = max(0.0025 * (1.0 - dot(n, L)), 0.0006);
+    vec2 texel = 1.0 / vec2(textureSize(shadowMap, 0));
+    float vis = 0.0;
+    for (int x = -1; x <= 1; x++)
+        for (int y = -1; y <= 1; y++) {
+            float d = texture(shadowMap, p.xy + vec2(x, y) * texel).r;
+            vis += (p.z - bias > d) ? 0.0 : 1.0;
+        }
+    return vis / 9.0;
+}
 
 float hash(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -70,18 +100,25 @@ void main() {
     }
 
     if (lit == 1) {
-        vec3 n = normalize(cross(dFdx(worldPos), dFdy(worldPos)));
-        float ndl = max(dot(n, normalize(vec3(0.5, 0.8, 0.3))), 0.0);
-        c *= 0.55 + 0.45 * ndl;
+        vec3 n = (hasNormal == 1) ? normalize(vNormal)
+                                  : normalize(cross(dFdx(worldPos), dFdy(worldPos)));
+        vec3 L = normalize(sunDir);
+
+        // 3-term outdoor light: warm direct sun (shadowed) + cool hemispheric sky + bounce.
+        vec3 sun     = vec3(1.0, 0.96, 0.88) * max(dot(n, L), 0.0) * sunVisibility(n, L);
+        vec3 ambient = mix(groundAmbient, skyZenith, n.y * 0.5 + 0.5);
+        ambient     += groundAmbient * 0.25 * max(-n.y, 0.0);   // upward bounce
+        vec3 lit3    = c * (sun + ambient);
 
         if (specular > 0.0) {
             vec3 V = normalize(eyePos - worldPos);
-            float spec = pow(max(dot(n, V), 0.0), 24.0) * specular;
-            c += vec3(spec);
+            vec3 H = normalize(L + V);
+            float spec = pow(max(dot(n, H), 0.0), 48.0) * specular;
+            lit3 += vec3(spec);
         }
 
-        float fog = clamp(length(worldPos - eyePos) / 250.0, 0.0, 1.0);
-        c = mix(c, vec3(0.1, 0.1, 0.15), fog * fog);
+        float fog = clamp(length(worldPos - eyePos) / 350.0, 0.0, 1.0);
+        c = mix(lit3, skyHorizon, fog * fog);
     }
     fragColor = vec4(c, alpha);
 }

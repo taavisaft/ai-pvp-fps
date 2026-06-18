@@ -3,7 +3,7 @@
 #include <vector>
 
 bool Mesh::create(const float* verts, size_t floatCount,
-                  const unsigned* indices, size_t idxCount) {
+                  const unsigned* indices, size_t idxCount, bool withNormals) {
     glGenVertexArrays(1, &vao);
     glGenBuffers(1, &vbo);
     glGenBuffers(1, &ebo);
@@ -15,8 +15,13 @@ bool Mesh::create(const float* verts, size_t floatCount,
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, idxCount * sizeof(unsigned), indices, GL_STATIC_DRAW);
 
+    GLsizei stride = (withNormals ? 6 : 3) * sizeof(float);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+    if (withNormals) {
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+    }
 
     glBindVertexArray(0);
     indexCount = (GLsizei)idxCount;
@@ -82,18 +87,27 @@ bool createGroundQuad(Mesh& m) {
 }
 
 // Heightfield grid spanning the field map, sampled from terrainElevation(). Built
-// once (static VBO); the shader derives normals via dFdx/dFdy, so position-only.
+// once (static VBO) with analytic per-vertex normals (central difference of the
+// height field) so the hills shade smoothly and self-shadow, instead of faceting
+// from dFdx/dFdy. Interleaved pos.xyz, normal.xyz.
 bool createTerrainMesh(Mesh& m) {
     const float HALF = FIELD_HALF, STEP = 4.0f;
     const int   N = (int)(2.0f * HALF / STEP) + 1;   // verts per side
+    const float e = STEP;                            // gradient sample spacing
     std::vector<float> v;
-    v.reserve((size_t)N * N * 3);
+    v.reserve((size_t)N * N * 6);
     for (int zi = 0; zi < N; zi++)
         for (int xi = 0; xi < N; xi++) {
             float x = -HALF + xi * STEP, z = -HALF + zi * STEP;
+            float dhdx = (terrainElevation(x + e, z) - terrainElevation(x - e, z)) / (2 * e);
+            float dhdz = (terrainElevation(x, z + e) - terrainElevation(x, z - e)) / (2 * e);
+            glm::vec3 n = glm::normalize(glm::vec3(-dhdx, 1.0f, -dhdz));
             v.push_back(x);
             v.push_back(terrainElevation(x, z));
             v.push_back(z);
+            v.push_back(n.x);
+            v.push_back(n.y);
+            v.push_back(n.z);
         }
     std::vector<unsigned> idx;
     idx.reserve((size_t)(N - 1) * (N - 1) * 6);
@@ -103,5 +117,5 @@ bool createTerrainMesh(Mesh& m) {
             idx.push_back(a); idx.push_back(c); idx.push_back(d);  // up-facing CCW
             idx.push_back(d); idx.push_back(b); idx.push_back(a);
         }
-    return m.create(v.data(), v.size(), idx.data(), idx.size());
+    return m.create(v.data(), v.size(), idx.data(), idx.size(), /*withNormals=*/true);
 }

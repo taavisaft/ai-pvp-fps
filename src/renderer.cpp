@@ -33,6 +33,8 @@ bool Renderer::init(const char* title, int w, int h) {
     int dw, dh;
     SDL_GL_GetDrawableSize(window, &dw, &dh);
     glViewport(0, 0, dw, dh);
+    fbW = dw;
+    fbH = dh;
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
@@ -49,12 +51,52 @@ bool Renderer::init(const char* title, int w, int h) {
         if (!shader.load("shaders/basic.vert", "shaders/basic.frag")) return false;
     }
 
+    char skyv[600], skyf[600];
+    snprintf(skyv, sizeof(skyv), "%sshaders/sky.vert", base);
+    snprintf(skyf, sizeof(skyf), "%sshaders/sky.frag", base);
+    if (!skyShader.load(skyv, skyf)) {
+        if (!skyShader.load("shaders/sky.vert", "shaders/sky.frag")) return false;
+    }
+
+    char dpv[600], dpf[600];
+    snprintf(dpv, sizeof(dpv), "%sshaders/depth.vert", base);
+    snprintf(dpf, sizeof(dpf), "%sshaders/depth.frag", base);
+    if (!depthShader.load(dpv, dpf)) {
+        if (!depthShader.load("shaders/depth.vert", "shaders/depth.frag")) return false;
+    }
+
     if (!createUnitCube(cube)) return false;
     if (!createGroundQuad(ground)) return false;
     if (!createTerrainMesh(terrain)) return false;
     if (!createQuad2D(quad2d)) return false;
     if (!font.init()) return false;
     if (!materials.init()) return false;
+
+    // Shadow map: a depth-only texture rendered from the sun each frame.
+    glGenFramebuffers(1, &shadowFBO);
+    glGenTextures(1, &shadowTex);
+    glBindTexture(GL_TEXTURE_2D, shadowTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, shadowSize, shadowSize, 0,
+                 GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // Clamp to a white border so anything sampled outside the map reads "lit" (depth 1).
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float border[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border);
+    glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowTex, 0);
+    glDrawBuffer(GL_NONE);   // no color attachment
+    glReadBuffer(GL_NONE);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        fprintf(stderr, "shadow FBO incomplete\n");
+        return false;
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    active = &shader;
     return true;
 }
 
@@ -63,6 +105,7 @@ float Renderer::aspect() const {
 }
 
 void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye) {
+    active = &shader;
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     shader.use();
     shader.setMat4(shader.locView, view);
@@ -73,6 +116,60 @@ void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const gl
     shader.setInt(shader.locDiffuse, 0);
     shader.setFloat(shader.locTime, frameTime);
     shader.setInt(shader.locGrass, 0);
+    shader.setVec3(shader.locSunDir, sunDir);
+    shader.setVec3(shader.locSkyZenith, skyZenith);
+    shader.setVec3(shader.locSkyHorizon, skyHorizon);
+    shader.setVec3(shader.locGroundAmb, groundAmbient);
+    shader.setInt(shader.locHasNormal, 0);   // boxes/ground use derivative normals
+    // Shadow map (built this frame in the shadow pass) on texture unit 1.
+    shader.setMat4(shader.locLightSpace, lightSpace);
+    shader.setInt(shader.locShadowMap, 1);
+    shader.setInt(shader.locUseShadow, 1);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, shadowTex);
+    glActiveTexture(GL_TEXTURE0);
+}
+
+void Renderer::drawSky(const glm::mat4& view, const glm::mat4& proj) {
+    // Fullscreen gradient, drawn before world geometry. Depth off so it never
+    // occludes (and is never occluded by) the scene; world draws over it normally.
+    glm::mat4 invVP = glm::inverse(proj * view);
+    glDisable(GL_DEPTH_TEST);
+    skyShader.use();
+    skyShader.setMat4(skyShader.locInvVP, invVP);
+    skyShader.setVec3(skyShader.locSunDir, sunDir);
+    skyShader.setVec3(skyShader.locSkyZenith, skyZenith);
+    skyShader.setVec3(skyShader.locSkyHorizon, skyHorizon);
+    quad2d.draw();
+    glEnable(GL_DEPTH_TEST);
+    shader.use();   // restore the world program for the geometry that follows
+}
+
+void Renderer::beginShadowPass(const glm::vec3& focus) {
+    const float R = 60.0f;          // half-extent of the shadowed region around focus
+    const float backDist = 120.0f;  // how far up the sun-ray the light camera sits
+    glm::vec3 dir = glm::normalize(sunDir);
+    glm::vec3 leye = focus + dir * backDist;
+    glm::vec3 up = (dir.y > 0.99f || dir.y < -0.99f) ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
+    glm::mat4 lview = glm::lookAt(leye, focus, up);
+    glm::mat4 lproj = glm::ortho(-R, R, -R, R, 1.0f, backDist + R + 50.0f);
+    lightSpace = lproj * lview;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+    glViewport(0, 0, shadowSize, shadowSize);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDisable(GL_CULL_FACE);   // single-sided ground/terrain must cast; bias handles acne
+    depthShader.use();
+    depthShader.setMat4(depthShader.locLightSpace, lightSpace);
+    active = &depthShader;
+}
+
+void Renderer::endShadowPass() {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, fbW, fbH);
+    glEnable(GL_CULL_FACE);
+    active = &shader;
+    shader.use();
 }
 
 static void bindFlatColor(Shader& sh) {
@@ -143,25 +240,25 @@ void Renderer::endHUD() {
 void Renderer::drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color) {
     glm::mat4 model = glm::translate(glm::mat4(1.0f), center);
     model = glm::scale(model, scale);
-    bindFlatColor(shader);
-    shader.setMat4(shader.locModel, model);
-    shader.setVec3(shader.locColor, color);
+    bindFlatColor(*active);
+    active->setMat4(active->locModel, model);
+    active->setVec3(active->locColor, color);
     cube.draw();
 }
 
 void Renderer::drawCube(const glm::vec3& center, const glm::vec3& scale, MaterialId mat) {
     glm::mat4 model = glm::translate(glm::mat4(1.0f), center);
     model = glm::scale(model, scale);
-    bindMaterial(shader, materials, mat);
-    shader.setMat4(shader.locModel, model);
-    shader.setVec3(shader.locColor, glm::vec3(1.0f));
+    bindMaterial(*active, materials, mat);
+    active->setMat4(active->locModel, model);
+    active->setVec3(active->locColor, glm::vec3(1.0f));
     cube.draw();
 }
 
 void Renderer::drawCubeModel(const glm::mat4& model, const glm::vec3& color) {
-    bindFlatColor(shader);
-    shader.setMat4(shader.locModel, model);
-    shader.setVec3(shader.locColor, color);
+    bindFlatColor(*active);
+    active->setMat4(active->locModel, model);
+    active->setVec3(active->locColor, color);
     cube.draw();
 }
 
@@ -190,23 +287,25 @@ void Renderer::drawGround() {
 }
 
 void Renderer::drawGround(MaterialId mat) {
-    bindMaterial(shader, materials, mat);
-    shader.setMat4(shader.locModel, glm::mat4(1.0f));
-    shader.setVec3(shader.locColor, glm::vec3(1.0f));
+    bindMaterial(*active, materials, mat);
+    active->setMat4(active->locModel, glm::mat4(1.0f));
+    active->setVec3(active->locColor, glm::vec3(1.0f));
     // Use the procedural grass shader only when no ground image is loaded; otherwise
     // the triplanar path samples the grass photo (textures/ground.*).
-    shader.setInt(shader.locGrass, materials.groundHasImage ? 0 : 1);
+    active->setInt(active->locGrass, materials.groundHasImage ? 0 : 1);
     ground.draw();
-    shader.setInt(shader.locGrass, 0);
+    active->setInt(active->locGrass, 0);
 }
 
 void Renderer::drawTerrain() {
-    bindMaterial(shader, materials, MAT_GROUND);
-    shader.setMat4(shader.locModel, glm::mat4(1.0f));
-    shader.setVec3(shader.locColor, glm::vec3(1.0f));
-    shader.setInt(shader.locGrass, materials.groundHasImage ? 0 : 1);
+    bindMaterial(*active, materials, MAT_GROUND);
+    active->setMat4(active->locModel, glm::mat4(1.0f));
+    active->setVec3(active->locColor, glm::vec3(1.0f));
+    active->setInt(active->locGrass, materials.groundHasImage ? 0 : 1);
+    active->setInt(active->locHasNormal, 1);   // smooth analytic heightfield normals
     terrain.draw();
-    shader.setInt(shader.locGrass, 0);
+    active->setInt(active->locHasNormal, 0);
+    active->setInt(active->locGrass, 0);
 }
 
 void Renderer::endFrame() {
@@ -226,6 +325,10 @@ void Renderer::shutdown() {
     ground.destroy();
     cube.destroy();
     shader.destroy();
+    skyShader.destroy();
+    depthShader.destroy();
+    if (shadowTex) glDeleteTextures(1, &shadowTex);
+    if (shadowFBO) glDeleteFramebuffers(1, &shadowFBO);
     if (glContext) SDL_GL_DeleteContext(glContext);
     if (window) SDL_DestroyWindow(window);
     glContext = nullptr;

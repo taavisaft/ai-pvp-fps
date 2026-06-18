@@ -16,6 +16,21 @@ struct Renderer {
                                       // 3D-blade instanced pass) read the same clock
 
     Shader shader;
+    Shader skyShader;    // fullscreen gradient sky + sun disk
+    Shader depthShader;  // sun-POV depth pass for shadow mapping
+    Shader* active = nullptr;  // program the world draws target (basic or depth)
+
+    // Shadow map: single ortho sun frustum following the camera (near-field shadows).
+    GLuint    shadowFBO   = 0;
+    GLuint    shadowTex   = 0;
+    int       shadowSize  = 2048;
+    glm::mat4 lightSpace  = glm::mat4(1.0f);
+    int       fbW = 0, fbH = 0;   // drawable size, to restore viewport after shadow pass
+    // Daylight palette — single source of truth, pushed to both basic and sky programs.
+    glm::vec3 sunDir        = glm::normalize(glm::vec3(0.50f, 0.65f, 0.25f));
+    glm::vec3 skyZenith     = {0.30f, 0.50f, 0.78f};
+    glm::vec3 skyHorizon    = {0.74f, 0.82f, 0.90f};
+    glm::vec3 groundAmbient = {0.26f, 0.27f, 0.24f};
     Mesh   cube;     // unit cube, scaled per draw
     Mesh   ground;   // 100x100 quad at y=0
     Mesh   terrain;  // 1 km^2 heightfield (MAP_FIELD)
@@ -27,6 +42,11 @@ struct Renderer {
     float aspect() const;
     void  setTime(float t) { frameTime = t; }
     void  beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye);
+  void  drawSky(const glm::mat4& view, const glm::mat4& proj);  // call right after beginFrame
+  // Shadow pass: render world geometry between these, viewed from the sun. Centers
+  // the light frustum on `focus` (the camera eye). Sets the depth program active.
+  void  beginShadowPass(const glm::vec3& focus);
+  void  endShadowPass();
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color);
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, MaterialId mat);
     void  drawCubeModel(const glm::mat4& model, const glm::vec3& color);  // oriented (gun)
