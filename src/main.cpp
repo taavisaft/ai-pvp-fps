@@ -275,8 +275,8 @@ static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, flo
 static void drawMirror(Renderer& r, const Camera& cam, const GameState& gs, int localID,
                        const float* walkPhase, const float* walkAmp, const float* adsAnim) {
     const float     planeX = RANGE_WALL_FACE;               // reflect across the wall face
-    const glm::vec3 mc     = {planeX - 0.02f, 1.10f, 0.0f};  // glass center, dead ahead
-    const glm::vec3 mscale = {0.04f, 2.20f, 1.30f};         // ~2.2 m tall, 1.3 m wide
+    const glm::vec3 mc     = {planeX - 0.02f, 1.70f, 0.0f};  // glass center, dead ahead
+    const glm::vec3 mscale = {0.04f, 3.60f, 2.60f};         // ~3.6 m tall, 2.6 m wide
     const float     hh = mscale.y * 0.5f, hw = mscale.z * 0.5f;
     const glm::mat4 proj = cam.proj(r.aspect());
 
@@ -360,13 +360,15 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
         const glm::vec3& p = pl.pos;
         if (showHitboxes) {
             // Debug: draw the actual gameplay hit regions, color-coded by multiplier.
-            static const glm::vec3 regionCol[3] = {
+            static const glm::vec3 regionCol[MAX_HIT_REGIONS] = {
                 {0.20f, 0.45f, 0.95f},   // legs  (0.8x) — blue
                 {0.20f, 0.85f, 0.25f},   // torso (1.0x) — green
+                {0.95f, 0.70f, 0.15f},   // neck  (1.5x) — amber
                 {0.95f, 0.20f, 0.20f},   // head  (2.0x) — red
+                {0.70f, 0.30f, 0.90f},   // arms  (1.0x) — purple
             };
-            HitRegion rg[3];
-            int nr = playerHitRegions(p, pl.crouched, rg);
+            HitRegion rg[MAX_HIT_REGIONS];
+            int nr = playerHitRegions(p, pl.crouched, pl.yaw, pl.ads, rg);
             for (int k = 0; k < nr; k++)
                 r.drawCube(rg[k].center, rg[k].half * 2.0f, regionCol[k]);
         } else {

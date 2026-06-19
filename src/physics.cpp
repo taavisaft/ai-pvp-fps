@@ -72,18 +72,28 @@ static float dmgScale(const WeaponDef& w, float dist) {
     return 1.0f + (w.falloffMin - 1.0f) * u;
 }
 
-int playerHitRegions(const glm::vec3& pos, bool crouched, HitRegion out[3]) {
-    // Heights authored for STAND_HEIGHT (2.0); scaled down when crouched so the
-    // stack always fits the body. Boxes are centered on the player's vertical axis
-    // (yaw-independent) so they line up with the lag-comp rewind (pos + crouched).
+int playerHitRegions(const glm::vec3& pos, bool crouched, float yaw, bool ads,
+                     HitRegion out[MAX_HIT_REGIONS]) {
+    // Heights authored for STAND_HEIGHT (2.0); scaled down when crouched so the stack
+    // always fits the body. The vertical core (legs/torso/neck/head) is centered on the
+    // player's axis; the arms box is projected forward along yaw so it tracks the
+    // gun-hold pose instead of being a square that pretends the arms are at the side.
     float s = crouched ? (CROUCH_HEIGHT / STAND_HEIGHT) : 1.0f;
-    // XZ footprints are square so they cover the arms (which rotate with yaw, not
-    // stored in lag comp) — the body is a solid blocker, no shooting "between" the
-    // arms and torso to tag someone behind.
     out[0] = {pos + glm::vec3(0, 0.50f * s, 0), {0.32f, 0.50f * s, 0.32f}, 0.8f}; // legs (covers stride)
-    out[1] = {pos + glm::vec3(0, 1.30f * s, 0), {0.28f, 0.35f * s, 0.28f}, 1.0f}; // torso+arms
-    out[2] = {pos + glm::vec3(0, 1.80f * s, 0), {0.17f, 0.16f * s, 0.17f}, 2.0f}; // head
-    return 3;
+    out[1] = {pos + glm::vec3(0, 1.22f * s, 0), {0.28f, 0.28f * s, 0.28f}, 1.0f}; // torso
+    out[2] = {pos + glm::vec3(0, 1.60f * s, 0), {0.13f, 0.12f * s, 0.13f}, 1.5f}; // neck
+    out[3] = {pos + glm::vec3(0, 1.86f * s, 0), {0.17f, 0.14f * s, 0.17f}, 2.0f}; // head
+
+    // Arms/hands: the player always holds the gun out in front (chest height hipfire,
+    // raised toward the eyeline at ADS), so a forward box along the facing covers the
+    // visible hands. 1.0x = same as torso, so it only adds reach, never nerfs a chest
+    // shot. yaw matches movePlayer's forward = (cos yaw, 0, sin yaw).
+    float yr = glm::radians(yaw);
+    glm::vec3 fwd = {cosf(yr), 0.0f, sinf(yr)};
+    float handY = (ads ? 1.46f : 1.28f) * s;            // raised when aiming
+    glm::vec3 armC = pos + glm::vec3(0, handY, 0) + fwd * 0.42f;
+    out[4] = {armC, {0.30f, 0.18f * s, 0.30f}, 1.0f};   // forearms + hands + gun region
+    return MAX_HIT_REGIONS;
 }
 
 glm::vec3 dirFromYawPitch(float yaw, float pitch) {
@@ -295,14 +305,17 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
             // apply to the current authoritative player.
             glm::vec3 hitPos      = target.pos;
             bool      hitCrouched = target.crouched;
+            float     hitYaw      = target.yaw;
+            bool      hitAds      = target.ads;
             if (lookup) {
                 bool wasAlive = false;
-                if (!lookup(ctx, pid, b.compRewind, hitPos, hitCrouched, wasAlive)) continue;
+                if (!lookup(ctx, pid, b.compRewind, hitPos, hitCrouched, hitYaw, hitAds, wasAlive))
+                    continue;
                 if (!wasAlive) continue;
             }
             // Sweep each body region; nearest one wins and carries its multiplier.
-            HitRegion rg[3];
-            int nr = playerHitRegions(hitPos, hitCrouched, rg);
+            HitRegion rg[MAX_HIT_REGIONS];
+            int nr = playerHitRegions(hitPos, hitCrouched, hitYaw, hitAds, rg);
             for (int k = 0; k < nr; k++)
                 if (segmentAabb(p0, p1, rg[k].center, rg[k].half, t) && t < bestT) {
                     bestT = t; hitPid = pid; hitMult = rg[k].mult;

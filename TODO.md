@@ -43,8 +43,9 @@ A simple running list of what's done and what's next.
   switch with 1/2 keys or scroll (weaponId in InputPacket); distinct viewmodels
 - Articulated character model (head/torso/arms/legs) with a speed-driven walk cycle
   (crouch/jump poses), client-side cosmetic
-- Regional hitboxes with damage multipliers — 2x head, 1x torso, 0.8x legs;
-  lag-comp-safe (depends only on pos + crouched)
+- Regional hitboxes with damage multipliers — 2x head, 1.5x neck, 1x torso, 0.8x legs,
+  plus a forward arms/hands box (1x) that tracks the gun-hold pose (yaw-projected,
+  raised at ADS); lag-comp-safe (snapshot carries pos + crouched + yaw + ads)
 - Sticky recoil: spray climbs and stays, you pull it back down
 - Lag-compensated hit rewind (server rewinds targets to when you fired)
 - Client-side prediction + prediction-error smoothing
@@ -70,7 +71,8 @@ A simple running list of what's done and what's next.
 - Per-weapon authored recoil patterns (learnable spray); per-weapon recoil feel
   (both weapons still share the global recoil constants)
 - Headshot feedback (distinct hit marker / sound) — server doesn't yet send hit region
-- Arm hitboxes / animation-following hitboxes (needs yaw + pose in lag-comp snapshot)
+- Animation-following limb hitboxes: arms now track the gun-hold pose (yaw + ads in the
+  snapshot); legs/feet still don't follow the walk stride
 - Bullet penetration through thin cover
 
 ### Feel / visuals

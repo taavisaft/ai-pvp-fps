@@ -44,6 +44,8 @@ struct Snap {
     glm::vec3 pos[MAX_PLAYERS];
     bool      crouched[MAX_PLAYERS];
     bool      alive[MAX_PLAYERS];
+    float     yaw[MAX_PLAYERS];     // for the yaw-projected arms hitbox
+    bool      ads[MAX_PLAYERS];     // raises the arms box when aiming
 };
 static Snap history[HISTORY_TICKS];
 static int  histHead  = -1;   // index of newest snapshot
@@ -70,13 +72,15 @@ static void recordSnapshot() {
         s.pos[i]      = game.players[i].pos;
         s.crouched[i] = game.players[i].crouched;
         s.alive[i]    = game.players[i].alive;
+        s.yaw[i]      = game.players[i].yaw;
+        s.ads[i]      = game.players[i].ads;
     }
     if (histCount < HISTORY_TICKS) histCount++;
 }
 
 // RewindLookup: where player `pid`'s hitbox was `rewindSec` seconds ago.
 static bool rewindLookup(const void* ctx, int pid, float rewindSec,
-                         glm::vec3& pos, bool& crouched, bool& alive) {
+                         glm::vec3& pos, bool& crouched, float& yaw, bool& ads, bool& alive) {
     (void)ctx;
     if (histCount == 0) return false;
     float    target = serverTime - rewindSec;
@@ -107,9 +111,18 @@ static bool rewindLookup(const void* ctx, int pid, float rewindSec,
     const Snap& sa = history[olderIdx];
     const Snap& sb = history[newerIdx];
     if (!(sb.usedMask & bit) || !sb.alive[pid]) return false;  // not a valid target then
-    glm::vec3 older = ((sa.usedMask & bit) && sa.alive[pid]) ? sa.pos[pid] : sb.pos[pid];
+    bool      olderValid = (sa.usedMask & bit) && sa.alive[pid];
+    glm::vec3 older = olderValid ? sa.pos[pid] : sb.pos[pid];
     pos      = glm::mix(older, sb.pos[pid], a);
     crouched = sb.crouched[pid];
+    ads      = sb.ads[pid];
+    // Shortest-arc yaw interp so a player spinning across the 0/360 seam doesn't make
+    // the arms box swing the long way round between snapshots.
+    float ya = olderValid ? sa.yaw[pid] : sb.yaw[pid];
+    float dy = sb.yaw[pid] - ya;
+    while (dy > 180.0f)  dy -= 360.0f;
+    while (dy < -180.0f) dy += 360.0f;
+    yaw      = ya + dy * a;
     alive    = true;
     return true;
 }
@@ -227,6 +240,7 @@ static void tick(float dt) {
         if (p.weaponId != c.input.weaponId)   // client swapped weapons (1/2 keys)
             giveWeapon(p, c.input.weaponId);
         movePlayer(p, c.input, dt);
+        p.ads = c.input.ads;                  // recorded into the lag-comp snapshot
         updateReload(p, c.input.reload, dt);
         if (c.firedShots < c.shotSeq) {   // one shot per tick; drains any backlog
             float eyeH = p.crouched ? CROUCH_EYE : EYE_HEIGHT;

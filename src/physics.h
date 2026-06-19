@@ -7,10 +7,13 @@ bool aabbHit(glm::vec3 p, glm::vec3 playerPos, bool crouched);
 // A regional hitbox: an AABB plus a damage multiplier (head 2x, torso 1x, legs 0.8x).
 struct HitRegion { glm::vec3 center; glm::vec3 half; float mult; };
 
-// Fills the player's three stacked hit regions (head/torso/legs) for the stance.
-// Depends only on pos + crouched (no yaw/animation) so it matches lag-comp rewind.
-// Returns the region count (3).
-int playerHitRegions(const glm::vec3& pos, bool crouched, HitRegion out[3]);
+// Fills the player's stacked hit regions for the stance: legs, torso, neck, head, and
+// a forward arms/hands box that tracks the gun-hold pose (projected along `yaw`, raised
+// when `ads`). Depends only on pos + crouched + yaw + ads — all carried in the lag-comp
+// rewind snapshot — so server hit tests match the rewound pose. Returns the count (5).
+constexpr int MAX_HIT_REGIONS = 5;
+int playerHitRegions(const glm::vec3& pos, bool crouched, float yaw, bool ads,
+                     HitRegion out[MAX_HIT_REGIONS]);
 
 // Swept collision: does segment p0->p1 hit AABB(center, half)? tHit = entry point
 // as a fraction [0,1] along the segment. Velocity-independent — used for bullets
@@ -48,7 +51,8 @@ void updateReload(Player& p, bool wantReload, float dt);
 // false if the player wasn't present/alive then (skip the hit). Used by the server
 // for lag compensation; ctx is the server's position history.
 typedef bool (*RewindLookup)(const void* ctx, int pid, float rewindSec,
-                             glm::vec3& pos, bool& crouched, bool& alive);
+                             glm::vec3& pos, bool& crouched, float& yaw, bool& ads,
+                             bool& alive);
 
 // Integrates bullets (gravity, TTL), checks hits vs players, applies damage/kills.
 // lookup == nullptr: hits tested against current positions (offline/client).
