@@ -286,6 +286,7 @@ void unpackState(const StatePacket& a, const StatePacket& b, float alpha, GameSt
         out.players[i].deaths  = pb.deaths;
         out.players[i].alive   = pb.alive != 0;
         out.players[i].crouched = pb.crouched != 0;
+        out.players[i].ads      = pb.ads != 0;   // boolean — no interpolation
     }
 
     int count = b.bulletCount <= NET_MAX_BULLETS ? b.bulletCount : NET_MAX_BULLETS;

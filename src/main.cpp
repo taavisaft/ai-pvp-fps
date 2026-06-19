@@ -18,6 +18,7 @@
 #include "material.h"
 #include "connect_prompt.h"
 #include "skeleton.h"
+#include "weapon_visual.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
@@ -66,16 +67,12 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
     const glm::vec3 dark  = {0.20f, 0.20f, 0.23f};
     const glm::vec3 poly  = {0.08f, 0.08f, 0.09f};  // pistol polymer frame
 
-    float flashZ;
-    float gripY, gripZ;   // grip center in anchor space; the firing hand wraps here
     if (gWeaponId == WEP_GLOCK19) {                 // compact pistol
         part({0.0f,  0.02f,  0.06f}, {0.050f, 0.060f, 0.20f}, metal); // slide
         part({0.0f, -0.03f,  0.03f}, {0.045f, 0.050f, 0.15f}, poly);  // frame
         part({0.0f,  0.02f,  0.17f}, {0.026f, 0.026f, 0.05f}, dark);  // barrel tip
         part({0.0f, -0.12f, -0.05f}, {0.050f, 0.130f, 0.06f}, poly);  // grip
         part({0.0f, -0.18f, -0.05f}, {0.046f, 0.040f, 0.05f}, metal); // mag base
-        flashZ = 0.26f;
-        gripY = -0.10f; gripZ = -0.05f;
     } else {                                        // Uzi — boxy SMG
         part({0.0f,  0.00f,  0.01f}, {0.078f, 0.10f,  0.26f}, metal); // receiver
         // Red-dot sight — hollow housing (see-through window along barrel axis).
@@ -90,15 +87,18 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
         part({0.0f,  0.02f,  0.22f}, {0.032f, 0.032f, 0.16f}, dark);  // barrel
         part({0.0f, -0.11f, -0.02f}, {0.050f, 0.140f, 0.07f}, metal); // grip
         part({0.0f, -0.20f, -0.02f}, {0.044f, 0.190f, 0.05f}, dark);  // long magazine
-        flashZ = 0.36f;
-        gripY = -0.09f; gripZ = -0.02f;
     }
+
+    // Grip + muzzle come from the shared per-weapon anchor table (weapon_visual.h), so
+    // every gun's hand placement and barrel length live in one place.
+    const WeaponVisual& wv = weaponVisual(gWeaponId);
+    const float gripY = wv.fpFireGrip.y, gripZ = wv.fpFireGrip.z;
 
     // Right (firing) hand only — PUBG-style, minimal screen space. A fist wrapping
     // the grip plus a short forearm angled down-back so it leaves frame fast; the gun
     // sits in front and occludes most of it. ADS/recoil come free from anchor space.
     const glm::vec3 glove = {0.46f, 0.35f, 0.28f};   // tan fingerless glove
-    glm::vec3 fistC = {0.012f, gripY, gripZ};        // fist centered on the grip
+    glm::vec3 fistC = {wv.fpFireGrip.x, gripY, gripZ};  // fist centered on the grip
     r.drawCubeModel(glm::scale(glm::translate(anchorM, fistC),
                                glm::vec3(0.085f, 0.095f, 0.105f)), glove);
     // Forearm: pivot at the wrist (just under the fist), tilt back about the right
@@ -110,7 +110,7 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
     r.drawCubeModel(glm::scale(fore, glm::vec3(0.072f, 0.22f, 0.082f)), glove);
 
     if (vm.flashTimer > 0.0f) {                                    // muzzle flash
-        glm::vec3 muzzle = anchor + up * 0.02f + front * flashZ;
+        glm::vec3 muzzle = anchor + up * wv.fpMuzzle.y + front * wv.fpMuzzle.z;
         r.drawCube(muzzle, glm::vec3(0.16f), {1.0f, 0.85f, 0.35f});
     }
 }
@@ -161,7 +161,7 @@ static void drawSegment(Renderer& r, glm::vec3 A, glm::vec3 B, float w, const gl
 // onto its grips; feet plant on the terrain with a speed-scaled walk stride. Forward is
 // +Z after the root yaw, matching the nose. One shared skeleton, re-posed per call.
 static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, float pitch,
-                               float lean, uint8_t weaponId, bool crouched,
+                               float lean, uint8_t weaponId, bool crouched, float ads,
                                float phase, float amp, const glm::vec3& bodyCol) {
     static Skeleton skel = makeBoxMan();
     const glm::vec3 limb     = bodyCol * 0.85f;
@@ -200,24 +200,31 @@ static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, flo
     // --- Weapon at the chest (pitched by aim), hung off the torso frame so it leans and
     // crouches with the body; both hands IK'd onto its grips. ---
     const float upArm = 0.30f, foreArm = 0.30f;
-    float bob = sinf(phase) * amp * 0.03f;
+    // Hold pose lerps from the hipfire chest mount to a raised ADS pose: the gun rises
+    // to the eyeline and onto the body centerline, and the walk bob fades as you aim so
+    // it reads as steady. Aim pitch still tilts the whole weapon; the hands IK onto the
+    // grips below, so they follow the raised gun for free.
+    float bob = sinf(phase) * amp * 0.03f * (1.0f - ads);
+    glm::vec3 hipT = {0.05f, 0.41f + bob, 0.20f};
+    glm::vec3 adsT = {0.0f, 0.54f, 0.21f};
     glm::mat4 hold = skel.world[BONE_TORSO]
-        * glm::translate(glm::mat4(1.0f), glm::vec3(0.05f, 0.41f + bob, 0.20f))
+        * glm::translate(glm::mat4(1.0f), glm::mix(hipT, adsT, ads))
         * glm::rotate(glm::mat4(1.0f), -glm::radians(pitch), glm::vec3(1, 0, 0));
     auto gun = [&](glm::vec3 lp, glm::vec3 sz, const glm::vec3& c) {
         r.drawCubeModel(hold * glm::translate(glm::mat4(1.0f), lp)
                              * glm::scale(glm::mat4(1.0f), sz), c);
     };
-    glm::vec3 gripFire, gripSupport;
     if (weaponId == WEP_GLOCK19) {
         gun({0.0f,  0.00f, 0.10f}, {0.05f, 0.07f, 0.22f}, gunMetal);  // slide
         gun({0.0f, -0.10f, 0.04f}, {0.05f, 0.14f, 0.06f}, gunDark);   // grip
-        gripFire = {0.0f, -0.06f, 0.04f};  gripSupport = {0.0f, 0.0f, 0.13f};
     } else {                                                          // Uzi
         gun({0.0f,  0.02f, 0.16f}, {0.08f, 0.11f, 0.40f}, gunMetal);  // receiver + barrel
         gun({0.0f, -0.14f, 0.06f}, {0.05f, 0.22f, 0.05f}, gunDark);   // magazine
-        gripFire = {0.0f, -0.06f, 0.04f};  gripSupport = {0.0f, 0.0f, 0.26f};
     }
+    // Hand targets from the shared anchor table (weapon_visual.h): the support hand
+    // reaches further on a longer gun, so each weapon's grips live in one place.
+    const WeaponVisual& wv = weaponVisual(weaponId);
+    glm::vec3 gripFire = wv.tpFireGrip, gripSupport = wv.tpSupportGrip;
     auto holdArm = [&](int shoulderBone, glm::vec3 gripLocal) {
         glm::vec3 S = glm::vec3(skel.world[shoulderBone][3]);          // shoulder = upper-arm joint
         glm::vec3 T = glm::vec3(hold * glm::vec4(gripLocal, 1.0f));
@@ -232,7 +239,10 @@ static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, flo
 
     // --- Legs: feet planted on the terrain, stepping over the stride and lifting in an
     // arc; knees bend toward facing. Hip anchors come from the thigh-bone joints. ---
-    const float thighLen = 0.48f, shinLen = 0.46f;
+    // Total 0.86 = standing thigh-joint height above the feet (pelvis at s*0.95, thigh
+    // joint at -0.09), so standing legs are straight. Bones aren't scaled by s, so a low
+    // (crouch) hip or a lifted swing foot still bends the knee.
+    const float thighLen = 0.43f, shinLen = 0.43f;
     const float yr  = glm::radians(yaw);
     const glm::vec3 fwd = {cosf(yr), 0.0f, sinf(yr)};
     bool  airborne = pos.y > terrainHeight(pos.x, pos.z) + 0.05f;
@@ -263,7 +273,7 @@ static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, flo
 // (unlike the first-person pass), so you can see yourself. Must run after the wall is
 // drawn this frame and before the HUD.
 static void drawMirror(Renderer& r, const Camera& cam, const GameState& gs, int localID,
-                       const float* walkPhase, const float* walkAmp) {
+                       const float* walkPhase, const float* walkAmp, const float* adsAnim) {
     const float     planeX = RANGE_WALL_FACE;               // reflect across the wall face
     const glm::vec3 mc     = {planeX - 0.02f, 1.10f, 0.0f};  // glass center, dead ahead
     const glm::vec3 mscale = {0.04f, 2.20f, 1.30f};         // ~2.2 m tall, 1.3 m wide
@@ -300,7 +310,7 @@ static void drawMirror(Renderer& r, const Camera& cam, const GameState& gs, int 
         if (!(gs.usedMask & (1u << i)) || !gs.players[i].alive) continue;
         const Player& pl = gs.players[i];
         drawPlayerSkeleton(r, pl.pos, pl.yaw, pl.pitch, pl.lean, pl.weaponId, pl.crouched,
-                           walkPhase[i], walkAmp[i],
+                           adsAnim[i], walkPhase[i], walkAmp[i],
                            i == localID ? COLOR_SELF : COLOR_ENEMY);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
@@ -335,7 +345,7 @@ static void drawMirror(Renderer& r, const Camera& cam, const GameState& gs, int 
 // cosmetic ground blobs / aim cross, which are added in the main pass only).
 static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
                               const float* walkPhase, const float* walkAmp,
-                              bool showHitboxes) {
+                              const float* adsAnim, bool showHitboxes) {
     if (gMapId == MAP_FIELD) r.drawTerrain(); else r.drawGround();
 
     for (int i = 0; i < gMapBoxCount; i++) {
@@ -361,7 +371,7 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
                 r.drawCube(rg[k].center, rg[k].half * 2.0f, regionCol[k]);
         } else {
             drawPlayerSkeleton(r, p, pl.yaw, pl.pitch, pl.lean, pl.weaponId, pl.crouched,
-                               walkPhase[i], walkAmp[i], COLOR_ENEMY);
+                               adsAnim[i], walkPhase[i], walkAmp[i], COLOR_ENEMY);
         }
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
@@ -377,18 +387,19 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
                         const ViewModel& vm,
                         const glm::vec3* rangeMarks, int rangeMarkCount, bool drawRange,
                         const ConnectPrompt& connectPrompt,
-                        const float* walkPhase, const float* walkAmp, bool showHitboxes) {
+                        const float* walkPhase, const float* walkAmp,
+                        const float* adsAnim, bool showHitboxes) {
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
 
     // Pass 1: scene depth from the sun, focused on the camera (near-field shadows).
     r.beginShadowPass(cam.eye);
-    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, showHitboxes);
+    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, showHitboxes);
     r.endShadowPass();
 
     // Pass 2: lit main view, sampling the shadow map built above.
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
     r.drawSky(cam.view(), cam.proj(r.aspect()));
-    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, showHitboxes);
+    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, showHitboxes);
 
     if (drawRange) {
         // the wall itself is a training-map box (drawn by the map loop). Just the
@@ -407,7 +418,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         r.drawCube({b.pos.x, terrainHeight(b.pos.x, b.pos.z) + 0.01f, b.pos.z},
                    {0.22f, 0.001f, 0.22f}, COLOR_BLOB);
     }
-    if (drawRange) drawMirror(r, cam, gs, localID, walkPhase, walkAmp);
+    if (drawRange) drawMirror(r, cam, gs, localID, walkPhase, walkAmp, adsAnim);
     // First-person gun is an overlay — don't world-shadow it (FPS convention).
     if (gs.players[localID].alive && !connectPrompt.open) {
         r.shader.setInt(r.shader.locUseShadow, 0);
@@ -524,6 +535,7 @@ int main(int argc, char** argv) {
     // with horizontal speed derived from the interpolated render positions.
     float     walkPhase[MAX_PLAYERS] = {0};
     float     walkAmp[MAX_PLAYERS]   = {0};   // smoothed 0..1 move amount
+    float     adsAnim[MAX_PLAYERS]   = {0};   // smoothed 0..1 aim-down-sights pose
     float     walkSpeed[MAX_PLAYERS] = {0};   // smoothed horizontal speed (m/s)
     glm::vec3 prevPlayerPos[MAX_PLAYERS];
     bool      prevPosValid[MAX_PLAYERS] = {false};
@@ -737,6 +749,13 @@ int main(int argc, char** argv) {
             accumulator -= FIXED_DT;
         }
 
+        // Mirror self (training): movePlayer only sets yaw + crouch, so reflect aim
+        // pitch, lean, and ADS onto the offline avatar too — that's what the range
+        // mirror renders for your own reflection.
+        offline.players[0].pitch = input.state.pitch;
+        offline.players[0].lean  = input.state.lean;
+        offline.players[0].ads   = input.state.ads;
+
         const GameState* shown = &offline;
         if (online) {
             // Reconcile prediction with each new authoritative state. The server
@@ -861,7 +880,11 @@ int main(int argc, char** argv) {
         // mirror's self-reflection animates while you walk.
         for (int i = 0; i < MAX_PLAYERS; i++) {
             bool show = (shown->usedMask & (1u << i)) && shown->players[i].alive;
-            if (!show) { walkAmp[i] = 0.0f; prevPosValid[i] = false; continue; }
+            if (!show) { walkAmp[i] = 0.0f; adsAnim[i] = 0.0f; prevPosValid[i] = false; continue; }
+            // Smooth the authoritative 0/1 ADS toward the held pose at the same rate as
+            // the first-person ADS transition, so the raised gun eases in/out.
+            float adsK = dt * ADS_LERP_SPEED; if (adsK > 1.0f) adsK = 1.0f;
+            adsAnim[i] += ((shown->players[i].ads ? 1.0f : 0.0f) - adsAnim[i]) * adsK;
             glm::vec3 pp = shown->players[i].pos;
             float sp = 0.0f;
             if (prevPosValid[i]) {
@@ -880,7 +903,7 @@ int main(int argc, char** argv) {
         hud.adsT = vm.adsT;
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
                     rangeMarks, rangeMarkCount, !online, connectPrompt, walkPhase, walkAmp,
-                    showHitboxes);
+                    adsAnim, showHitboxes);
 
         static int frameCount = 0;
         const char* shotPath = getenv("FPS_SHOT");

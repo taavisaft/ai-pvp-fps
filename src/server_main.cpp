@@ -280,7 +280,8 @@ static void broadcast(int fd, uint32_t seq) {
                         (uint8_t)(p.crouched ? 1 : 0),
                         p.weaponId,                          // held weapon (third-person gun)
                         clients[i].input.pitch,              // aim pitch (third-person tilt)
-                        (int8_t)(clients[i].input.lean * 127.0f)};  // peek lean
+                        (int8_t)(clients[i].input.lean * 127.0f),  // peek lean
+                        (uint8_t)(clients[i].input.ads ? 1 : 0)};  // ADS (raised-gun pose)
     }
 
     uint8_t count = 0;

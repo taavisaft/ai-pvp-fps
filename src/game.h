@@ -92,6 +92,7 @@ struct Player {
     float     yaw          = 0.0f;       // degrees
     float     pitch        = 0.0f;       // degrees; client-side render (aim tilt) only
     float     lean         = 0.0f;       // -1..+1; client-side render (peek pose) only
+    bool      ads          = false;      // aiming; client-side render (raised-gun pose) only
     int       hp           = PLAYER_HP;
     uint8_t   weaponId     = WEP_UZI;        // current weapon (per-player)
     int       mag          = UZI.magSize;    // rounds in magazine (held weapon)
