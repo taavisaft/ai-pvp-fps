@@ -1,0 +1,97 @@
+<svg width="680" height="550" viewBox="0 0 680 550" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Box-man skeleton hierarchy with neck, front view</title>
+<desc>Blocky humanoid from cuboids: pelvis root, torso, neck and head spine chain (purple), two arms (teal), two legs (amber), joint pivot dots, and a height ruler marking shoulder, hip, knee and ground heights in meters.</desc>
+<style>
+.t{font-family:sans-serif;font-size:14px;fill:#2C2C2A}
+.ts{font-family:sans-serif;font-size:12px;fill:#5F5E5A}
+.th{font-family:sans-serif;font-size:14px;font-weight:500;fill:#2C2C2A}
+.leader{stroke:#B4B2A9;stroke-width:0.6;stroke-dasharray:3 3;fill:none}
+.joint{fill:#888780}
+.ground{stroke:#888780;stroke-width:1}
+.box-purple{fill:#EEEDFE;stroke:#534AB7;stroke-width:0.6}
+.box-teal{fill:#E1F5EE;stroke:#0F6E56;stroke-width:0.6}
+.box-amber{fill:#FAEEDA;stroke:#854F0B;stroke-width:0.6}
+.txt-purple{fill:#26215C}
+.txt-purple-sub{fill:#3C3489}
+@media (prefers-color-scheme: dark){
+.t,.th{fill:#E8E6DF}
+.ts{fill:#B4B2A9}
+.leader{stroke:#5F5E5A}
+.box-purple{fill:#3C3489;stroke:#AFA9EC}
+.box-teal{fill:#085041;stroke:#5DCAA5}
+.box-amber{fill:#633806;stroke:#FAC775}
+.txt-purple{fill:#EEEDFE}
+.txt-purple-sub{fill:#CECBF6}
+}
+</style>
+
+<text class="th" x="40" y="28">Box-man skeleton — bone hierarchy (front view)</text>
+
+<line x1="200" y1="500" x2="360" y2="500" class="ground"/>
+
+<rect class="box-teal" x="198" y="152" width="34" height="86" rx="4"/>
+<rect class="box-teal" x="328" y="152" width="34" height="86" rx="4"/>
+<rect class="box-teal" x="200" y="238" width="30" height="87" rx="4"/>
+<rect class="box-teal" x="330" y="238" width="30" height="87" rx="4"/>
+
+<rect class="box-amber" x="237" y="294" width="38" height="103" rx="4"/>
+<rect class="box-amber" x="285" y="294" width="38" height="103" rx="4"/>
+<rect class="box-amber" x="237" y="397" width="38" height="103" rx="4"/>
+<rect class="box-amber" x="285" y="397" width="38" height="103" rx="4"/>
+
+<rect class="box-purple" x="237" y="250" width="86" height="44" rx="4"/>
+<text class="th txt-purple" x="280" y="266" text-anchor="middle" dominant-baseline="central">pelvis</text>
+<text class="ts txt-purple-sub" x="280" y="282" text-anchor="middle" dominant-baseline="central">root</text>
+
+<rect class="box-purple" x="239" y="130" width="82" height="120" rx="4"/>
+<text class="th txt-purple" x="280" y="182" text-anchor="middle" dominant-baseline="central">torso</text>
+<text class="ts txt-purple-sub" x="280" y="200" text-anchor="middle" dominant-baseline="central">spine</text>
+
+<rect class="box-purple" x="266" y="106" width="29" height="24" rx="3"/>
+
+<rect class="box-purple" x="251" y="48" width="58" height="58" rx="4"/>
+<text class="th txt-purple" x="280" y="77" text-anchor="middle" dominant-baseline="central">head</text>
+
+<circle class="joint" cx="280" cy="106" r="3.2"/>
+<circle class="joint" cx="280" cy="130" r="3.2"/>
+<circle class="joint" cx="215" cy="152" r="3.2"/>
+<circle class="joint" cx="345" cy="152" r="3.2"/>
+<circle class="joint" cx="215" cy="238" r="3.2"/>
+<circle class="joint" cx="345" cy="238" r="3.2"/>
+<circle class="joint" cx="256" cy="294" r="3.2"/>
+<circle class="joint" cx="304" cy="294" r="3.2"/>
+<circle class="joint" cx="256" cy="397" r="3.2"/>
+<circle class="joint" cx="304" cy="397" r="3.2"/>
+<circle class="joint" cx="256" cy="500" r="3.2"/>
+<circle class="joint" cx="304" cy="500" r="3.2"/>
+
+<line x1="155" y1="118" x2="266" y2="118" class="leader"/>
+<text class="t" x="150" y="122" text-anchor="end">neck</text>
+<line x1="155" y1="195" x2="198" y2="195" class="leader"/>
+<text class="t" x="150" y="199" text-anchor="end">upper arm</text>
+<line x1="155" y1="281" x2="200" y2="281" class="leader"/>
+<text class="t" x="150" y="285" text-anchor="end">lower arm</text>
+<line x1="155" y1="345" x2="237" y2="345" class="leader"/>
+<text class="t" x="150" y="349" text-anchor="end">thigh</text>
+<line x1="155" y1="448" x2="237" y2="448" class="leader"/>
+<text class="t" x="150" y="452" text-anchor="end">shin</text>
+<text class="ts" x="150" y="470" text-anchor="end">each ×2 — mirror L/R</text>
+
+<line x1="365" y1="152" x2="414" y2="152" class="leader"/>
+<text class="ts" x="420" y="156" text-anchor="start">shoulder · 1.45 m</text>
+<line x1="326" y1="294" x2="414" y2="294" class="leader"/>
+<text class="ts" x="420" y="298" text-anchor="start">hip · 0.86 m</text>
+<line x1="326" y1="397" x2="414" y2="397" class="leader"/>
+<text class="ts" x="420" y="401" text-anchor="start">knee · 0.43 m</text>
+<line x1="360" y1="500" x2="414" y2="500" class="leader"/>
+<text class="ts" x="420" y="504" text-anchor="start">ground · 0 m</text>
+
+<rect class="box-purple" x="60" y="524" width="14" height="14" rx="3"/>
+<text class="ts" x="80" y="535" text-anchor="start">spine chain</text>
+<rect class="box-teal" x="180" y="524" width="14" height="14" rx="3"/>
+<text class="ts" x="200" y="535" text-anchor="start">arms ×2</text>
+<rect class="box-amber" x="280" y="524" width="14" height="14" rx="3"/>
+<text class="ts" x="300" y="535" text-anchor="start">legs ×2</text>
+<circle class="joint" cx="392" cy="531" r="3.5"/>
+<text class="ts" x="402" y="535" text-anchor="start">joint pivot</text>
+</svg>
