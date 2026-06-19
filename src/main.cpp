@@ -17,6 +17,7 @@
 #include "audio.h"
 #include "material.h"
 #include "connect_prompt.h"
+#include "skeleton.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
@@ -247,6 +248,40 @@ static void drawPlayerModel(Renderer& r, const glm::vec3& pos, float yaw, float 
     leg({ 0.13f, 0.90f * s, 0}, phase + 3.14159f);
 }
 
+// Renders a player from the bone-array Skeleton (skeleton.h) — the ragdoll-ready path
+// that supersedes the procedural IK drawPlayerModel above. Pose = client-side walk
+// (phase/amp) + aim pitch (head tilt) + lean (upper-body roll) + crouch (vertical squash).
+// Forward is +Z after the root yaw, matching the nose. A single shared skeleton is
+// re-posed per call (cheap). NOTE: the old figure's weapon + hand-on-grip IK and terrain
+// foot planting are not ported yet — arms swing freely and feet follow the walk cycle.
+static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, float pitch,
+                               float lean, bool crouched, float phase, float amp,
+                               const glm::vec3& bodyCol) {
+    static Skeleton skel = makeBoxMan();
+    const glm::vec3 limb = bodyCol * 0.85f;
+    const glm::vec3 skin = {0.90f, 0.78f, 0.62f};
+    skel.bones[BONE_PELVIS].color = skel.bones[BONE_TORSO].color =
+        skel.bones[BONE_NECK].color = bodyCol;
+    skel.bones[BONE_HEAD].color = skin;
+    skel.bones[BONE_UPPERARM_L].color = skel.bones[BONE_UPPERARM_R].color =
+        skel.bones[BONE_LOWERARM_L].color = skel.bones[BONE_LOWERARM_R].color =
+        skel.bones[BONE_THIGH_L].color = skel.bones[BONE_THIGH_R].color =
+        skel.bones[BONE_SHIN_L].color = skel.bones[BONE_SHIN_R].color = limb;
+
+    poseWalk(skel, phase, amp);
+    float la = lean * glm::radians(LEAN_ANGLE_DEG);
+    skel.bones[BONE_TORSO].localRot = glm::angleAxis(-la, glm::vec3(0, 0, 1));            // lean roll
+    skel.bones[BONE_NECK].localRot  = glm::angleAxis(glm::radians(-pitch), glm::vec3(1, 0, 0)); // aim tilt
+
+    float s = crouched ? (CROUCH_HEIGHT / STAND_HEIGHT) : 1.0f;   // vertical squash about feet
+    glm::mat4 root = glm::translate(glm::mat4(1.0f), pos)
+                   * glm::rotate(glm::mat4(1.0f), 1.5707963f - glm::radians(yaw), glm::vec3(0, 1, 0))
+                   * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, s, 1.0f))
+                   * glm::translate(glm::mat4(1.0f), glm::vec3(0, 0.95f, 0));
+    skel.computeWorld(root);
+    skel.draw(r);
+}
+
 // Training-only mirror on the range wall: a stencil-masked planar reflection (no FBO).
 // Mark the glass into the stencil, reset depth there, then redraw the world reflected
 // across the wall plane with the cull winding flipped. The local player IS drawn here
@@ -289,9 +324,9 @@ static void drawMirror(Renderer& r, const Camera& cam, const GameState& gs, int 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (!(gs.usedMask & (1u << i)) || !gs.players[i].alive) continue;
         const Player& pl = gs.players[i];
-        drawPlayerModel(r, pl.pos, pl.yaw, pl.pitch, pl.lean, pl.weaponId, pl.crouched,
-                        pl.pos.y > 0.05f, walkPhase[i], walkAmp[i],
-                        i == localID ? COLOR_SELF : COLOR_ENEMY);
+        drawPlayerSkeleton(r, pl.pos, pl.yaw, pl.pitch, pl.lean, pl.crouched,
+                           walkPhase[i], walkAmp[i],
+                           i == localID ? COLOR_SELF : COLOR_ENEMY);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
         const Bullet& b = gs.bullets[i];
@@ -338,7 +373,6 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
         if (!gs.players[i].alive) continue;
         const Player& pl = gs.players[i];
         const glm::vec3& p = pl.pos;
-        bool airborne = p.y > terrainHeight(p.x, p.z) + 0.05f;
         if (showHitboxes) {
             // Debug: draw the actual gameplay hit regions, color-coded by multiplier.
             static const glm::vec3 regionCol[3] = {
@@ -351,8 +385,8 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
             for (int k = 0; k < nr; k++)
                 r.drawCube(rg[k].center, rg[k].half * 2.0f, regionCol[k]);
         } else {
-            drawPlayerModel(r, p, pl.yaw, pl.pitch, pl.lean, pl.weaponId, pl.crouched,
-                            airborne, walkPhase[i], walkAmp[i], COLOR_ENEMY);
+            drawPlayerSkeleton(r, p, pl.yaw, pl.pitch, pl.lean, pl.crouched,
+                               walkPhase[i], walkAmp[i], COLOR_ENEMY);
         }
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
@@ -875,7 +909,7 @@ int main(int argc, char** argv) {
 
         static int frameCount = 0;
         const char* shotPath = getenv("FPS_SHOT");
-        if (shotPath && ++frameCount == 60) dumpFrame(renderer, shotPath);
+        if (shotPath && ++frameCount == 60) { dumpFrame(renderer, shotPath); running = false; }
     }
 
     closeConnectPrompt();
