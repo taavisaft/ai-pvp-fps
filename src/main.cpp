@@ -25,6 +25,16 @@ static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
 static const glm::vec3 COLOR_BULLET_ENEMY = {1.00f, 0.40f, 0.10f};
 static const glm::vec3 COLOR_SELF         = {0.30f, 0.55f, 0.85f};  // own avatar in mirror
 
+// Persistent bullet-impact decal: a small patch laid flat on whatever surface the round
+// struck (ground, cover, walls). Stamped from the local sim offline and from the
+// server's PKT_IMPACT online, so every world detail shows hits, not just the range wall.
+struct Decal { glm::vec3 pos; glm::vec3 normal; };
+static const glm::vec3 COLOR_DECAL = {1.0f, 0.85f, 0.20f};   // matches the old range-wall marks
+// Axis-aligned normals, indexed by the protocol's ImpactDir code (IMP_PX..IMP_NZ).
+static const glm::vec3 IMPACT_DIRS[6] = {
+    {1,0,0}, {-1,0,0}, {0,1,0}, {0,-1,0}, {0,0,1}, {0,0,-1},
+};
+
 // Offline shooting range: a large flat target wall (client-only, not in MAP_BOXES
 // so it never affects online play) that the practice spawn faces. Bullets that
 // reach it leave persistent marks so the spread/recoil pattern and drop are visible.
@@ -32,7 +42,7 @@ static const glm::vec3 RANGE_WALL_CENTER = {26.0f, 4.0f, 0.0f};
 static const glm::vec3 RANGE_WALL_HALF   = {0.6f, 4.0f, 13.0f};
 static const float     RANGE_WALL_FACE   = 25.4f;  // front face = center.x - half.x
 static const float     RANGE_BULLSEYE_Y  = 1.7f;   // matches standing eye height
-constexpr int          RANGE_MARK_MAX    = 256;    // ring buffer of impact marks
+constexpr int          DECAL_MAX         = 512;    // ring buffer of impact decals
 
 // First-person weapon state (client cosmetic; gameplay is server-authoritative).
 struct ViewModel {
@@ -150,6 +160,24 @@ static void drawSegment(Renderer& r, glm::vec3 A, glm::vec3 B, float w, const gl
     m[2] = glm::vec4(bz * w, 0.0f);
     m[3] = glm::vec4(mid, 1.0f);
     r.drawCubeModel(m, c);
+}
+
+// A flat impact patch oriented to the surface normal: a thin box (normal axis short,
+// the other two ~decal-sized) nudged just off the surface so it reads as a mark.
+static void drawDecal(Renderer& r, const Decal& d) {
+    glm::vec3 n  = d.normal;
+    glm::vec3 t  = fabsf(n.y) > 0.9f ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
+    glm::vec3 bx = glm::normalize(glm::cross(t, n));
+    glm::vec3 bz = glm::normalize(glm::cross(n, bx));
+    // Columns ordered (bz, n, bx) so the basis is right-handed (det +1): with the
+    // left-handed order the outward broad face winds backwards and back-face culling
+    // drops it, leaving only the thin rim visible. n is the short (thickness) axis.
+    glm::mat4 m(1.0f);
+    m[0] = glm::vec4(bz * 0.14f, 0.0f);
+    m[1] = glm::vec4(n  * 0.02f, 0.0f);
+    m[2] = glm::vec4(bx * 0.14f, 0.0f);
+    m[3] = glm::vec4(d.pos + n * 0.02f, 1.0f);    // sit proud of the surface (no z-fight)
+    r.drawCubeModel(m, COLOR_DECAL);
 }
 
 // Renders a player from the bone-array Skeleton (skeleton.h) — the ragdoll-ready path.
@@ -387,7 +415,7 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
 static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int localID,
                         const HudState& hud, bool scoreboard, bool online,
                         const ViewModel& vm,
-                        const glm::vec3* rangeMarks, int rangeMarkCount, bool drawRange,
+                        const Decal* decals, int decalCount, bool drawRange,
                         const ConnectPrompt& connectPrompt,
                         const float* walkPhase, const float* walkAmp,
                         const float* adsAnim, bool showHitboxes) {
@@ -410,9 +438,10 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         glm::vec3 c = {RANGE_WALL_FACE - 0.03f, RANGE_BULLSEYE_Y, -7.0f};
         r.drawCube(c, {0.06f, 1.0f, 0.10f}, {0.85f, 0.25f, 0.20f});
         r.drawCube(c, {0.06f, 0.10f, 1.0f}, {0.85f, 0.25f, 0.20f});
-        for (int i = 0; i < rangeMarkCount; i++)
-            r.drawCube(rangeMarks[i], {0.05f, 0.11f, 0.11f}, {1.0f, 0.85f, 0.20f});
     }
+    // Bullet-impact decals on every surface (online + offline), oriented to the hit face.
+    for (int i = 0; i < decalCount; i++)
+        drawDecal(r, decals[i]);
     // Bullet ground blobs (real shadows replace the old per-player blob).
     for (int i = 0; i < MAX_BULLETS; i++) {
         const Bullet& b = gs.bullets[i];
@@ -479,10 +508,15 @@ int main(int argc, char** argv) {
     offline.players[1].pos = {24, 0, 6};  // dummy off to the side, clear of the pattern
     static GameState display;             // what gets rendered when online
 
-    // Persistent impact marks on the range wall (offline spread/recoil testing).
-    static glm::vec3 rangeMarks[RANGE_MARK_MAX];
-    int rangeMarkCount = 0;   // number of live marks (<= RANGE_MARK_MAX)
-    int rangeMarkHead  = 0;   // next write index (ring buffer)
+    // Persistent bullet-impact decals on all world surfaces (offline + online).
+    static Decal decals[DECAL_MAX];
+    int decalCount = 0;       // live decals (<= DECAL_MAX)
+    int decalHead  = 0;       // next write index (ring buffer)
+    auto addDecal = [&](const glm::vec3& pos, const glm::vec3& normal) {
+        decals[decalHead] = {pos, normal};
+        decalHead = (decalHead + 1) % DECAL_MAX;
+        if (decalCount < DECAL_MAX) decalCount++;
+    };
 
     ClientNet net;
     Player    predicted;                  // own player, client-side predicted
@@ -570,7 +604,7 @@ int main(int argc, char** argv) {
         if (input.quit) running = false;
         if (input.wireframeToggle) renderer.toggleWireframe();
         if (input.hitboxToggle) showHitboxes = !showHitboxes;
-        if (input.clearRange) { rangeMarkCount = 0; rangeMarkHead = 0; }
+        if (input.clearRange) { decalCount = 0; decalHead = 0; }
 
         // Weapon select (1 = Uzi, 2 = Glock). Offline re-arms now; online the server
         // adopts it from the input packet and stays authoritative.
@@ -625,8 +659,8 @@ int main(int argc, char** argv) {
             appliedStateSeq = 0;
             predicted       = Player{};
             posError        = glm::vec3(0.0f);
-            rangeMarkCount  = 0;
-            rangeMarkHead   = 0;
+            decalCount      = 0;
+            decalHead       = 0;
             remoteShotsSeeded = false;
         }
         if (!online && wasOnline) setMap(MAP_TRAINING);  // back to the practice arena
@@ -724,22 +758,13 @@ int main(int argc, char** argv) {
                 updateReload(self, input.state.reload, FIXED_DT);
                 if (self.mag == 0 && self.reserve == 0)                       // keep practice stocked
                     self.reserve = weaponDef(self.weaponId).reservePerLife;
-                // The wall is a normal map box now, so updateBullets stops rounds on it
-                // exactly like live. Snapshot our live rounds, then stamp a mark wherever
-                // one came to rest on the wall face this tick (i.e. missed the dummy).
-                bool wasOwn[MAX_BULLETS];
-                for (int bi = 0; bi < MAX_BULLETS; bi++)
-                    wasOwn[bi] = offline.bullets[bi].active && offline.bullets[bi].ownerID == 0;
-                updateBullets(offline, FIXED_DT);
-                for (int bi = 0; bi < MAX_BULLETS; bi++) {
-                    if (!wasOwn[bi] || offline.bullets[bi].active) continue;
-                    const glm::vec3& ip = offline.bullets[bi].pos;   // updateBullets left it at the impact
-                    if (fabsf(ip.x - RANGE_WALL_CENTER.x) <= RANGE_WALL_HALF.x + 0.05f) {
-                        rangeMarks[rangeMarkHead] = {RANGE_WALL_FACE - 0.02f, ip.y, ip.z};
-                        rangeMarkHead = (rangeMarkHead + 1) % RANGE_MARK_MAX;
-                        if (rangeMarkCount < RANGE_MARK_MAX) rangeMarkCount++;
-                    }
-                }
+                // updateBullets stops rounds on any surface and reports the impacts
+                // (pos + face normal); stamp a decal on each, exactly as the server does
+                // online. Wall, cover, ground — every surface marks the same way.
+                Impact imp[NET_MAX_IMPACTS];
+                int impCount = 0;
+                updateBullets(offline, FIXED_DT, nullptr, nullptr, imp, &impCount, NET_MAX_IMPACTS);
+                for (int k = 0; k < impCount; k++) addDecal(imp[k].pos, imp[k].normal);
                 if (!dummy.alive) {                                 // offline dummy respawn
                     dummy.respawnTimer -= FIXED_DT;
                     if (dummy.respawnTimer <= 0.0f) {
@@ -783,6 +808,13 @@ int main(int argc, char** argv) {
         }
         posError *= expf(-dt / PRED_SMOOTH_TAU);
         if (glm::length(posError) < 0.0005f) posError = glm::vec3(0.0f);
+
+        // Drain server-sent world impacts into decals (online stamping path).
+        for (int k = 0; k < net.impactQCount; k++) {
+            const ImpactNetState& im = net.impactQ[k];
+            addDecal({im.x, im.y, im.z}, IMPACT_DIRS[im.dir < 6 ? im.dir : IMP_PY]);
+        }
+        net.impactQCount = 0;
 
         float eyeH = shown->players[localID].crouched ? CROUCH_EYE : EYE_HEIGHT;
         cam.eye = shown->players[localID].pos + glm::vec3(0, eyeH, 0);
@@ -904,7 +936,7 @@ int main(int argc, char** argv) {
         renderer.setTime(gameTime);
         hud.adsT = vm.adsT;
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
-                    rangeMarks, rangeMarkCount, !online, connectPrompt, walkPhase, walkAmp,
+                    decals, decalCount, !online, connectPrompt, walkPhase, walkAmp,
                     adsAnim, showHitboxes);
 
         static int frameCount = 0;

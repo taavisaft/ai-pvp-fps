@@ -143,6 +143,14 @@ bool ClientNet::processPacket(const char* buf, int n, const sockaddr_in& from) {
             if (!hasState || seq >= lastState.seq) lastState = s;  // newest authoritative
             hasState = true;
         }
+    } else if (type == PKT_IMPACT && n >= impactPacketSize(0)) {
+        ImpactPacket p{};
+        int copy = n <= (int)sizeof(ImpactPacket) ? n : (int)sizeof(ImpactPacket);
+        memcpy(&p, buf, copy);
+        int cnt = p.count <= NET_MAX_IMPACTS ? p.count : NET_MAX_IMPACTS;
+        if (n < impactPacketSize(cnt)) return false;   // truncated
+        for (int k = 0; k < cnt && impactQCount < IMPACT_Q; k++)
+            impactQ[impactQCount++] = p.impacts[k];
     } else if (type == PKT_BYE) {
         printf("net: server closed connection\n");
         disconnect();

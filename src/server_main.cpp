@@ -51,6 +51,11 @@ static Snap history[HISTORY_TICKS];
 static int  histHead  = -1;   // index of newest snapshot
 static int  histCount = 0;    // valid snapshots in the ring
 
+// World-impact decals collected across the ticks since the last broadcast, then sent
+// once per state packet and cleared. Cosmetic + unreliable; overflow just drops marks.
+static Impact gImpacts[NET_MAX_IMPACTS];
+static int    gImpactCount = 0;
+
 // Maps a broadcast state seq to the server time it was sent, so an incoming
 // viewSeq can be turned into an absolute server time.
 struct StateStamp { uint32_t seq = 0xFFFFFFFFu; float t = 0.0f; };
@@ -265,7 +270,7 @@ static void tick(float dt) {
     }
 
     recordSnapshot();                       // freshest positions for lag-comp lookups
-    updateBullets(game, dt, rewindLookup, nullptr);
+    updateBullets(game, dt, rewindLookup, nullptr, gImpacts, &gImpactCount, NET_MAX_IMPACTS);
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (!clients[i].used) continue;
@@ -317,6 +322,24 @@ static void broadcast(int fd, uint32_t seq) {
             s.recvHitZ = rp.lastHitPos.z;
             netSend(fd, &s, size, clients[i].addr);
         }
+
+    // World-impact decals: one batched packet to everyone, then clear the buffer.
+    if (gImpactCount > 0) {
+        static ImpactPacket ip;
+        ip.type  = PKT_IMPACT;
+        ip.count = (uint8_t)gImpactCount;
+        for (int k = 0; k < gImpactCount; k++) {
+            const glm::vec3& n = gImpacts[k].normal;
+            uint8_t dir = n.x >  0.5f ? IMP_PX : n.x < -0.5f ? IMP_NX
+                        : n.y >  0.5f ? IMP_PY : n.y < -0.5f ? IMP_NY
+                        : n.z >  0.5f ? IMP_PZ : IMP_NZ;
+            ip.impacts[k] = {gImpacts[k].pos.x, gImpacts[k].pos.y, gImpacts[k].pos.z, dir};
+        }
+        int isize = impactPacketSize(gImpactCount);
+        for (int i = 0; i < MAX_PLAYERS; i++)
+            if (clients[i].used) netSend(fd, &ip, isize, clients[i].addr);
+        gImpactCount = 0;
+    }
 }
 
 int main() {

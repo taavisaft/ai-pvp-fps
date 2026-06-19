@@ -23,7 +23,10 @@ A simple running list of what's done and what's next.
 - Audio: shoot, footsteps, jump, death, respawn, reload, dry-fire
 - Depth cues: flat shading, ground grid, distance fog, blob shadows
 - Offline practice vs a respawning dummy
-- Offline shooting range: target wall + persistent impact marks (G clears)
+- Offline shooting range: target wall + spread testing (G clears decals)
+- Bullet-impact decals on every world surface (ground/terrain, cover, walls), oriented to
+  the hit face: exact offline (local sim) and online via a batched PKT_IMPACT event from
+  the server (pos + axis normal); client ring-buffers + stamps them. G clears.
 - Default training mode on launch; connect/switch servers anytime
 - In-game server-IP entry overlay (C key) — no more stdin blocking
 - Three maps: training arena (offline), warehouse yard, and a 1 km² open field —
@@ -76,7 +79,7 @@ A simple running list of what's done and what's next.
 - Bullet penetration through thin cover
 
 ### Feel / visuals
-- Bullet tracers + impact effects (spark/puff, decals)
+- Bullet tracers + impact spark/puff effects (decals done; tracers + particle FX still open)
 - Blood/hit feedback + directional damage indicator
 - Reload / weapon-swap animations, better muzzle flash
 

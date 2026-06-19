@@ -54,8 +54,16 @@ typedef bool (*RewindLookup)(const void* ctx, int pid, float rewindSec,
                              glm::vec3& pos, bool& crouched, float& yaw, bool& ads,
                              bool& alive);
 
+// A bullet's resting point on world geometry + the surface normal it struck. Collected
+// so callers can stamp decals (offline) or broadcast them to clients (server). Player
+// hits and mid-air TTL expiries are not impacts.
+struct Impact { glm::vec3 pos; glm::vec3 normal; };
+
 // Integrates bullets (gravity, TTL), checks hits vs players, applies damage/kills.
 // lookup == nullptr: hits tested against current positions (offline/client).
 // lookup != nullptr: hits tested against rewound positions (server lag comp).
+// outImpacts (optional): world impacts this call are appended starting at *outCount,
+// up to maxImpacts; *outCount is advanced. Pass nullptr to skip impact collection.
 void updateBullets(GameState& gs, float dt,
-                   RewindLookup lookup = nullptr, const void* ctx = nullptr);
+                   RewindLookup lookup = nullptr, const void* ctx = nullptr,
+                   Impact* outImpacts = nullptr, int* outCount = nullptr, int maxImpacts = 0);

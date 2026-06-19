@@ -264,7 +264,8 @@ void updateReload(Player& p, bool wantReload, float dt) {
     p.reloading = p.reloadTimer > 0.0f;
 }
 
-void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx) {
+void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx,
+                   Impact* outImpacts, int* outCount, int maxImpacts) {
     int active = 0;
     for (int i = 0; i < MAX_BULLETS; i++) {
         Bullet& b = gs.bullets[i];
@@ -284,15 +285,18 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
         b.lifetime -= dt;
 
         // Nearest surface along p0->p1. World (box/ground) blocks; a player is a hit.
+        // hitBox tracks the nearest WORLD surface so we can stamp an oriented decal:
+        // >=0 = that map box index, -1 = ground, -2 = none/player.
         float bestT   = 2.0f;
         int   hitPid  = -1;
+        int   hitBox  = -2;
         float hitMult = 1.0f;       // damage multiplier of the nearest player region
         float t;
         for (int m = 0; m < gMapBoxCount; m++)
             if (segmentAabb(p0, p1, gMapBoxes[m].center, gMapBoxes[m].half, t) && t < bestT) {
-                bestT = t; hitPid = -1;
+                bestT = t; hitPid = -1; hitBox = m;
             }
-        if (segmentGround(p0, p1, t) && t < bestT) { bestT = t; hitPid = -1; }
+        if (segmentGround(p0, p1, t) && t < bestT) { bestT = t; hitPid = -1; hitBox = -1; }
 
         for (int pid = 0; pid < MAX_PLAYERS; pid++) {
             if (pid == b.ownerID) continue;
@@ -326,6 +330,21 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
             glm::vec3 impact = p0 + (p1 - p0) * bestT;
             b.pos    = impact;
             b.active = false;
+            if (hitPid < 0 && outImpacts && outCount && *outCount < maxImpacts) {
+                // World surface: record the impact + outward normal for a decal. Box
+                // normal = the face nearest the impact point; ground = straight up.
+                glm::vec3 n(0, 1, 0);
+                if (hitBox >= 0) {
+                    glm::vec3 d = impact - gMapBoxes[hitBox].center;
+                    glm::vec3 h = gMapBoxes[hitBox].half;
+                    int   ax = 0; float gap = fabsf(h.x - fabsf(d.x));
+                    float gy = fabsf(h.y - fabsf(d.y)); if (gy < gap) { gap = gy; ax = 1; }
+                    float gz = fabsf(h.z - fabsf(d.z)); if (gz < gap) {        ax = 2; }
+                    n = glm::vec3(0); n[ax] = d[ax] >= 0.0f ? 1.0f : -1.0f;
+                }
+                outImpacts[*outCount] = {impact, n};
+                (*outCount)++;
+            }
             if (hitPid >= 0) {                      // closest surface was a player → hit
                 Player& target = gs.players[hitPid];
                 float dist = glm::length(impact - b.origin);

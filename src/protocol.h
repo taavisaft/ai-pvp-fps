@@ -8,7 +8,14 @@ enum PacketType : uint8_t {
     PKT_INPUT  = 3,   // client → server: this frame's input
     PKT_STATE  = 4,   // server → client: full authoritative state
     PKT_BYE    = 6,   // either direction: clean disconnect
+    PKT_IMPACT = 7,   // server → client: bullet world-impact decals (cosmetic, unreliable)
 };
+
+// Bullet impacts on world geometry (ground/cover), batched so clients can stamp a
+// decal on the surface. Cosmetic + fire-and-forget: a dropped packet just loses a few
+// scorch marks. `dir` is the axis-aligned surface normal (face the round struck).
+constexpr int NET_MAX_IMPACTS = 32;
+enum ImpactDir : uint8_t { IMP_PX = 0, IMP_NX, IMP_PY, IMP_NY, IMP_PZ, IMP_NZ };
 
 // Max bullets carried per StatePacket; keeps the packet under typical MTU.
 // Bullets beyond this are still simulated server-side, just not rendered.
@@ -73,11 +80,24 @@ struct StatePacket {
 
 struct ByePacket { PacketType type; };
 
+struct ImpactNetState { float x, y, z; uint8_t dir; };  // dir = ImpactDir
+
+struct ImpactPacket {
+    PacketType     type;     // PKT_IMPACT
+    uint8_t        count;    // number of valid impacts (<= NET_MAX_IMPACTS)
+    ImpactNetState impacts[NET_MAX_IMPACTS];
+};
+
 #pragma pack(pop)
 
 // Wire size of a StatePacket carrying `count` bullets
 constexpr int statePacketSize(int count) {
     return (int)offsetof(StatePacket, bullets) + count * (int)sizeof(BulletNetState);
+}
+
+// Wire size of an ImpactPacket carrying `count` impacts (sent truncated)
+constexpr int impactPacketSize(int count) {
+    return (int)offsetof(ImpactPacket, impacts) + count * (int)sizeof(ImpactNetState);
 }
 
 // keys bitmask bits

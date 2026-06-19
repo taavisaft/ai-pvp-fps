@@ -26,6 +26,12 @@ struct ClientNet {
 
     StatePacket lastState{};      // newest authoritative snapshot (HP/ammo/hits reads)
     bool        hasState   = false;
+
+    // World-impact decals received from the server, drained by the renderer each frame.
+    // Cosmetic fill buffer; overflow simply drops marks until drained.
+    static constexpr int IMPACT_Q = 128;
+    ImpactNetState impactQ[IMPACT_Q];
+    int            impactQCount = 0;
     float       helloTimer = 0.0f;
     float       silence    = 0.0f;  // seconds since any server packet
 
