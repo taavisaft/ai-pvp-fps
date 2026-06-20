@@ -28,11 +28,14 @@ struct TreePart {
 struct Foliage {
     Shader shader;
     Shader depthShader;                  // instanced shadow-caster pass (alpha cutout)
+    Shader blobShader;                   // far blob decals (beyond real-shadow range)
     GLuint vao = 0, vbo = 0, ebo = 0;   // combined tree geometry
     GLuint instVBO = 0;                  // per-instance transforms (dynamic)
+    GLuint blobVao = 0, blobVbo = 0;     // ground decal quad (reuses instVBO)
     GLint  instCap  = 0;
     GLint  locCutoff = -1;               // extra uniform beyond Shader's cache
     GLint  locCutoffDepth = -1;
+    GLint  locBlobRadius = -1, locBlobGround = -1;
 
     bool   loaded = false;              // false if tree.glb missing -> no-op
     std::vector<TreePart>     parts;    // sub-meshes (opaque trunk + cutout leaves)
@@ -41,6 +44,7 @@ struct Foliage {
     std::vector<float>        packed;   // visible subset, 5 floats each (upload scratch)
     float treeHeight = 8.0f;            // baked height at scale 1 (cull sphere + radius)
     float treeRadius = 4.0f;            // baked canopy radius at scale 1
+    float sink = 0.4f;                  // trunk-base burial (blob sits on ground above it)
 
     bool init();                 // shaders + load tree.glb + instance buffer
     void generate(int maxTrees); // scatter trees in forest clumps on the heightfield

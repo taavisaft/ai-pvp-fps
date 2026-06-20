@@ -147,6 +147,15 @@ bool Foliage::init() {
     }
     locCutoffDepth = glGetUniformLocation(depthShader.program, "alphaCutoff");
 
+    char bvpath[600], bfpath[600];
+    snprintf(bvpath, sizeof(bvpath), "%sshaders/blob.vert", base);
+    snprintf(bfpath, sizeof(bfpath), "%sshaders/blob.frag", base);
+    if (!blobShader.load(bvpath, bfpath)) {
+        if (!blobShader.load("shaders/blob.vert", "shaders/blob.frag")) return false;
+    }
+    locBlobRadius = glGetUniformLocation(blobShader.program, "radius");
+    locBlobGround = glGetUniformLocation(blobShader.program, "groundOffset");
+
     std::vector<float>    v;
     std::vector<unsigned> idx;
     char mpath[600];
@@ -186,8 +195,31 @@ bool Foliage::init() {
     glEnableVertexAttribArray(4);
     glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, is, (void*)(3 * sizeof(float)));
     glVertexAttribDivisor(4, 1);
-
     glBindVertexArray(0);
+
+    // Blob-decal quad: a unit XZ quad (corner coords -1..1) instanced from instVBO.
+    static const float corners[] = {-1, -1,  1, -1,  1, 1,  -1, 1};
+    static const unsigned bidx[] = {0, 1, 2, 2, 3, 0};
+    GLuint bebo = 0;
+    glGenVertexArrays(1, &blobVao);
+    glGenBuffers(1, &blobVbo);
+    glGenBuffers(1, &bebo);
+    glBindVertexArray(blobVao);
+    glBindBuffer(GL_ARRAY_BUFFER, blobVbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(corners), corners, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(bidx), bidx, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glBindBuffer(GL_ARRAY_BUFFER, instVBO);   // same per-tree transforms
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, is, (void*)0);
+    glVertexAttribDivisor(3, 1);
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, is, (void*)(3 * sizeof(float)));
+    glVertexAttribDivisor(4, 1);
+    glBindVertexArray(0);
+
     loaded = true;
     return true;
 }
@@ -215,7 +247,7 @@ void Foliage::generate(int maxTrees) {
     };
     const float SPAN = FIELD_HALF * 0.96f;
     const float e = 2.0f;
-    const float SINK = 0.4f;     // bury the trunk base so trees never look floaty
+    const float SINK = sink;     // bury the trunk base so trees never look floaty
     int attempts = 0, maxAttempts = maxTrees * 60;
     while ((int)trees.size() < maxTrees && attempts < maxAttempts) {
         attempts++;
@@ -299,6 +331,25 @@ void Foliage::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& pr
                                 (void*)(size_t)part.indexOffset, visible);
     }
     glEnable(GL_CULL_FACE);   // restore world default
+
+    // Far blob decals: cheap ground shadows beyond the real shadow-map range. Same
+    // culled instance set; the shader fades them in by distance so near trees keep
+    // their real dappled shadow and only distant ones get the blob.
+    blobShader.use();
+    blobShader.setMat4(blobShader.locView, view);
+    blobShader.setMat4(blobShader.locProj, proj);
+    blobShader.setVec3(blobShader.locEye, eye);
+    blobShader.setFloat(locBlobRadius, treeRadius);
+    blobShader.setFloat(locBlobGround, sink + 0.06f);   // sit on ground above sunk base
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);          // decal: test depth, don't write it
+    glDisable(GL_CULL_FACE);
+    glBindVertexArray(blobVao);
+    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr, visible);
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+    glEnable(GL_CULL_FACE);
     glBindVertexArray(0);
 }
 
@@ -328,13 +379,16 @@ void Foliage::drawDepth(const glm::mat4& lightSpace, float time) {
 void Foliage::destroy() {
     for (GLuint t : texes) if (t) glDeleteTextures(1, &t);
     texes.clear();
+    if (blobVbo) glDeleteBuffers(1, &blobVbo);
+    if (blobVao) glDeleteVertexArrays(1, &blobVao);
     if (instVBO) glDeleteBuffers(1, &instVBO);
     if (ebo) glDeleteBuffers(1, &ebo);
     if (vbo) glDeleteBuffers(1, &vbo);
     if (vao) glDeleteVertexArrays(1, &vao);
-    vao = vbo = ebo = instVBO = 0;
+    vao = vbo = ebo = instVBO = blobVao = blobVbo = 0;
     shader.destroy();
     depthShader.destroy();
+    blobShader.destroy();
     trees.clear();
     parts.clear();
 }
