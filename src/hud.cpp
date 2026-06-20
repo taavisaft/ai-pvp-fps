@@ -1,5 +1,6 @@
 #include "hud.h"
 #include "connect_prompt.h"
+#include "map.h"
 #include <cstdio>
 #include <cstring>
 #include <cmath>
@@ -85,6 +86,70 @@ static void drawScoreboard(Renderer& r, const GameState& gs, int localID) {
     }
 }
 
+// Top-down minimap, bottom-right corner. North (+Z) up, player-centric: the
+// local player sits fixed at the panel center and the world translates by
+// -me.pos around them. Zoomed to MAP_RANGE meters in each direction. Obstacle
+// boxes (gMapBoxes) are clipped to the panel; off-window enemies clamp to the
+// edge (gives bearing). yaw forward = (cos,sin) in world XZ = screen right,up.
+static void drawMinimap(Renderer& r, const GameState& gs, int localID) {
+    float ia = 1.0f / r.aspect();
+    const float worldHalf = 10.0f;            // view half-extent in meters (10 m around you)
+    const float halfY  = 0.16f;               // panel half-height (NDC y)
+    const float halfX  = halfY * ia;          // square on screen
+    const float margin = 0.035f;
+    glm::vec2 c = { 1.0f - margin - halfX, -1.0f + margin + halfY };
+
+    const Player& me = gs.players[localID];
+    float sx = halfX / worldHalf;             // NDC per meter, world X -> screen right
+    float sy = halfY / worldHalf;             // NDC per meter, world Z -> screen up (north)
+    float ex = me.pos.x, ez = me.pos.z;       // view is centered on the local player
+
+    r.drawRect(c, {2 * halfX + 0.018f, 2 * halfY + 0.018f}, {0.5f, 0.55f, 0.6f}, 0.35f);
+    r.drawRect(c, {2 * halfX, 2 * halfY}, {0.06f, 0.07f, 0.09f}, 0.55f);
+
+    // axis-aligned rect clipped to the panel; skipped if fully outside
+    auto drawClipped = [&](glm::vec2 rc, glm::vec2 rs, glm::vec3 col, float a) {
+        float x0 = fmaxf(rc.x - rs.x * 0.5f, c.x - halfX);
+        float x1 = fminf(rc.x + rs.x * 0.5f, c.x + halfX);
+        float y0 = fmaxf(rc.y - rs.y * 0.5f, c.y - halfY);
+        float y1 = fminf(rc.y + rs.y * 0.5f, c.y + halfY);
+        if (x1 <= x0 || y1 <= y0) return;
+        r.drawRect({(x0 + x1) * 0.5f, (y0 + y1) * 0.5f}, {x1 - x0, y1 - y0}, col, a);
+    };
+
+    for (int i = 0; i < gMapBoxCount; i++) {
+        const Box& b = gMapBoxes[i];
+        glm::vec2 bc = { c.x + (b.center.x - ex) * sx, c.y + (b.center.z - ez) * sy };
+        glm::vec2 bs = { 2.0f * b.half.x * sx, 2.0f * b.half.z * sy };
+        drawClipped(bc, bs, {0.55f, 0.58f, 0.63f}, 0.85f);
+    }
+
+    auto clampInside = [&](glm::vec2 p) {
+        if (p.x < c.x - halfX) p.x = c.x - halfX;
+        if (p.x > c.x + halfX) p.x = c.x + halfX;
+        if (p.y < c.y - halfY) p.y = c.y - halfY;
+        if (p.y > c.y + halfY) p.y = c.y + halfY;
+        return p;
+    };
+
+    const float dot = 0.016f;
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (i == localID) continue;
+        if (!(gs.usedMask & (1u << i)) || !gs.players[i].alive) continue;
+        const glm::vec3& pp = gs.players[i].pos;
+        glm::vec2 m = clampInside({ c.x + (pp.x - ex) * sx, c.y + (pp.z - ez) * sy });
+        r.drawRect(m, {dot * ia, dot}, {0.9f, 0.25f, 0.2f}, 0.95f);
+    }
+
+    // local player: fixed at panel center, heading arrow then a dot on top
+    float yawR = glm::radians(me.yaw);
+    glm::vec2 dir = { cosf(yawR), sinf(yawR) };
+    float len = 0.05f;
+    glm::vec2 mid = { c.x + dir.x * (len * 0.5f) * ia, c.y + dir.y * (len * 0.5f) };
+    r.drawRectRot(mid, {len, 0.012f}, {1.0f, 0.9f, 0.3f}, 0.95f, yawR);
+    r.drawRect(c, {dot * 1.2f * ia, dot * 1.2f}, {1.0f, 0.9f, 0.3f}, 1.0f);
+}
+
 void drawHUD(Renderer& r, const GameState& gs, int localID,
              const HudState& hud, bool scoreboard, bool online) {
     float ia = 1.0f / r.aspect();
@@ -165,6 +230,8 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
         r.drawText(e.text, 0.98f - r.textWidth(e.text, 0.045f),
                    0.92f - 0.06f * i, 0.045f, {1, 0.6f, 0.3f}, 0.9f * a);
     }
+
+    drawMinimap(r, gs, localID);
 
     if (scoreboard) drawScoreboard(r, gs, localID);
     r.endHUD();
