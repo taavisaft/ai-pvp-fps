@@ -424,6 +424,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     // Pass 1: scene depth from the sun, focused on the camera (near-field shadows).
     r.beginShadowPass(cam.eye);
     drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, showHitboxes);
+    r.drawFoliageDepth(r.frameTime);   // trees cast shadows
     r.endShadowPass();
 
     // Pass 2: lit main view, sampling the shadow map built above.

@@ -138,6 +138,15 @@ bool Foliage::init() {
     }
     locCutoff = glGetUniformLocation(shader.program, "alphaCutoff");
 
+    char dvpath[600], dfpath[600];
+    snprintf(dvpath, sizeof(dvpath), "%sshaders/foliage_depth.vert", base);
+    snprintf(dfpath, sizeof(dfpath), "%sshaders/foliage_depth.frag", base);
+    if (!depthShader.load(dvpath, dfpath)) {
+        if (!depthShader.load("shaders/foliage_depth.vert", "shaders/foliage_depth.frag"))
+            return false;
+    }
+    locCutoffDepth = glGetUniformLocation(depthShader.program, "alphaCutoff");
+
     std::vector<float>    v;
     std::vector<unsigned> idx;
     char mpath[600];
@@ -183,27 +192,41 @@ bool Foliage::init() {
     return true;
 }
 
-void Foliage::generate(int count) {
+void Foliage::generate(int maxTrees) {
     if (!loaded) return;
     trees.clear();
-    trees.reserve(count);
+    trees.reserve(maxTrees);
     unsigned rng = 0x9e3779b9u;   // deterministic: every client scatters the same forest
     auto rnd = [&]() {
         rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
         return (float)(rng & 0xffffff) / (float)0x1000000;
     };
+    auto sstep = [](float a, float b, float x) {
+        float t = (x - a) / (b - a);
+        t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+        return t * t * (3.0f - 2.0f * t);
+    };
+    // Forest mask: low-freq noise carves big wooded patches with open clearings
+    // between, so trees clump into forests "now and then" instead of even scatter.
+    auto forestDensity = [&](float x, float z) {
+        float f = terrValueNoise(x * 0.0045f + 50.0f, z * 0.0045f + 50.0f);   // ~220 m woods
+        f = f * 0.65f + terrValueNoise(x * 0.013f, z * 0.013f) * 0.35f;       // ragged edges
+        return sstep(0.50f, 0.66f, f);   // 0 = clearing, 1 = dense forest
+    };
     const float SPAN = FIELD_HALF * 0.96f;
     const float e = 2.0f;
-    int attempts = 0;
-    while ((int)trees.size() < count && attempts < count * 20) {
+    const float SINK = 0.4f;     // bury the trunk base so trees never look floaty
+    int attempts = 0, maxAttempts = maxTrees * 60;
+    while ((int)trees.size() < maxTrees && attempts < maxAttempts) {
         attempts++;
         float x = (rnd() * 2.0f - 1.0f) * SPAN;
         float z = (rnd() * 2.0f - 1.0f) * SPAN;
+        if (rnd() > forestDensity(x, z)) continue;               // keep to wooded patches
         float dhdx = (terrainElevation(x + e, z) - terrainElevation(x - e, z)) / (2 * e);
         float dhdz = (terrainElevation(x, z + e) - terrainElevation(x, z - e)) / (2 * e);
-        if (sqrtf(dhdx * dhdx + dhdz * dhdz) > 0.55f) continue;   // skip steep ground (rock)
+        if (sqrtf(dhdx * dhdx + dhdz * dhdz) > 0.55f) continue;  // skip steep ground (rock)
         TreeInstance ti;
-        ti.pos   = glm::vec3(x, terrainElevation(x, z), z);
+        ti.pos   = glm::vec3(x, terrainElevation(x, z) - SINK, z);
         ti.yaw   = rnd() * 6.2831853f;
         ti.scale = 0.75f + rnd() * 0.75f;
         trees.push_back(ti);
@@ -211,21 +234,17 @@ void Foliage::generate(int count) {
     glBindBuffer(GL_ARRAY_BUFFER, instVBO);
     glBufferData(GL_ARRAY_BUFFER, trees.size() * 5 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
     instCap = (GLint)trees.size();
-    printf("foliage: scattered %zu trees (%d attempts)\n", trees.size(), attempts);
+    printf("foliage: scattered %zu trees in forests (%d attempts)\n", trees.size(), attempts);
 }
 
 void Foliage::clear() { trees.clear(); }
 
-void Foliage::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& proj,
-                   const glm::vec3& eye, float time) {
-    if (!loaded || trees.empty()) return;
-
+int Foliage::cullUpload(const glm::mat4& vp) {
     // Frustum planes from VP (Gribb-Hartmann). GLM is column-major: m[col][row].
-    glm::mat4 m = proj * view;
-    glm::vec4 row0(m[0][0], m[1][0], m[2][0], m[3][0]);
-    glm::vec4 row1(m[0][1], m[1][1], m[2][1], m[3][1]);
-    glm::vec4 row2(m[0][2], m[1][2], m[2][2], m[3][2]);
-    glm::vec4 row3(m[0][3], m[1][3], m[2][3], m[3][3]);
+    glm::vec4 row0(vp[0][0], vp[1][0], vp[2][0], vp[3][0]);
+    glm::vec4 row1(vp[0][1], vp[1][1], vp[2][1], vp[3][1]);
+    glm::vec4 row2(vp[0][2], vp[1][2], vp[2][2], vp[3][2]);
+    glm::vec4 row3(vp[0][3], vp[1][3], vp[2][3], vp[3][3]);
     glm::vec4 planes[6] = {row3 + row0, row3 - row0, row3 + row1,
                            row3 - row1, row3 + row2, row3 - row2};
     for (auto& p : planes) p /= glm::length(glm::vec3(p));
@@ -242,6 +261,16 @@ void Foliage::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& pr
         packed.insert(packed.end(), {t.pos.x, t.pos.y, t.pos.z, t.yaw, t.scale});
     }
     int visible = (int)(packed.size() / 5);
+    if (visible == 0) return 0;
+    glBindBuffer(GL_ARRAY_BUFFER, instVBO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, packed.size() * sizeof(float), packed.data());
+    return visible;
+}
+
+void Foliage::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& proj,
+                   const glm::vec3& eye, float time) {
+    if (!loaded || trees.empty()) return;
+    int visible = cullUpload(proj * view);
     if (visible == 0) return;
 
     shader.use();
@@ -261,9 +290,6 @@ void Foliage::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& pr
     glBindTexture(GL_TEXTURE_2D, r.shadowTex);
 
     glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, instVBO);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, packed.size() * sizeof(float), packed.data());
-
     for (const TreePart& part : parts) {
         if (part.doubleSided) glDisable(GL_CULL_FACE); else glEnable(GL_CULL_FACE);
         shader.setFloat(locCutoff, part.alphaCutoff);
@@ -276,6 +302,29 @@ void Foliage::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& pr
     glBindVertexArray(0);
 }
 
+void Foliage::drawDepth(const glm::mat4& lightSpace, float time) {
+    if (!loaded || trees.empty()) return;
+    int visible = cullUpload(lightSpace);   // cull to the sun's ortho frustum
+    if (visible == 0) return;
+
+    depthShader.use();
+    depthShader.setMat4(depthShader.locLightSpace, lightSpace);
+    depthShader.setFloat(depthShader.locTime, time);   // sway must match the lit pass
+    depthShader.setInt(depthShader.locDiffuse, 0);
+
+    // Shadow pass already disabled face culling (beginShadowPass), so leaves cast
+    // from both sides. Just write depth, alpha-cutting leaf gaps.
+    glBindVertexArray(vao);
+    for (const TreePart& part : parts) {
+        depthShader.setFloat(locCutoffDepth, part.alphaCutoff);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, part.tex);
+        glDrawElementsInstanced(GL_TRIANGLES, part.indexCount, GL_UNSIGNED_INT,
+                                (void*)(size_t)part.indexOffset, visible);
+    }
+    glBindVertexArray(0);
+}
+
 void Foliage::destroy() {
     for (GLuint t : texes) if (t) glDeleteTextures(1, &t);
     texes.clear();
@@ -285,6 +334,7 @@ void Foliage::destroy() {
     if (vao) glDeleteVertexArrays(1, &vao);
     vao = vbo = ebo = instVBO = 0;
     shader.destroy();
+    depthShader.destroy();
     trees.clear();
     parts.clear();
 }

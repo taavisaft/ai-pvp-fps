@@ -60,6 +60,8 @@ struct Renderer {
     // Instanced tree field; scatters lazily on first field-map frame, culls per frame.
     void  drawFoliage(const glm::mat4& view, const glm::mat4& proj,
                       const glm::vec3& eye, float time);
+    // Trees as shadow casters — call inside the shadow pass (uses lightSpace).
+    void  drawFoliageDepth(float time);
     // HUD pass: depth off, blending on, coordinates in NDC [-1,1]
     void  beginHUD();
     void  drawRect(const glm::vec2& center, const glm::vec2& size,

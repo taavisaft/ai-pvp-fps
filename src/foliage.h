@@ -27,10 +27,12 @@ struct TreePart {
 
 struct Foliage {
     Shader shader;
+    Shader depthShader;                  // instanced shadow-caster pass (alpha cutout)
     GLuint vao = 0, vbo = 0, ebo = 0;   // combined tree geometry
     GLuint instVBO = 0;                  // per-instance transforms (dynamic)
     GLint  instCap  = 0;
     GLint  locCutoff = -1;               // extra uniform beyond Shader's cache
+    GLint  locCutoffDepth = -1;
 
     bool   loaded = false;              // false if tree.glb missing -> no-op
     std::vector<TreePart>     parts;    // sub-meshes (opaque trunk + cutout leaves)
@@ -40,11 +42,19 @@ struct Foliage {
     float treeHeight = 8.0f;            // baked height at scale 1 (cull sphere + radius)
     float treeRadius = 4.0f;            // baked canopy radius at scale 1
 
-    bool init();                 // shader + load tree.glb + instance buffer
-    void generate(int count);    // scatter `count` trees on the field heightfield
+    bool init();                 // shaders + load tree.glb + instance buffer
+    void generate(int maxTrees); // scatter trees in forest clumps on the heightfield
     void clear();                // drop all trees (e.g. leaving the field map)
     bool empty() const { return trees.empty(); }
     void draw(const Renderer& r, const glm::mat4& view, const glm::mat4& proj,
               const glm::vec3& eye, float time);
+    // Shadow-caster pass: cull to the sun's frustum and write instanced depth with
+    // leaf alpha cutout. Call between Renderer::beginShadowPass/endShadowPass.
+    void drawDepth(const glm::mat4& lightSpace, float time);
     void destroy();
+
+  private:
+    // Frustum-cull all trees against `vp`, upload the visible subset to instVBO,
+    // return the visible instance count. Shared by the main and shadow passes.
+    int cullUpload(const glm::mat4& vp);
 };
