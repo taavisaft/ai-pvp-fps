@@ -26,6 +26,13 @@ uniform vec3 groundAmbient;// ambient + bounce from below
 uniform sampler2D shadowMap;  // sun depth, texture unit 1
 uniform int useShadow;        // 1 = sample shadow map, 0 = fully lit
 
+// Terrain slope/height splat (terrain draw only).
+uniform int       splat;      // 1 = blend grass/dirt/rock by slope+height
+uniform sampler2D rockMap;    // texture unit 2
+uniform sampler2D dirtMap;    // texture unit 3
+uniform float     rockTile;   // world meters per rock repeat
+uniform float     dirtTile;   // world meters per dirt repeat
+
 out vec4 fragColor;
 
 // Fraction of the sun reaching this fragment (0 = full shadow, 1 = lit). 3x3 PCF
@@ -80,20 +87,55 @@ vec3 grassColor(vec2 p, float t) {
     return c;
 }
 
-vec3 triplanar(vec3 p, float tile) {
+// Triplanar sample of an arbitrary map, given precomputed axis blend weights `an`.
+vec3 triplanarTex(sampler2D s, vec3 p, float tile, vec3 an) {
+    return texture(s, p.yz / tile).rgb * an.x
+         + texture(s, p.xz / tile).rgb * an.y
+         + texture(s, p.xy / tile).rgb * an.z;
+}
+
+vec3 axisBlend(vec3 p) {
     vec3 an = abs(normalize(cross(dFdx(p), dFdy(p))));
-    an /= max(an.x + an.y + an.z, 1e-4);
-    vec2 uvX = p.yz / tile;
-    vec2 uvY = p.xz / tile;
-    vec2 uvZ = p.xy / tile;
-    return texture(diffuseMap, uvX).rgb * an.x
-         + texture(diffuseMap, uvY).rgb * an.y
-         + texture(diffuseMap, uvZ).rgb * an.z;
+    return an / max(an.x + an.y + an.z, 1e-4);
+}
+
+vec3 triplanar(vec3 p, float tile) {
+    return triplanarTex(diffuseMap, p, tile, axisBlend(p));
+}
+
+// Blend grass/dirt/rock across the heightfield by surface slope (steep -> rock),
+// with a height bias (peaks rockier) and fbm-jittered band edges so the material
+// transitions look organic instead of contour-line clean. Erangel/Miramar look.
+vec3 splatTerrain(vec3 p, vec3 an) {
+    vec3 grassC = (grass == 1) ? grassColor(p.xz, time)
+                               : triplanarTex(diffuseMap, p, tileSize, an);
+    vec3 dirtC  = triplanarTex(dirtMap, p, dirtTile, an);
+    vec3 rockC  = triplanarTex(rockMap, p, rockTile, an);
+
+    // Slope: steep faces -> rock. The heightfield is gentle (~few deg), so amplify
+    // the slope before thresholding, plus a height term for whatever peaks exist.
+    float slope  = 1.0 - clamp(normalize(vNormal).y, 0.0, 1.0);  // 0 flat .. 1 vertical
+    float jitter = (fbm(p.xz * 0.06) - 0.5) * 0.10;
+    float s  = clamp(slope * 6.0 + jitter, 0.0, 1.0);
+    float rw = smoothstep(0.30, 0.55, s);
+    rw = max(rw, smoothstep(5.0, 9.0, p.y));      // exposed rock on the high ground
+
+    // Large-scale "biome" mask (~250 m features): bare dirt fields vs lush grass,
+    // so the ground reads as varied terrain even where it is near-flat.
+    float region    = fbm(p.xz * 0.004);
+    float dirtField = smoothstep(0.42, 0.60, region);
+
+    float gw = (1.0 - rw) * (1.0 - dirtField);    // grass
+    float dw = (1.0 - rw) * dirtField;            // dirt fields / paths
+    float sum = gw + dw + rw + 1e-4;
+    return (grassC * gw + dirtC * dw + rockC * rw) / sum;
 }
 
 void main() {
     vec3 c = color;
-    if (lit == 1 && grass == 1) {
+    if (lit == 1 && splat == 1) {
+        c = splatTerrain(worldPos, axisBlend(worldPos));
+    } else if (lit == 1 && grass == 1) {
         c = grassColor(worldPos.xz, time);
     } else if (lit == 1 && useTexture != 0) {
         c = triplanar(worldPos, tileSize) * tint;

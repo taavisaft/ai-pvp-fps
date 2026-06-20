@@ -121,6 +121,10 @@ void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const gl
     shader.setVec3(shader.locSkyHorizon, skyHorizon);
     shader.setVec3(shader.locGroundAmb, groundAmbient);
     shader.setInt(shader.locHasNormal, 0);   // boxes/ground use derivative normals
+    // Terrain splat off by default; rock/dirt samplers live on units 2 and 3.
+    shader.setInt(shader.locSplat, 0);
+    shader.setInt(shader.locRockMap, 2);
+    shader.setInt(shader.locDirtMap, 3);
     // Shadow map (built this frame in the shadow pass) on texture unit 1.
     shader.setMat4(shader.locLightSpace, lightSpace);
     shader.setInt(shader.locShadowMap, 1);
@@ -298,7 +302,16 @@ void Renderer::drawGround(MaterialId mat) {
 }
 
 void Renderer::drawTerrain() {
-    bindMaterial(*active, materials, MAT_GROUND);
+    bindMaterial(*active, materials, MAT_GROUND);   // grass layer on unit 0
+    // Rock + dirt layers for the slope/height splat on units 2 and 3.
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, materials.mats[MAT_ROCK].tex);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, materials.mats[MAT_DIRT].tex);
+    glActiveTexture(GL_TEXTURE0);
+    active->setFloat(active->locRockTile, materials.mats[MAT_ROCK].tile);
+    active->setFloat(active->locDirtTile, materials.mats[MAT_DIRT].tile);
+    active->setInt(active->locSplat, 1);
     active->setMat4(active->locModel, glm::mat4(1.0f));
     active->setVec3(active->locColor, glm::vec3(1.0f));
     active->setInt(active->locGrass, materials.groundHasImage ? 0 : 1);
@@ -306,6 +319,7 @@ void Renderer::drawTerrain() {
     terrain.draw();
     active->setInt(active->locHasNormal, 0);
     active->setInt(active->locGrass, 0);
+    active->setInt(active->locSplat, 0);
 }
 
 void Renderer::endFrame() {

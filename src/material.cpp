@@ -14,6 +14,7 @@ bool MaterialLib::init() {
         {MAT_METAL,    "metal",    makeMetalTexture},
         {MAT_WOOD,     "wood",     makeWoodTexture},
         {MAT_ROCK,     "rock",     makeRockTexture},
+        {MAT_DIRT,     "dirt",     makeDirtTexture},
     };
 
     mats[MAT_GROUND].tint   = {1.0f, 1.0f, 1.0f};
@@ -21,6 +22,7 @@ bool MaterialLib::init() {
     mats[MAT_METAL].tint    = {0.85f, 0.88f, 0.92f};
     mats[MAT_WOOD].tint     = {1.0f, 1.0f, 1.0f};
     mats[MAT_ROCK].tint     = {1.0f, 1.0f, 1.0f};
+    mats[MAT_DIRT].tint     = {1.0f, 1.0f, 1.0f};
 
     for (const Entry& e : table) {
         std::string base = std::string("textures/") + e.name;
@@ -41,12 +43,14 @@ bool MaterialLib::init() {
     mats[MAT_METAL].tile    = 1.0f;
     mats[MAT_WOOD].tile     = 0.8f;
     mats[MAT_ROCK].tile     = 1.5f;
+    mats[MAT_DIRT].tile     = 1.5f;
 
     mats[MAT_GROUND].spec   = 0.0f;
     mats[MAT_CONCRETE].spec = 0.05f;
     mats[MAT_METAL].spec    = 0.35f;
     mats[MAT_WOOD].spec     = 0.02f;
     mats[MAT_ROCK].spec     = 0.04f;
+    mats[MAT_DIRT].spec     = 0.0f;
 
     for (int i = 0; i < MAT_COUNT; i++) {
         if (!mats[i].tex) {

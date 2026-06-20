@@ -14,5 +14,6 @@ GLuint makeConcreteTexture();
 GLuint makeMetalTexture();
 GLuint makeWoodTexture();
 GLuint makeRockTexture();
+GLuint makeDirtTexture();
 
 void destroyTexture(GLuint tex);

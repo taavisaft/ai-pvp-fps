@@ -83,6 +83,11 @@ bool Shader::load(const char* vertPath, const char* fragPath) {
     locShadowMap  = glGetUniformLocation(program, "shadowMap");
     locUseShadow  = glGetUniformLocation(program, "useShadow");
     locHasNormal  = glGetUniformLocation(program, "hasNormal");
+    locSplat      = glGetUniformLocation(program, "splat");
+    locRockMap    = glGetUniformLocation(program, "rockMap");
+    locDirtMap    = glGetUniformLocation(program, "dirtMap");
+    locRockTile   = glGetUniformLocation(program, "rockTile");
+    locDirtTile   = glGetUniformLocation(program, "dirtTile");
     return true;
 }
 

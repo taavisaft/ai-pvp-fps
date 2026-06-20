@@ -141,6 +141,17 @@ GLuint makeRockTexture() {
     });
 }
 
+GLuint makeDirtTexture() {
+    return makeTex([](float u, float v, float n, float& r, float& g, float& b) {
+        // Warm brown soil: broad tonal variation + sparse darker grit specks.
+        float base  = 0.30f + n * 0.18f;
+        float speck = noise2(u * 90.0f, v * 90.0f) > 0.82f ? -0.07f : 0.0f;
+        float t = base + speck;
+        if (t < 0.10f) t = 0.10f;
+        r = t * 0.66f; g = t * 0.47f; b = t * 0.30f;
+    });
+}
+
 void destroyTexture(GLuint tex) {
     if (tex) glDeleteTextures(1, &tex);
 }

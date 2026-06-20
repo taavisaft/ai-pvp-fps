@@ -10,6 +10,7 @@ enum MaterialId : uint8_t {
     MAT_METAL,
     MAT_WOOD,
     MAT_ROCK,
+    MAT_DIRT,
     MAT_COUNT
 };
 

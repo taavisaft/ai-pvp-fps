@@ -28,6 +28,12 @@ struct Shader {
     GLint  locShadowMap = -1;  // basic program; sampler on texture unit 1
     GLint  locUseShadow = -1;  // basic program; 1 = sample shadow map
     GLint  locHasNormal = -1;  // basic program; 1 = use supplied vertex normal
+    // Terrain slope/height splat (basic program; terrain draw only)
+    GLint  locSplat    = -1;   // 1 = blend grass/dirt/rock by slope+height
+    GLint  locRockMap  = -1;   // sampler, texture unit 2
+    GLint  locDirtMap  = -1;   // sampler, texture unit 3
+    GLint  locRockTile = -1;   // world meters per rock repeat
+    GLint  locDirtTile = -1;   // world meters per dirt repeat
 
     bool load(const char* vertPath, const char* fragPath);
     void use() const;
