@@ -5,6 +5,7 @@
 #include "mesh.h"
 #include "font.h"
 #include "material.h"
+#include "foliage.h"
 
 struct Renderer {
     SDL_Window*   window    = nullptr;
@@ -37,6 +38,7 @@ struct Renderer {
     Mesh   quad2d;   // unit quad for HUD rects
     Font   font;     // bitmap text, HUD pass only
     MaterialLib materials;
+    Foliage foliage; // instanced trees (MAP_FIELD only)
 
     bool  init(const char* title, int w, int h);
     float aspect() const;
@@ -55,6 +57,9 @@ struct Renderer {
     void  drawGround();
     void  drawGround(MaterialId mat);
     void  drawTerrain();   // heightfield ground for MAP_FIELD
+    // Instanced tree field; scatters lazily on first field-map frame, culls per frame.
+    void  drawFoliage(const glm::mat4& view, const glm::mat4& proj,
+                      const glm::vec3& eye, float time);
     // HUD pass: depth off, blending on, coordinates in NDC [-1,1]
     void  beginHUD();
     void  drawRect(const glm::vec2& center, const glm::vec2& size,

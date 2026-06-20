@@ -430,6 +430,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
     r.drawSky(cam.view(), cam.proj(r.aspect()));
     drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, showHitboxes);
+    r.drawFoliage(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);  // instanced trees (field)
 
     if (drawRange) {
         // the wall itself is a training-map box (drawn by the map loop). Just the

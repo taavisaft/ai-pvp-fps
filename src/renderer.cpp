@@ -71,6 +71,7 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!createQuad2D(quad2d)) return false;
     if (!font.init()) return false;
     if (!materials.init()) return false;
+    if (!foliage.init()) return false;
 
     // Shadow map: a depth-only texture rendered from the sun each frame.
     glGenFramebuffers(1, &shadowFBO);
@@ -322,6 +323,17 @@ void Renderer::drawTerrain() {
     active->setInt(active->locSplat, 0);
 }
 
+void Renderer::drawFoliage(const glm::mat4& view, const glm::mat4& proj,
+                           const glm::vec3& eye, float time) {
+    if (gMapId != MAP_FIELD) {            // forest only exists on the open field map
+        if (!foliage.empty()) foliage.clear();
+        return;
+    }
+    if (foliage.empty()) foliage.generate(1000);
+    foliage.draw(*this, view, proj, eye, time);
+    shader.use();   // restore world program for subsequent draws (view model, HUD)
+}
+
 void Renderer::endFrame() {
     SDL_GL_SwapWindow(window);
 }
@@ -332,6 +344,7 @@ void Renderer::toggleWireframe() {
 }
 
 void Renderer::shutdown() {
+    foliage.destroy();
     materials.destroy();
     font.destroy();
     quad2d.destroy();

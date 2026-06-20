@@ -26,6 +26,7 @@ set(CLIENT_SOURCES
     src/mesh.cpp
     src/texture.cpp
     src/material.cpp
+    src/foliage.cpp
     src/renderer.cpp
     src/hud.cpp
     src/camera.cpp
@@ -57,3 +58,8 @@ add_custom_command(TARGET game POST_BUILD
 add_custom_command(TARGET game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/textures $<TARGET_FILE_DIR:game>/textures)
+
+# Copy 3D models (gun, trees) next to the binary
+add_custom_command(TARGET game POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/models $<TARGET_FILE_DIR:game>/models)

@@ -46,7 +46,9 @@
       X(PFNGLBINDFRAMEBUFFERPROC,         fps_glBindFramebuffer,         glBindFramebuffer) \
       X(PFNGLFRAMEBUFFERTEXTURE2DPROC,    fps_glFramebufferTexture2D,    glFramebufferTexture2D) \
       X(PFNGLCHECKFRAMEBUFFERSTATUSPROC,  fps_glCheckFramebufferStatus,  glCheckFramebufferStatus) \
-      X(PFNGLDELETEFRAMEBUFFERSPROC,      fps_glDeleteFramebuffers,      glDeleteFramebuffers)
+      X(PFNGLDELETEFRAMEBUFFERSPROC,      fps_glDeleteFramebuffers,      glDeleteFramebuffers) \
+      X(PFNGLDRAWELEMENTSINSTANCEDPROC,   fps_glDrawElementsInstanced,   glDrawElementsInstanced) \
+      X(PFNGLVERTEXATTRIBDIVISORPROC,     fps_glVertexAttribDivisor,     glVertexAttribDivisor)
 
   #define GL_DECLARE(type, name, symbol) extern type name;
   GL_CORE_FUNCS(GL_DECLARE)
@@ -87,6 +89,8 @@
   #define glFramebufferTexture2D    fps_glFramebufferTexture2D
   #define glCheckFramebufferStatus  fps_glCheckFramebufferStatus
   #define glDeleteFramebuffers      fps_glDeleteFramebuffers
+  #define glDrawElementsInstanced   fps_glDrawElementsInstanced
+  #define glVertexAttribDivisor     fps_glVertexAttribDivisor
 
   bool loadGLFunctions();
 #endif
