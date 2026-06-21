@@ -5,11 +5,9 @@ No game engine. No physics library. No networking library.
 
 ## Inspirations for this game
 
-- Unreal Tournament
-- Half Life 2
-- PUBG
-- Tarkov
-- CS2
+- DAYZ look
+- PUBG feel
+- Tarkov spice
 
 ## Implemented Deviations from the Spec Below
 
