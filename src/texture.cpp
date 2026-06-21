@@ -70,6 +70,16 @@ GLuint uploadTextureRGB(const unsigned char* px, int w, int h) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // Anisotropic filtering: keeps tiled ground sharp at grazing angles instead of
+    // smearing into mip blur. EXT_texture_filter_anisotropic (GL 4.1 on macOS).
+    #ifndef GL_TEXTURE_MAX_ANISOTROPY_EXT
+    #define GL_TEXTURE_MAX_ANISOTROPY_EXT 0x84FE
+    #define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
+    #endif
+    float maxAniso = 1.0f;
+    glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
+    if (maxAniso > 8.0f) maxAniso = 8.0f;
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
     glBindTexture(GL_TEXTURE_2D, 0);
     return tex;
 }

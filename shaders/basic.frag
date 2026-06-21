@@ -99,8 +99,17 @@ vec3 axisBlend(vec3 p) {
     return an / max(an.x + an.y + an.z, 1e-4);
 }
 
+// Anti-tiling: blend the same texture at two incommensurate scales. The combined
+// pattern repeats only at the LCM of the two periods (far off-screen), so the obvious
+// grid/diamond repeat dissolves. ~2x the samples — fine for ground.
+vec3 antiTile(sampler2D s, vec3 p, float tile, vec3 an) {
+    vec3 a = triplanarTex(s, p, tile,        an);
+    vec3 b = triplanarTex(s, p, tile * 3.17, an);
+    return mix(a, b, 0.5);
+}
+
 vec3 triplanar(vec3 p, float tile) {
-    return triplanarTex(diffuseMap, p, tile, axisBlend(p));
+    return antiTile(diffuseMap, p, tile, axisBlend(p));
 }
 
 // Blend grass/dirt/rock across the heightfield by surface slope (steep -> rock),
@@ -108,9 +117,9 @@ vec3 triplanar(vec3 p, float tile) {
 // transitions look organic instead of contour-line clean. Erangel/Miramar look.
 vec3 splatTerrain(vec3 p, vec3 an) {
     vec3 grassC = (grass == 1) ? grassColor(p.xz, time)
-                               : triplanarTex(diffuseMap, p, tileSize, an);
-    vec3 dirtC  = triplanarTex(dirtMap, p, dirtTile, an);
-    vec3 rockC  = triplanarTex(rockMap, p, rockTile, an);
+                               : antiTile(diffuseMap, p, tileSize, an);
+    vec3 dirtC  = antiTile(dirtMap, p, dirtTile, an);
+    vec3 rockC  = antiTile(rockMap, p, rockTile, an);
 
     // Slope: steep faces -> rock. The heightfield is gentle (~few deg), so amplify
     // the slope before thresholding, plus a height term for whatever peaks exist.
@@ -128,7 +137,12 @@ vec3 splatTerrain(vec3 p, vec3 an) {
     float gw = (1.0 - rw) * (1.0 - dirtField);    // grass
     float dw = (1.0 - rw) * dirtField;            // dirt fields / paths
     float sum = gw + dw + rw + 1e-4;
-    return (grassC * gw + dirtC * dw + rockC * rw) / sum;
+    vec3 col = (grassC * gw + dirtC * dw + rockC * rw) / sum;
+
+    // Macro variation: large-scale brightness drift (~30 m) so the ground doesn't
+    // read as one uniform repeating carpet into the distance.
+    col *= 0.82 + 0.36 * fbm(p.xz * 0.03);
+    return col;
 }
 
 void main() {
