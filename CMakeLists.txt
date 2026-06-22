@@ -16,7 +16,8 @@ FetchContent_MakeAvailable(glm)
 
 set(SHARED_SOURCES
     src/physics.cpp
-    src/net_common.cpp)
+    src/net_common.cpp
+    src/heightmap.cpp)
 
 set(CLIENT_SOURCES
     src/main.cpp
@@ -63,3 +64,8 @@ add_custom_command(TARGET game POST_BUILD
 add_custom_command(TARGET game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/models $<TARGET_FILE_DIR:game>/models)
+
+# Copy maps (heightmaps etc.) next to the binary
+add_custom_command(TARGET game POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/maps $<TARGET_FILE_DIR:game>/maps)

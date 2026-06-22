@@ -13,6 +13,7 @@
 #include "physics.h"
 #include "network.h"
 #include "map.h"
+#include "heightmap.h"
 #include "hud.h"
 #include "audio.h"
 #include "material.h"
@@ -492,6 +493,15 @@ int main(int argc, char** argv) {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         return 1;
+    }
+
+    // Designed terrain for the field map. Loaded before the renderer so the terrain
+    // mesh is built from it. Falls back to procedural noise if the file is missing.
+    {
+        char hmpath[600];
+        const char* hb = SDL_GetBasePath();
+        snprintf(hmpath, sizeof(hmpath), "%smaps/field/height.png", hb ? hb : "");
+        loadHeightmap(hmpath, 35.0f, FIELD_HALF);
     }
 
     Renderer renderer;

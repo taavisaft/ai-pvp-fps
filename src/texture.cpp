@@ -1,6 +1,5 @@
 #include "texture.h"
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include "stb_image.h"   // implementation lives in heightmap.cpp (shared by client+server)
 #include <cmath>
 #include <cstdlib>
 

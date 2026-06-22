@@ -329,14 +329,14 @@ void Renderer::drawFoliage(const glm::mat4& view, const glm::mat4& proj,
         if (!foliage.empty()) foliage.clear();
         return;
     }
-    if (foliage.empty()) foliage.generate(1800);
+    if (foliage.empty()) foliage.generate(2800);
     foliage.draw(*this, view, proj, eye, time);
     shader.use();   // restore world program for subsequent draws (view model, HUD)
 }
 
 void Renderer::drawFoliageDepth(float time) {
     if (gMapId != MAP_FIELD) { if (!foliage.empty()) foliage.clear(); return; }
-    if (foliage.empty()) foliage.generate(1800);   // shadow pass runs first; scatter here
+    if (foliage.empty()) foliage.generate(2800);   // shadow pass runs first; scatter here
     foliage.drawDepth(lightSpace, time);
     depthShader.use();   // restore the world depth program for the rest of the pass
 }

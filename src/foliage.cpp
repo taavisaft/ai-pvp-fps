@@ -243,7 +243,7 @@ void Foliage::generate(int maxTrees) {
     auto forestDensity = [&](float x, float z) {
         float f = terrValueNoise(x * 0.0045f + 50.0f, z * 0.0045f + 50.0f);   // ~220 m woods
         f = f * 0.65f + terrValueNoise(x * 0.013f, z * 0.013f) * 0.35f;       // ragged edges
-        return sstep(0.50f, 0.66f, f);   // 0 = clearing, 1 = dense forest
+        return sstep(0.44f, 0.60f, f);   // 0 = clearing, 1 = dense forest
     };
     const float SPAN = FIELD_HALF * 0.96f;
     const float e = 2.0f;
@@ -260,7 +260,7 @@ void Foliage::generate(int maxTrees) {
         TreeInstance ti;
         ti.pos   = glm::vec3(x, terrainElevation(x, z) - SINK, z);
         ti.yaw   = rnd() * 6.2831853f;
-        ti.scale = 0.75f + rnd() * 0.75f;
+        ti.scale = 0.85f + rnd() * 0.95f;   // bigger, more varied canopies
         trees.push_back(ti);
     }
     glBindBuffer(GL_ARRAY_BUFFER, instVBO);

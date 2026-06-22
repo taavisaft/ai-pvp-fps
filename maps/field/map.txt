@@ -1,0 +1,3 @@
+name=Rolling Hills
+worldSize=1000
+heightScale=75

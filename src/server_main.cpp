@@ -13,6 +13,7 @@
 #include "game.h"
 #include "physics.h"
 #include "map.h"
+#include "heightmap.h"
 
 struct ClientSlot {
     bool        used = false;
@@ -351,6 +352,8 @@ int main() {
     if (mapEnv && strcmp(mapEnv, "warehouse") == 0) mapSel = MAP_WAREHOUSE;
     else if (mapEnv && strcmp(mapEnv, "training") == 0) mapSel = MAP_TRAINING;
     setMap(mapSel);
+    // Same designed heightmap the clients load — authoritative collision must match.
+    if (mapSel == MAP_FIELD) loadHeightmap("maps/field/height.png", 35.0f, FIELD_HALF);
     const char* mapName = mapSel == MAP_FIELD ? "field"
                         : mapSel == MAP_WAREHOUSE ? "warehouse" : "training";
     printf("server: map = %s\n", mapName);
