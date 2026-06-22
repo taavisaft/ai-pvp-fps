@@ -7,6 +7,8 @@
 #include "material.h"
 #include "foliage.h"
 
+struct Box;  // map.h; for the satellite map-texture bake
+
 struct Renderer {
     SDL_Window*   window    = nullptr;
     SDL_GLContext glContext = nullptr;
@@ -19,7 +21,13 @@ struct Renderer {
     Shader shader;
     Shader skyShader;    // fullscreen gradient sky + sun disk
     Shader depthShader;  // sun-POV depth pass for shadow mapping
+    Shader texShader;    // textured HUD quad (satellite minimap)
+    GLint  texUvCenterLoc = -1, texUvHalfLoc = -1;  // texShader custom uniforms
     Shader* active = nullptr;  // program the world draws target (basic or depth)
+
+    // Lazily-built per-map satellite textures (indexed by MapId 0..2).
+    GLuint mapTex[3]     = {0, 0, 0};
+    bool   mapTexTried[3] = {false, false, false};
 
     // Shadow map: single ortho sun frustum following the camera (near-field shadows).
     GLuint    shadowFBO   = 0;
@@ -70,6 +78,15 @@ struct Renderer {
     // aspect-corrected square space so a 45 deg stroke renders at 45 deg.
     void  drawRectRot(const glm::vec2& center, const glm::vec2& size,
                       const glm::vec3& color, float alpha, float angle);
+    // Textured HUD quad. Samples the sub-rect [uvCenter +/- uvHalf] of `tex`
+    // (uvHalf {0.5,0.5} = whole image). Restores the flat shader after.
+    void  drawTexQuad(const glm::vec2& center, const glm::vec2& size, unsigned int tex,
+                      float alpha, const glm::vec2& uvCenter = {0.5f, 0.5f},
+                      const glm::vec2& uvHalf = {0.5f, 0.5f},
+                      const glm::vec3& tint = {1.0f, 1.0f, 1.0f});
+    // Satellite texture for a map: hand-made textures/map_<name>.png if present,
+    // else a procedural bake from `boxes`. Built once and cached. 0 on failure.
+    unsigned int mapTexture(int mapId, const Box* boxes, int count, float worldHalf);
     // x,y = bottom-left in NDC, h = char height in NDC
     void  drawText(const char* s, float x, float y, float h,
                    const glm::vec3& color, float alpha);

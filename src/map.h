@@ -1,5 +1,6 @@
 #pragma once
 #include <glm/glm.hpp>
+#include <cmath>
 #include "terrain.h"
 
 // Static arena geometry, shared by server (collision) and client (collision + render).
@@ -86,6 +87,19 @@ inline const Box* gMapBoxes    = TRAINING_BOXES;
 inline int        gMapBoxCount = TRAINING_BOX_COUNT;
 inline MapId      gMapId       = MAP_TRAINING;
 inline float      gArenaHalf   = ARENA_HALF;  // per-map clamp (grows for bigger maps)
+
+// Half-extent (meters) the top-down map view / satellite texture is baked to:
+// the farthest box edge from origin plus a small margin. Shared by the renderer's
+// map-texture bake and the HUD full-map draw so the image and overlays register.
+inline float mapViewHalf() {
+    float ext = 5.0f;
+    for (int i = 0; i < gMapBoxCount; i++) {
+        const Box& b = gMapBoxes[i];
+        ext = fmaxf(ext, fmaxf(fabsf(b.center.x) + b.half.x,
+                               fabsf(b.center.z) + b.half.z));
+    }
+    return gMapBoxCount > 0 ? ext * 1.06f : 120.0f;  // FIELD has no boxes -> local window
+}
 
 inline void setMap(MapId id) {
     gMapId = id;

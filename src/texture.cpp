@@ -1,4 +1,5 @@
 #include "texture.h"
+#include "map.h"
 #include "stb_image.h"   // implementation lives in heightmap.cpp (shared by client+server)
 #include <cmath>
 #include <cstdlib>
@@ -81,6 +82,71 @@ GLuint uploadTextureRGB(const unsigned char* px, int w, int h) {
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
     glBindTexture(GL_TEXTURE_2D, 0);
     return tex;
+}
+
+static float clamp01(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x); }
+
+GLuint makeMapTexture(const Box* boxes, int count, float worldHalf) {
+    const int S = 512;
+    unsigned char* px = (unsigned char*)malloc((size_t)S * S * 3);
+    if (!px) return 0;
+
+    // base terrain: muted khaki/green recon tone with low-freq fbm variation
+    for (int y = 0; y < S; y++) {
+        for (int x = 0; x < S; x++) {
+            float wx = (((x + 0.5f) / S) * 2.0f - 1.0f) * worldHalf;
+            float wz = (((y + 0.5f) / S) * 2.0f - 1.0f) * worldHalf;
+            float n = 0.0f, amp = 0.5f, freq = 0.04f;
+            for (int o = 0; o < 4; o++) {
+                n += noise2(wx * freq + 13.0f, wz * freq + 7.0f) * amp;
+                amp *= 0.5f; freq *= 2.0f;
+            }
+            float g = 0.30f + 0.14f * n;
+            int i = (y * S + x) * 3;
+            px[i + 0] = (unsigned char)(clamp01(g * 0.72f) * 255.0f);
+            px[i + 1] = (unsigned char)(clamp01(g * 0.92f) * 255.0f);
+            px[i + 2] = (unsigned char)(clamp01(g * 0.55f) * 255.0f);
+        }
+    }
+
+    auto toPx = [&](float w) { return (int)(((w / worldHalf) * 0.5f + 0.5f) * S); };
+    auto fillRect = [&](int x0, int x1, int z0, int z1, float r, float g, float b) {
+        if (x0 < 0) x0 = 0; if (z0 < 0) z0 = 0;
+        if (x1 > S) x1 = S; if (z1 > S) z1 = S;
+        for (int y = z0; y < z1; y++)
+            for (int x = x0; x < x1; x++) {
+                int i = (y * S + x) * 3;
+                px[i + 0] = (unsigned char)(clamp01(r) * 255.0f);
+                px[i + 1] = (unsigned char)(clamp01(g) * 255.0f);
+                px[i + 2] = (unsigned char)(clamp01(b) * 255.0f);
+            }
+    };
+
+    int shadow = (int)(S * 0.012f);   // drop-shadow offset (toward +x,+z) in pixels
+    // shadows first so roofs sit on top
+    for (int k = 0; k < count; k++) {
+        const Box& b = boxes[k];
+        int x0 = toPx(b.center.x - b.half.x) + shadow, x1 = toPx(b.center.x + b.half.x) + shadow;
+        int z0 = toPx(b.center.z - b.half.z) + shadow, z1 = toPx(b.center.z + b.half.z) + shadow;
+        fillRect(x0, x1, z0, z1, 0.07f, 0.08f, 0.06f);
+    }
+    for (int k = 0; k < count; k++) {
+        const Box& b = boxes[k];
+        int x0 = toPx(b.center.x - b.half.x), x1 = toPx(b.center.x + b.half.x);
+        int z0 = toPx(b.center.z - b.half.z), z1 = toPx(b.center.z + b.half.z);
+        float top  = b.center.y + b.half.y;                 // roof height
+        float lum  = 0.40f + 0.07f * (top < 5.0f ? top : 5.0f);  // taller = lighter concrete
+        fillRect(x0, x1, z0, z1, lum * 1.02f, lum, lum * 0.96f);
+        // 2px darker outline for definition
+        fillRect(x0, x1, z0, z0 + 2, lum * 0.6f, lum * 0.6f, lum * 0.6f);
+        fillRect(x0, x1, z1 - 2, z1, lum * 0.6f, lum * 0.6f, lum * 0.6f);
+        fillRect(x0, x0 + 2, z0, z1, lum * 0.6f, lum * 0.6f, lum * 0.6f);
+        fillRect(x1 - 2, x1, z0, z1, lum * 0.6f, lum * 0.6f, lum * 0.6f);
+    }
+
+    GLuint t = uploadTextureRGB(px, S, S);
+    free(px);
+    return t;
 }
 
 static GLuint makeTex(void (*rgb)(float, float, float, float&, float&, float&)) {

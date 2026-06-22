@@ -8,6 +8,13 @@ GLuint uploadTextureRGB(const unsigned char* px, int w, int h);
 // file is missing/unreadable, so callers can fall back to a procedural texture.
 GLuint loadTexture(const char* path);
 
+// Top-down "satellite" map texture baked from the arena box layout: muted terrain
+// noise + box footprints shaded by height with drop shadows. Spans world XZ in
+// [-worldHalf, worldHalf]^2, north (+Z) at the top row. boxes may be null (count 0).
+// Used as a fallback when no hand-made textures/map_<name>.png exists.
+struct Box;
+GLuint makeMapTexture(const Box* boxes, int count, float worldHalf);
+
 // Procedural seamless 256×256 tiles (no PNG files required).
 GLuint makeGroundTexture();
 GLuint makeConcreteTexture();

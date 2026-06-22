@@ -86,42 +86,49 @@ static void drawScoreboard(Renderer& r, const GameState& gs, int localID) {
     }
 }
 
-// Top-down minimap, bottom-right corner. North (+Z) up, player-centric: the
-// local player sits fixed at the panel center and the world translates by
-// -me.pos around them. Zoomed to MAP_RANGE meters in each direction. Obstacle
-// boxes (gMapBoxes) are clipped to the panel; off-window enemies clamp to the
-// edge (gives bearing). yaw forward = (cos,sin) in world XZ = screen right,up.
-static void drawMinimap(Renderer& r, const GameState& gs, int localID) {
-    float ia = 1.0f / r.aspect();
-    const float worldHalf = 10.0f;            // view half-extent in meters (10 m around you)
-    const float halfY  = 0.16f;               // panel half-height (NDC y)
-    const float halfX  = halfY * ia;          // square on screen
-    const float margin = 0.035f;
-    glm::vec2 c = { 1.0f - margin - halfX, -1.0f + margin + halfY };
-
+// Top-down map view, north (+Z) up. Two callers:
+//   corner minimap  -> playerCentric: local player fixed at panel center c, the
+//                       world translates by -me.pos, zoomed to worldHalf meters.
+//   full-screen map -> centered on the arena origin, whole map fits the panel,
+//                       the local dot moves to its real position.
+// Obstacle boxes (gMapBoxes) are clipped to the panel; off-window enemies clamp
+// to the edge (gives bearing). yaw forward = (cos,sin) in world XZ = screen right,up.
+static void drawMapView(Renderer& r, const GameState& gs, int localID,
+                        glm::vec2 c, float halfY, float worldHalf, bool playerCentric,
+                        unsigned int satTex, float satHalf) {
+    float ia    = 1.0f / r.aspect();
+    float halfX = halfY * ia;                 // square on screen
     const Player& me = gs.players[localID];
     float sx = halfX / worldHalf;             // NDC per meter, world X -> screen right
     float sy = halfY / worldHalf;             // NDC per meter, world Z -> screen up (north)
-    float ex = me.pos.x, ez = me.pos.z;       // view is centered on the local player
+    float ex = playerCentric ? me.pos.x : 0.0f;   // world point at panel center
+    float ez = playerCentric ? me.pos.z : 0.0f;
 
     r.drawRect(c, {2 * halfX + 0.018f, 2 * halfY + 0.018f}, {0.5f, 0.55f, 0.6f}, 0.35f);
-    r.drawRect(c, {2 * halfX, 2 * halfY}, {0.06f, 0.07f, 0.09f}, 0.55f);
+    r.drawRect(c, {2 * halfX, 2 * halfY}, {0.06f, 0.07f, 0.09f}, playerCentric ? 0.55f : 0.82f);
 
-    // axis-aligned rect clipped to the panel; skipped if fully outside
-    auto drawClipped = [&](glm::vec2 rc, glm::vec2 rs, glm::vec3 col, float a) {
-        float x0 = fmaxf(rc.x - rs.x * 0.5f, c.x - halfX);
-        float x1 = fminf(rc.x + rs.x * 0.5f, c.x + halfX);
-        float y0 = fmaxf(rc.y - rs.y * 0.5f, c.y - halfY);
-        float y1 = fminf(rc.y + rs.y * 0.5f, c.y + halfY);
-        if (x1 <= x0 || y1 <= y0) return;
-        r.drawRect({(x0 + x1) * 0.5f, (y0 + y1) * 0.5f}, {x1 - x0, y1 - y0}, col, a);
-    };
-
-    for (int i = 0; i < gMapBoxCount; i++) {
-        const Box& b = gMapBoxes[i];
-        glm::vec2 bc = { c.x + (b.center.x - ex) * sx, c.y + (b.center.z - ez) * sy };
-        glm::vec2 bs = { 2.0f * b.half.x * sx, 2.0f * b.half.z * sy };
-        drawClipped(bc, bs, {0.55f, 0.58f, 0.63f}, 0.85f);
+    if (satTex) {
+        // satellite image fills the panel; corner view samples the sub-rect of the
+        // texture (baked over [-satHalf,satHalf]) that the world window covers.
+        glm::vec2 uvC = { 0.5f + ex / (2.0f * satHalf), 0.5f + ez / (2.0f * satHalf) };
+        glm::vec2 uvH = { worldHalf / (2.0f * satHalf), worldHalf / (2.0f * satHalf) };
+        r.drawTexQuad(c, {2 * halfX, 2 * halfY}, satTex, 1.0f, uvC, uvH);
+    } else {
+        // fallback: gray obstacle footprints, clipped to the panel
+        auto drawClipped = [&](glm::vec2 rc, glm::vec2 rs, glm::vec3 col, float a) {
+            float x0 = fmaxf(rc.x - rs.x * 0.5f, c.x - halfX);
+            float x1 = fminf(rc.x + rs.x * 0.5f, c.x + halfX);
+            float y0 = fmaxf(rc.y - rs.y * 0.5f, c.y - halfY);
+            float y1 = fminf(rc.y + rs.y * 0.5f, c.y + halfY);
+            if (x1 <= x0 || y1 <= y0) return;
+            r.drawRect({(x0 + x1) * 0.5f, (y0 + y1) * 0.5f}, {x1 - x0, y1 - y0}, col, a);
+        };
+        for (int i = 0; i < gMapBoxCount; i++) {
+            const Box& b = gMapBoxes[i];
+            glm::vec2 bc = { c.x + (b.center.x - ex) * sx, c.y + (b.center.z - ez) * sy };
+            glm::vec2 bs = { 2.0f * b.half.x * sx, 2.0f * b.half.z * sy };
+            drawClipped(bc, bs, {0.55f, 0.58f, 0.63f}, 0.85f);
+        }
     }
 
     auto clampInside = [&](glm::vec2 p) {
@@ -141,17 +148,20 @@ static void drawMinimap(Renderer& r, const GameState& gs, int localID) {
         r.drawRect(m, {dot * ia, dot}, {0.9f, 0.25f, 0.2f}, 0.95f);
     }
 
-    // local player: fixed at panel center, heading arrow then a dot on top
+    // local player: heading arrow then a dot on top
+    glm::vec2 mp = playerCentric
+                 ? c
+                 : clampInside({ c.x + me.pos.x * sx, c.y + me.pos.z * sy });
     float yawR = glm::radians(me.yaw);
     glm::vec2 dir = { cosf(yawR), sinf(yawR) };
     float len = 0.05f;
-    glm::vec2 mid = { c.x + dir.x * (len * 0.5f) * ia, c.y + dir.y * (len * 0.5f) };
+    glm::vec2 mid = { mp.x + dir.x * (len * 0.5f) * ia, mp.y + dir.y * (len * 0.5f) };
     r.drawRectRot(mid, {len, 0.012f}, {1.0f, 0.9f, 0.3f}, 0.95f, yawR);
-    r.drawRect(c, {dot * 1.2f * ia, dot * 1.2f}, {1.0f, 0.9f, 0.3f}, 1.0f);
+    r.drawRect(mp, {dot * 1.2f * ia, dot * 1.2f}, {1.0f, 0.9f, 0.3f}, 1.0f);
 }
 
 void drawHUD(Renderer& r, const GameState& gs, int localID,
-             const HudState& hud, bool scoreboard, bool online) {
+             const HudState& hud, bool scoreboard, bool online, bool fullMap) {
     float ia = 1.0f / r.aspect();
     const Player& own = gs.players[localID];
     char buf[32];
@@ -231,7 +241,20 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
                    0.92f - 0.06f * i, 0.045f, {1, 0.6f, 0.3f}, 0.9f * a);
     }
 
-    drawMinimap(r, gs, localID);
+    float satHalf = mapViewHalf();   // extent the satellite texture is baked over
+    unsigned int satTex = r.mapTexture(gMapId, gMapBoxes, gMapBoxCount, satHalf);
+    if (fullMap) {
+        r.drawRect({0, 0}, {2, 2}, {0, 0, 0}, 0.5f);          // dim the world behind
+        drawMapView(r, gs, localID, {0.0f, -0.03f}, 0.72f, satHalf, false, satTex, satHalf);
+        const char* t = "MAP - M TO CLOSE";
+        r.drawText(t, -r.textWidth(t, 0.045f) * 0.5f, 0.78f, 0.045f,
+                   {0.8f, 0.8f, 0.85f}, 0.9f);
+    } else {
+        float ia = 1.0f / r.aspect();
+        float halfY = 0.16f, halfX = halfY * ia, margin = 0.035f;
+        glm::vec2 c = { 1.0f - margin - halfX, -1.0f + margin + halfY };
+        drawMapView(r, gs, localID, c, halfY, 10.0f, true, satTex, satHalf);
+    }
 
     if (scoreboard) drawScoreboard(r, gs, localID);
     r.endHUD();

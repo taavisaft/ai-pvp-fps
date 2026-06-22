@@ -1,4 +1,6 @@
 #include "renderer.h"
+#include "map.h"
+#include "texture.h"
 #include <cstdio>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -64,6 +66,15 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!depthShader.load(dpv, dpf)) {
         if (!depthShader.load("shaders/depth.vert", "shaders/depth.frag")) return false;
     }
+
+    char txv[600], txf[600];
+    snprintf(txv, sizeof(txv), "%sshaders/texquad.vert", base);
+    snprintf(txf, sizeof(txf), "%sshaders/texquad.frag", base);
+    if (!texShader.load(txv, txf)) {
+        if (!texShader.load("shaders/texquad.vert", "shaders/texquad.frag")) return false;
+    }
+    texUvCenterLoc = glGetUniformLocation(texShader.program, "uvCenter");
+    texUvHalfLoc   = glGetUniformLocation(texShader.program, "uvHalf");
 
     if (!createUnitCube(cube)) return false;
     if (!createGroundQuad(ground)) return false;
@@ -226,6 +237,44 @@ void Renderer::drawRectRot(const glm::vec2& center, const glm::vec2& size,
     quad2d.draw();
 }
 
+void Renderer::drawTexQuad(const glm::vec2& center, const glm::vec2& size, unsigned int tex,
+                           float alpha, const glm::vec2& uvCenter, const glm::vec2& uvHalf,
+                           const glm::vec3& tint) {
+    texShader.use();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, (GLuint)tex);
+    texShader.setInt(texShader.locDiffuse, 0);
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(center, 0.0f));
+    model = glm::scale(model, glm::vec3(size, 1.0f));
+    texShader.setMat4(texShader.locModel, model);
+    texShader.setFloat(texShader.locAlpha, alpha);
+    texShader.setVec3(texShader.locTint, tint);
+    glUniform2f(texUvCenterLoc, uvCenter.x, uvCenter.y);
+    glUniform2f(texUvHalfLoc, uvHalf.x, uvHalf.y);
+    quad2d.draw();
+    shader.use();   // restore flat program for following drawRect/drawText
+}
+
+unsigned int Renderer::mapTexture(int mapId, const Box* boxes, int count, float worldHalf) {
+    if (mapId < 0 || mapId > 2) return 0;
+    if (!mapTexTried[mapId]) {
+        mapTexTried[mapId] = true;
+        static const char* names[3] = {"training", "warehouse", "field"};
+        char path[64];
+        snprintf(path, sizeof(path), "textures/map_%s.png", names[mapId]);
+        GLuint t = loadTexture(path);                       // hand-made art if present
+        if (!t) t = makeMapTexture(boxes, count, worldHalf); // else procedural bake
+        if (t) {   // clamp so corner-minimap sub-rect sampling doesn't wrap at edges
+            glBindTexture(GL_TEXTURE_2D, t);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+        mapTex[mapId] = t;
+    }
+    return mapTex[mapId];
+}
+
 void Renderer::drawText(const char* s, float x, float y, float h,
                         const glm::vec3& color, float alpha) {
     font.draw(s, x, y, h, 1.0f / aspect(), color, alpha);
@@ -361,6 +410,8 @@ void Renderer::shutdown() {
     shader.destroy();
     skyShader.destroy();
     depthShader.destroy();
+    texShader.destroy();
+    for (int i = 0; i < 3; i++) if (mapTex[i]) glDeleteTextures(1, &mapTex[i]);
     if (shadowTex) glDeleteTextures(1, &shadowTex);
     if (shadowFBO) glDeleteFramebuffers(1, &shadowFBO);
     if (glContext) SDL_GL_DeleteContext(glContext);

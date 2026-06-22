@@ -36,5 +36,5 @@ struct HudState {
 };
 
 void drawHUD(Renderer& r, const GameState& gs, int localID,
-             const HudState& hud, bool scoreboard, bool online);
+             const HudState& hud, bool scoreboard, bool online, bool fullMap);
 void drawConnectPrompt(Renderer& r, const ConnectPrompt& prompt);
