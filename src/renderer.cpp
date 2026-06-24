@@ -385,7 +385,8 @@ void Renderer::drawFoliage(const glm::mat4& view, const glm::mat4& proj,
 
 void Renderer::drawFoliageDepth(float time) {
     if (gMapId != MAP_FIELD) { if (!foliage.empty()) foliage.clear(); return; }
-    if (foliage.empty()) foliage.generate(2800);   // shadow pass runs first; scatter here
+    if (foliage.empty()) foliage.generate(60);   // shadow pass runs first; scatter here
+                                                 // (~density-matched to the 100 m field)
     foliage.drawDepth(lightSpace, time);
     depthShader.use();   // restore the world depth program for the rest of the pass
 }

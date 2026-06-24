@@ -74,11 +74,11 @@ inline const Box WAREHOUSE_BOXES[] = {
 };
 inline constexpr int WAREHOUSE_BOX_COUNT = (int)(sizeof(WAREHOUSE_BOXES) / sizeof(WAREHOUSE_BOXES[0]));
 
-// --- FIELD: 1 km^2 open terrain, no cover boxes -----------------------------
+// --- FIELD: 100 m^2 open terrain, no cover boxes ----------------------------
 // Just the shared deterministic heightfield (see terrain.h). The same int-math
 // noise runs on server + every client, so all players get one identical map with
 // no asset load and nothing to sync over the network.
-inline constexpr float FIELD_HALF = 500.0f;  // 1 km across
+inline constexpr float FIELD_HALF = 50.0f;  // 100 m across
 
 inline constexpr float ARENA_HALF = 45.0f;  // default hard clamp on X/Z (walls seal sooner)
 
@@ -89,16 +89,21 @@ inline MapId      gMapId       = MAP_TRAINING;
 inline float      gArenaHalf   = ARENA_HALF;  // per-map clamp (grows for bigger maps)
 
 // Half-extent (meters) the top-down map view / satellite texture is baked to:
-// the farthest box edge from origin plus a small margin. Shared by the renderer's
-// map-texture bake and the HUD full-map draw so the image and overlays register.
+// the whole *reachable* area, so the M map shows everything a player can occupy.
+// WAREHOUSE is sealed by perimeter walls -> fit the farthest box edge. TRAINING is
+// open ground out to the arena clamp; FIELD is the full 100 m clamp. Shared by the
+// renderer's texture bake and the HUD full-map draw so image + overlays register.
 inline float mapViewHalf() {
-    float ext = 5.0f;
-    for (int i = 0; i < gMapBoxCount; i++) {
-        const Box& b = gMapBoxes[i];
-        ext = fmaxf(ext, fmaxf(fabsf(b.center.x) + b.half.x,
-                               fabsf(b.center.z) + b.half.z));
+    if (gMapId == MAP_WAREHOUSE) {
+        float ext = 5.0f;
+        for (int i = 0; i < gMapBoxCount; i++) {
+            const Box& b = gMapBoxes[i];
+            ext = fmaxf(ext, fmaxf(fabsf(b.center.x) + b.half.x,
+                                   fabsf(b.center.z) + b.half.z));
+        }
+        return ext * 1.06f;
     }
-    return gMapBoxCount > 0 ? ext * 1.06f : 120.0f;  // FIELD has no boxes -> local window
+    return gArenaHalf;   // TRAINING: open clamp (45 m); FIELD: full 100 m
 }
 
 inline void setMap(MapId id) {

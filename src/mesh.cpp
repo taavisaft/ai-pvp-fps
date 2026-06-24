@@ -91,7 +91,7 @@ bool createGroundQuad(Mesh& m) {
 // height field) so the hills shade smoothly and self-shadow, instead of faceting
 // from dFdx/dFdy. Interleaved pos.xyz, normal.xyz.
 bool createTerrainMesh(Mesh& m) {
-    const float HALF = FIELD_HALF, STEP = 4.0f;
+    const float HALF = FIELD_HALF, STEP = 2.0f;
     const int   N = (int)(2.0f * HALF / STEP) + 1;   // verts per side
     const float e = STEP;                            // gradient sample spacing
     std::vector<float> v;

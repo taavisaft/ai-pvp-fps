@@ -138,8 +138,8 @@ static bool rewindLookup(const void* ctx, int pid, float rewindSec,
 static glm::vec3 spawnPos(int point) {
     float a = glm::radians(point * (360.0f / MAX_PLAYERS));
     // radius 12 keeps every point clear of the warehouse perimeter walls (+/-15 Z);
-    // the open field spreads players much wider across the km.
-    float r = (gMapId == MAP_FIELD) ? 180.0f : 12.0f;
+    // the open field spreads players across the 100 m square (clamp at +/-50).
+    float r = (gMapId == MAP_FIELD) ? 35.0f : 12.0f;
     float x = r * cosf(a), z = r * sinf(a);
     return {x, terrainHeight(x, z), z};   // sit on the ground (terrain or y=0)
 }

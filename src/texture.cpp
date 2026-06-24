@@ -87,7 +87,7 @@ GLuint uploadTextureRGB(const unsigned char* px, int w, int h) {
 static float clamp01(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x); }
 
 GLuint makeMapTexture(const Box* boxes, int count, float worldHalf) {
-    const int S = 512;
+    const int S = 1024;
     unsigned char* px = (unsigned char*)malloc((size_t)S * S * 3);
     if (!px) return 0;
 

@@ -241,8 +241,8 @@ void Foliage::generate(int maxTrees) {
     // Forest mask: low-freq noise carves big wooded patches with open clearings
     // between, so trees clump into forests "now and then" instead of even scatter.
     auto forestDensity = [&](float x, float z) {
-        float f = terrValueNoise(x * 0.0045f + 50.0f, z * 0.0045f + 50.0f);   // ~220 m woods
-        f = f * 0.65f + terrValueNoise(x * 0.013f, z * 0.013f) * 0.35f;       // ragged edges
+        float f = terrValueNoise(x * 0.045f + 50.0f, z * 0.045f + 50.0f);   // ~22 m woods
+        f = f * 0.65f + terrValueNoise(x * 0.13f, z * 0.13f) * 0.35f;       // ragged edges
         return sstep(0.44f, 0.60f, f);   // 0 = clearing, 1 = dense forest
     };
     const float SPAN = FIELD_HALF * 0.96f;
