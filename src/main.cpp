@@ -561,7 +561,6 @@ int main(int argc, char** argv) {
     bool        offlineShoot = false;  // latch click until a physics tick consumes it
     ViewModel   vm;                     // first-person gun state
     float       stepTimer    = 0.0f;    // footstep cadence
-    float       prevOwnPosY  = 0.0f;    // detect airborne (no footsteps in air)
     uint8_t     prevRemoteShots[MAX_PLAYERS] = {0};  // last seen authoritative per-player shot counters
     bool        remoteShotsSeeded = false;           // seed once when entering online play
     float       fpsAvg       = 0.0f;    // smoothed FPS readout
@@ -885,9 +884,20 @@ int main(int argc, char** argv) {
         vm.recoilT -= dt * 8.0f;
         if (vm.recoilT < 0.0f) vm.recoilT = 0.0f;
 
-        // footsteps while moving on the ground
-        float dY      = own.pos.y - prevOwnPosY;
-        bool  onGround = dY < 0.02f && dY > -0.02f;       // not climbing/falling
+        // footsteps while moving on the ground. Airborne test = feet above the
+        // support height (terrain or box top under the footprint), mirroring
+        // physics supportHeight(). Frame-to-frame dY can't be used: walking up/down
+        // any sloped terrain changes Y every frame, which made onGround flicker and
+        // spam the "instant first step" reset (rapid-step bug on uneven ground).
+        float support = terrainHeight(own.pos.x, own.pos.z);
+        for (int i = 0; i < gMapBoxCount; i++) {
+            const Box& b = gMapBoxes[i];
+            if (fabsf(own.pos.x - b.center.x) >= b.half.x + 0.4f) continue;
+            if (fabsf(own.pos.z - b.center.z) >= b.half.z + 0.4f) continue;
+            float top = b.center.y + b.half.y;
+            if (top > support && own.pos.y >= top - 0.05f) support = top;
+        }
+        bool  onGround = (own.pos.y - support) < 0.12f;   // not jumping/falling
         bool  moving   = input.state.w || input.state.a || input.state.s || input.state.d;
         if (own.alive && moving && onGround) {
             stepTimer -= dt;
@@ -898,7 +908,6 @@ int main(int argc, char** argv) {
         } else {
             stepTimer = 0.0f;                              // first step fires instantly
         }
-        prevOwnPosY = own.pos.y;
 
         // Enemy gunshots: use per-player authoritative shot counters (from server).
         // This is robust under packet loss/jitter and independent from bullet replication.
