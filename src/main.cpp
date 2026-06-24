@@ -712,7 +712,7 @@ int main(int argc, char** argv) {
             else        offlineShoot = true;
             vm.flashTimer = 0.05f;
             vm.recoilT    = 1.0f;
-            audioPlay(SND_SHOOT);
+            audioPlay(weaponShootSound(gWeaponId));
         }
         if (input.state.shoot && ownAliveF && ownMagF == 0 && !ownReloadingF) audioPlay(SND_DRYFIRE);
         if (ownReloadingF && !prevReloading) audioPlay(SND_RELOAD);
@@ -927,8 +927,9 @@ int main(int argc, char** argv) {
                 if (delta == 0 || delta >= 128) continue;  // ignore resets / stale jumps
 
                 int plays = delta <= 4 ? (int)delta : 4;  // cap catch-up bursts
+                SoundId snd = weaponShootSound(st.players[i].weaponId);
                 for (int n = 0; n < plays; n++)
-                    audioPlayAt(SND_SHOOT, shown->players[i].pos, cam.eye, cam.front());
+                    audioPlayAt(snd, shown->players[i].pos, cam.eye, cam.front());
             }
         }
 

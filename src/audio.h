@@ -1,11 +1,13 @@
 #pragma once
+#include <cstdint>
 #include <glm/vec3.hpp>
 
 // Tiny procedural sound engine: SDL audio device + a fixed voice mixer.
 // All sounds are synthesized in code at init (no asset files). Client-only.
 
 enum SoundId {
-    SND_SHOOT = 0,
+    SND_SHOOT = 0,      // Uzi
+    SND_SHOOT_GLOCK,    // Glock 19
     SND_STEP,
     SND_DEATH,
     SND_RESPAWN,
@@ -13,6 +15,9 @@ enum SoundId {
     SND_DRYFIRE,
     SND_COUNT
 };
+
+// Map a weapon id (WeaponId in weapon.h) to its gunshot sound.
+SoundId weaponShootSound(uint8_t weaponId);
 
 struct Audio {
     bool init();       // open device, generate sound buffers; false if no audio

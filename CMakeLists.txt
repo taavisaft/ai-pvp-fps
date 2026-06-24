@@ -69,3 +69,8 @@ add_custom_command(TARGET game POST_BUILD
 add_custom_command(TARGET game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/maps $<TARGET_FILE_DIR:game>/maps)
+
+# Copy sound assets next to the binary (optional; synth fallback if absent)
+add_custom_command(TARGET game POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/sounds $<TARGET_FILE_DIR:game>/sounds)

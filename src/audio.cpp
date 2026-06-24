@@ -1,4 +1,5 @@
 #include "audio.h"
+#include "weapon.h"
 #include <SDL.h>
 #include <glm/geometric.hpp>
 #include <vector>
@@ -119,6 +120,37 @@ void genRespawn(std::vector<float>& b) {
     }
 }
 
+// --- WAV loading ----------------------------------------------------------
+
+// Load a WAV file and convert it to the mixer's format (mono float32 @ SR).
+// Returns false if the file is missing or the format can't be converted, so
+// callers can fall back to a synthesized buffer.
+bool loadWav(const char* path, std::vector<float>& out) {
+    SDL_AudioSpec spec{};
+    Uint8*        wav  = nullptr;
+    Uint32        wlen = 0;
+    if (!SDL_LoadWAV(path, &spec, &wav, &wlen)) return false;
+
+    SDL_AudioCVT cvt;
+    int r = SDL_BuildAudioCVT(&cvt, spec.format, spec.channels, spec.freq,
+                              AUDIO_F32SYS, 1, SR);
+    if (r < 0) { SDL_FreeWAV(wav); return false; }   // unsupported conversion
+
+    int mult = cvt.len_mult > 0 ? cvt.len_mult : 1;
+    std::vector<Uint8> buf((size_t)wlen * mult);
+    memcpy(buf.data(), wav, wlen);
+    SDL_FreeWAV(wav);
+
+    cvt.buf = buf.data();
+    cvt.len = (int)wlen;
+    if (SDL_ConvertAudio(&cvt) < 0) return false;
+
+    int n = cvt.len_cvt / (int)sizeof(float);
+    const float* f = (const float*)buf.data();
+    out.assign(f, f + n);
+    return true;
+}
+
 } // namespace
 
 bool Audio::init() {
@@ -135,7 +167,11 @@ bool Audio::init() {
         return false;
     }
 
-    genShoot(gSounds[SND_SHOOT]);
+    // Real recorded gunshots; fall back to the synth if an asset is missing.
+    if (!loadWav("sounds/weapons/uzi.wav", gSounds[SND_SHOOT]))
+        genShoot(gSounds[SND_SHOOT]);
+    if (!loadWav("sounds/weapons/glock.wav", gSounds[SND_SHOOT_GLOCK]))
+        genShoot(gSounds[SND_SHOOT_GLOCK]);
     genStep(gSounds[SND_STEP]);
     genDeath(gSounds[SND_DEATH]);
     genRespawn(gSounds[SND_RESPAWN]);
@@ -172,6 +208,10 @@ void audioPlay(SoundId id, float volume) {
     slot->vol    = volume;
     slot->active = true;
     SDL_UnlockAudioDevice(gDevice);
+}
+
+SoundId weaponShootSound(uint8_t weaponId) {
+    return weaponId == WEP_GLOCK19 ? SND_SHOOT_GLOCK : SND_SHOOT;
 }
 
 void audioPlayAt(SoundId id, const glm::vec3& sourcePos, const glm::vec3& listenerPos,
