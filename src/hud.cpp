@@ -184,11 +184,16 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
     else               snprintf(buf, sizeof(buf), "%d / %d", own.mag, own.reserve);
     r.drawText(buf, -0.33f, -0.96f, 0.04f, ammoCol, 0.9f);
 
-    const char* modeStr = lw.semiOnly                ? "SEMI"
-                        : hud.fireMode == FIRE_AUTO  ? "AUTO"
-                        : hud.fireMode == FIRE_BURST ? "BURST" : "SEMI";
     r.drawText(lw.name,  0.62f, -0.90f, 0.045f, {0.85f, 0.85f, 0.9f}, 0.9f);
-    r.drawText(modeStr,  0.78f, -0.96f, 0.04f,  {0.6f, 0.8f, 0.95f}, 0.85f);
+
+    // Fire mode shown only briefly after a change (B), centered low.
+    if (hud.fireModeTimer > 0.0f) {
+        const char* modeStr = hud.fireMode == FIRE_AUTO  ? "AUTO"
+                            : hud.fireMode == FIRE_BURST ? "BURST" : "SEMI";
+        float a = hud.fireModeTimer > 1.0f ? 1.0f : hud.fireModeTimer;  // fade last 1s
+        r.drawText(modeStr, -r.textWidth(modeStr, 0.05f) * 0.5f, -0.78f, 0.05f,
+                   {0.7f, 0.85f, 1.0f}, a);
+    }
 
     if (own.alive) {
         if (gWeaponId == WEP_UZI) {

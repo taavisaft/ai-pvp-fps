@@ -685,7 +685,10 @@ int main(int argc, char** argv) {
         // --- fire control: pick shots this frame by fire mode, gate on ammo ---
         const WeaponDef& lw = weaponDef(gWeaponId);   // local (selected) weapon
         if (lw.semiOnly) fireMode = FIRE_SEMI;        // pistols: semi only
-        else if (input.fireModeToggle) { fireMode = (fireMode + 1) % FIRE_MODE_COUNT; burstRemaining = 0; }
+        else if (input.fireModeToggle) {
+            fireMode = (fireMode + 1) % FIRE_MODE_COUNT; burstRemaining = 0;
+            hud.fireModeTimer = 2.0f;                 // flash the new mode, then fade
+        }
         hud.fireMode = fireMode;
 
         bool ownAliveF, ownReloadingF; int ownMagF;   // own weapon state for gating
@@ -839,6 +842,8 @@ int main(int argc, char** argv) {
         prevOwnHP = own.hp;
         hud.flashTimer -= dt;
         if (hud.flashTimer < 0.0f) hud.flashTimer = 0.0f;
+        hud.fireModeTimer -= dt;
+        if (hud.fireModeTimer < 0.0f) hud.fireModeTimer = 0.0f;
 
         // Hit marker: arm when our own hits-dealt counter advances, then keep the
         // world impact point projected to screen for the marker's lifetime. The
