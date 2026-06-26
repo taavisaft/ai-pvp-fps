@@ -419,7 +419,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
                         const Decal* decals, int decalCount, bool drawRange,
                         const ConnectPrompt& connectPrompt,
                         const float* walkPhase, const float* walkAmp,
-                        const float* adsAnim, bool showHitboxes, bool fullMap) {
+                        const float* adsAnim, bool showHitboxes, bool fullMap, bool showHud) {
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
 
     // Pass 1: scene depth from the sun, focused on the camera (near-field shadows).
@@ -459,7 +459,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         drawViewModel(r, cam, vm);
         r.shader.setInt(r.shader.locUseShadow, 1);
     }
-    drawHUD(r, gs, localID, hud, scoreboard, online, fullMap);
+    if (showHud) drawHUD(r, gs, localID, hud, scoreboard, online, fullMap);
     drawConnectPrompt(r, connectPrompt);
     r.endFrame();
 }
@@ -588,6 +588,7 @@ int main(int argc, char** argv) {
     bool      prevPosValid[MAX_PLAYERS] = {false};
     bool      showHitboxes = false;           // H: draw color-coded hit regions
     bool      fullMap      = false;           // M: full-screen map overlay
+    bool      showHud      = true;            // J: hide whole HUD for immersion
 
     auto closeConnectPrompt = [&]() {
         if (!connectPromptActive) return;
@@ -598,7 +599,7 @@ int main(int argc, char** argv) {
     };
 
     printf("controls: WASD move, mouse look, LMB shoot, Q/E lean, 1/2 or scroll weapon "
-           "(Uzi/Glock), C connect, F wireframe, H hitboxes, ESC quit\n");
+           "(Uzi/Glock), C connect, F wireframe, H hitboxes, J toggle HUD, ESC quit\n");
     printf("offline shooting range: fire at the wall to see your spread; G clears the marks\n");
 
     while (running) {
@@ -617,6 +618,7 @@ int main(int argc, char** argv) {
         if (input.wireframeToggle) renderer.toggleWireframe();
         if (input.hitboxToggle) showHitboxes = !showHitboxes;
         if (input.mapToggle) fullMap = !fullMap;
+        if (input.hudToggle) showHud = !showHud;
         if (input.clearRange) { decalCount = 0; decalHead = 0; }
 
         // Weapon select (1 = Uzi, 2 = Glock). Offline re-arms now; online the server
@@ -961,7 +963,7 @@ int main(int argc, char** argv) {
         hud.adsT = vm.adsT;
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
                     decals, decalCount, !online, connectPrompt, walkPhase, walkAmp,
-                    adsAnim, showHitboxes, fullMap);
+                    adsAnim, showHitboxes, fullMap, showHud);
 
         static int frameCount = 0;
         const char* shotPath = getenv("FPS_SHOT");

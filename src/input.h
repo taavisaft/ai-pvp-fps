@@ -17,6 +17,7 @@ struct FrameInput {
     int  weaponSelect     = -1;    // weapon id when 1/2 pressed this frame, else -1
     bool hitboxToggle     = false; // H pressed this frame (debug hitbox view)
     bool mapToggle        = false; // M pressed this frame (full-screen map)
+    bool hudToggle        = false; // J pressed this frame (hide/show whole HUD)
 };
 
 // Polls all pending SDL events. Updates camera look from mouse motion,

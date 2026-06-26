@@ -99,7 +99,9 @@ Without these variables (or on a LAN) there's effectively no delay, so behavior 
 | Tab (hold)   | Scoreboard                        |
 | G            | Clear range marks (offline)       |
 | C            | Connect — in-game server-IP prompt |
+| M            | Toggle full-screen map            |
+| J            | Toggle HUD on / off (immersion)   |
 | F            | Toggle wireframe                  |
 | ESC          | Quit                              |
 
-HP, ammo, and the current weapon show on screen, kills appear in the feed top-right, and holding Tab shows the scoreboard.
+HP, ammo, and the current weapon show on screen, kills appear in the feed top-right, and holding Tab shows the scoreboard. Press **J** to hide the entire HUD for a clean, immersive view; press again to restore it.

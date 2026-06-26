@@ -13,6 +13,7 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
     in.weaponSelect     = -1;
     in.hitboxToggle     = false;
     in.mapToggle        = false;
+    in.hudToggle        = false;
 
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
@@ -62,6 +63,7 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
             case SDLK_2:      in.weaponSelect    = WEP_GLOCK19; break;
             case SDLK_h:      in.hitboxToggle    = true;        break;
             case SDLK_m:      in.mapToggle       = true;        break;
+            case SDLK_j:      in.hudToggle       = true;        break;
             default: break;
             }
             break;
