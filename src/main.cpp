@@ -18,6 +18,7 @@
 #include "audio.h"
 #include "material.h"
 #include "connect_prompt.h"
+#include "lobby.h"
 #include "skeleton.h"
 #include "weapon_visual.h"
 
@@ -417,7 +418,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
                         const HudState& hud, bool scoreboard, bool online,
                         const ViewModel& vm,
                         const Decal* decals, int decalCount, bool drawRange,
-                        const ConnectPrompt& connectPrompt,
+                        const ConnectPrompt& connectPrompt, const Lobby& lobby,
                         const float* walkPhase, const float* walkAmp,
                         const float* adsAnim, bool showHitboxes, bool fullMap, bool showHud) {
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
@@ -460,7 +461,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         r.shader.setInt(r.shader.locUseShadow, 1);
     }
     if (showHud) drawHUD(r, gs, localID, hud, scoreboard, online, fullMap);
-    drawConnectPrompt(r, connectPrompt);
+    drawConnectPrompt(r, connectPrompt, lobby);
     r.endFrame();
 }
 
@@ -577,6 +578,7 @@ int main(int argc, char** argv) {
     bool wasOnline = false;
     ConnectPrompt connectPrompt;
     bool connectPromptActive = false;
+    Lobby lobby;   // server browser populated while connectPrompt is in PM_BROWSE
 
     // Per-remote-player walk animation state (client-side, cosmetic). Phase advances
     // with horizontal speed derived from the interpolated render positions.
@@ -593,6 +595,7 @@ int main(int argc, char** argv) {
     auto closeConnectPrompt = [&]() {
         if (!connectPromptActive) return;
         connectPrompt.close();
+        lobby.close();
         SDL_StopTextInput();
         SDL_SetRelativeMouseMode(SDL_TRUE);
         connectPromptActive = false;
@@ -647,15 +650,31 @@ int main(int argc, char** argv) {
             connectPromptActive = true;
         }
 
-        if (connectPrompt.open && input.connectSubmit) {
+        // PM_IP: Enter starts a lobby scan of the typed host and switches to the
+        // server browser. PM_BROWSE: arrows move the highlight, Enter joins the
+        // selected map server on its own port.
+        if (connectPrompt.open && connectPrompt.mode == PM_IP && input.connectSubmit) {
             const char* ip = connectPrompt.ip[0] ? connectPrompt.ip : DEFAULT_SERVER_IP;
-            closeConnectPrompt();
-            printf("connecting to %s...\n", ip);
-            if (!net.connect(ip))
-                printf("connect failed — offline practice mode\n");
+            printf("scanning %s for games...\n", ip);
+            lobby.start(ip);
+            connectPrompt.mode = PM_BROWSE;
+            connectPrompt.sel  = 0;
+        } else if (connectPrompt.open && connectPrompt.mode == PM_BROWSE) {
+            if (lobby.count > 0) {
+                if (input.promptUp)   connectPrompt.sel = (connectPrompt.sel - 1 + lobby.count) % lobby.count;
+                if (input.promptDown) connectPrompt.sel = (connectPrompt.sel + 1) % lobby.count;
+            }
+            if (input.connectSubmit && lobby.count > 0) {
+                const ServerEntry& e = lobby.entries[connectPrompt.sel];
+                uint16_t port = e.port;
+                closeConnectPrompt();
+                printf("connecting to %s:%u (%s)...\n", lobby.host, port, e.name);
+                if (!net.connect(lobby.host, port))
+                    printf("connect failed — offline practice mode\n");
+            }
         }
 
-
+        if (lobby.active) lobby.update(dt);
         net.update(dt);
 
         bool online  = net.connected && net.hasState;
@@ -967,7 +986,7 @@ int main(int argc, char** argv) {
         renderer.setTime(gameTime);
         hud.adsT = vm.adsT;
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
-                    decals, decalCount, !online, connectPrompt, walkPhase, walkAmp,
+                    decals, decalCount, !online, connectPrompt, lobby, walkPhase, walkAmp,
                     adsAnim, showHitboxes, fullMap, showHud);
 
         static int frameCount = 0;

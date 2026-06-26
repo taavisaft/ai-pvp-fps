@@ -53,7 +53,18 @@ FPS_MAP=field ./build/server
 ./build/game 127.0.0.1          # adopts whatever map the server runs
 ```
 
-Starting `./build/game` with no IP launches **training mode** — an offline practice arena with a shooting range and a respawning dummy. Press **C** in-game to bring up the server-IP prompt and connect to a match (default `127.0.0.1` pre-filled); you can switch servers any time without restarting.
+### Running several maps on one host
+
+Each server process serves one map. Run several side by side on distinct ports with
+`FPS_PORT` (default `7777`); the client lobby scans `7777`–`7784` on the host you enter:
+
+```bash
+FPS_PORT=7777 FPS_MAP=field     ./build/server
+FPS_PORT=7778 FPS_MAP=warehouse ./build/server
+FPS_PORT=7779 FPS_MAP=training  ./build/server
+```
+
+Starting `./build/game` with no IP launches **training mode** — an offline practice arena with a shooting range and a respawning dummy. Press **C** in-game to type a host address, then **Enter** to scan it for running games: a server browser lists every map found with its map name, player count, and ping. Use **Up/Down** to pick one and **Enter** to join (**Esc** cancels). You can switch servers any time without restarting.
 
 ### Testing netcode (lag, jitter, packet loss)
 
@@ -98,7 +109,7 @@ Without these variables (or on a LAN) there's effectively no delay, so behavior 
 | R            | Reload                            |
 | Tab (hold)   | Scoreboard                        |
 | G            | Clear range marks (offline)       |
-| C            | Connect — in-game server-IP prompt |
+| C            | Connect — host prompt, then server browser |
 | M            | Toggle full-screen map            |
 | J            | Toggle HUD on / off (immersion)   |
 | F            | Toggle wireframe                  |

@@ -21,7 +21,7 @@ void  clearQueues() { for (int i = 0; i < QN; i++) { outQ[i].used = false; inQ[i
 float frand01()     { return (float)rand() / (float)RAND_MAX; }
 }  // namespace
 
-bool ClientNet::connect(const char* ip) {
+bool ClientNet::connect(const char* ip, uint16_t port) {
     if (fd >= 0) disconnect();   // close any prior socket / session
     playerID   = -1;
     serverMap  = -1;
@@ -32,7 +32,7 @@ bool ClientNet::connect(const char* ip) {
     for (int i = 0; i < SNAP_HIST; i++) snapUsed[i] = false;
 
     if (!netOpen(fd)) return false;
-    if (!netResolve(ip, UDP_PORT, server)) {
+    if (!netResolve(ip, port, server)) {
         fprintf(stderr, "net: bad address %s\n", ip);
         closeSocket(fd);
         fd = -1;

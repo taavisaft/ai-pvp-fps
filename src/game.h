@@ -21,6 +21,7 @@ constexpr float GRAVITY        = 9.8f;   // m/s²
 constexpr int   NET_HZ         = 20;     // state sync rate
 constexpr int   PHYS_HZ        = 60;     // physics tick rate
 constexpr int   UDP_PORT       = 7777;
+constexpr int   LOBBY_SCAN_PORTS = 8;    // lobby probes UDP_PORT .. UDP_PORT+7
 
 constexpr float EYE_HEIGHT     = 1.7f;
 constexpr float CROUCH_EYE     = 1.0f;   // camera height while crouched

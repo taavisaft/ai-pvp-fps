@@ -33,6 +33,7 @@ set(CLIENT_SOURCES
     src/camera.cpp
     src/input.cpp
     src/network.cpp
+    src/lobby.cpp
     src/audio.cpp)
 
 add_executable(game ${CLIENT_SOURCES} ${SHARED_SOURCES})

@@ -10,10 +10,14 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
     in.fireModeToggle   = false;
     in.clearRange       = false;
     in.connectSubmit    = false;
+    in.promptUp         = false;
+    in.promptDown       = false;
     in.weaponSelect     = -1;
     in.hitboxToggle     = false;
     in.mapToggle        = false;
     in.hudToggle        = false;
+
+    float wheelAccum = 0.0f;   // summed scroll delta this frame (y, or x when Shift maps it)
 
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
@@ -37,6 +41,12 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
                     break;
                 case SDLK_BACKSPACE:
                     connectPrompt->backspace();
+                    break;
+                case SDLK_UP:
+                    in.promptUp = true;
+                    break;
+                case SDLK_DOWN:
+                    in.promptDown = true;
                     break;
                 default:
                     break;
@@ -70,11 +80,12 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
         case SDL_MOUSEMOTION:
             cam.addLook((float)e.motion.xrel, (float)e.motion.yrel);
             break;
-        case SDL_MOUSEWHEEL: {           // cycle weapons (wrap), up = next
-            if (e.wheel.y != 0) {
-                int dir = e.wheel.y > 0 ? 1 : -1;
-                in.weaponSelect = ((int)gWeaponId + dir + WEP_COUNT) % WEP_COUNT;
-            }
+        case SDL_MOUSEWHEEL: {
+            // Accumulate; cycle once per gesture below. macOS maps scroll to the X
+            // axis while Shift is held (sprint), so fall back to x when y is zero.
+            float d = e.wheel.y != 0 ? (float)e.wheel.y : (float)e.wheel.x;
+            if (e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) d = -d;
+            wheelAccum += d;
             break;
         }
         case SDL_MOUSEBUTTONDOWN:
@@ -84,6 +95,17 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
             break;
         }
     }
+
+    // Cycle weapon once when a scroll gesture starts. A trackpad/Magic-Mouse flick
+    // fires many wheel events with momentum; stepping per event would (with 2 guns)
+    // toggle an even number of times and net no change. Rising edge = one step/flick.
+    static bool wheelWasActive = false;
+    bool wheelActive = wheelAccum != 0.0f;
+    if (wheelActive && !wheelWasActive && in.weaponSelect < 0) {
+        int dir = wheelAccum > 0.0f ? 1 : -1;
+        in.weaponSelect = ((int)gWeaponId + dir + WEP_COUNT) % WEP_COUNT;
+    }
+    wheelWasActive = wheelActive;
 
     if (connectPrompt && connectPrompt->open) {
         in.state = InputState{};

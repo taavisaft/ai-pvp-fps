@@ -4,6 +4,7 @@
 #include "protocol.h"
 
 struct ConnectPrompt;
+struct Lobby;
 
 // Rolling kill-feed derived from kills/deaths counter deltas between
 // consecutive StatePackets (the protocol carries no explicit kill events).
@@ -38,4 +39,4 @@ struct HudState {
 
 void drawHUD(Renderer& r, const GameState& gs, int localID,
              const HudState& hud, bool scoreboard, bool online, bool fullMap);
-void drawConnectPrompt(Renderer& r, const ConnectPrompt& prompt);
+void drawConnectPrompt(Renderer& r, const ConnectPrompt& prompt, const Lobby& lobby);

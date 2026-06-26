@@ -31,6 +31,11 @@ static GameState  game;
 static ClientSlot clients[MAX_PLAYERS];
 static bool       prevAlive[MAX_PLAYERS];
 
+// Human-readable map name, shared by the startup log and the lobby PKT_INFO reply.
+static const char* mapLabel(MapId id) {
+    return id == MAP_FIELD ? "FIELD" : id == MAP_WAREHOUSE ? "WAREHOUSE" : "TRAINING";
+}
+
 // --- Lag compensation: rewind player hitboxes to the shooter's view-time ---
 constexpr int   HISTORY_TICKS   = 90;    // 1.5 s of position history at 60 Hz
 constexpr float HISTORY_SECONDS = 1.4f;  // max rewind, kept under the buffer
@@ -220,6 +225,17 @@ static void handlePackets(int fd) {
             c.shotSeq     = p.shotSeq;  // packet is seq-gated newest, so monotonic
             c.viewSeq     = p.viewSeq;  // for lag-compensating this client's shots
             c.viewFrac    = p.viewFrac;
+        } else if (type == PKT_QUERY) {
+            // Stateless lobby probe: report map + population without joining.
+            int online = 0;
+            for (int i = 0; i < MAX_PLAYERS; i++) online += clients[i].used;
+            InfoPacket info{};
+            info.type       = PKT_INFO;
+            info.mapId      = (uint8_t)gMapId;
+            info.players    = (uint8_t)online;
+            info.maxPlayers = (uint8_t)MAX_PLAYERS;
+            snprintf(info.name, sizeof(info.name), "%s", mapLabel(gMapId));
+            netSend(fd, &info, sizeof(info), from);
         } else if (type == PKT_BYE && id >= 0) {
             dropClient(id);
         }
@@ -354,16 +370,21 @@ int main() {
     setMap(mapSel);
     // Same designed heightmap the clients load — authoritative collision must match.
     if (mapSel == MAP_FIELD) loadHeightmap("maps/field/height.png", 35.0f, FIELD_HALF);
-    const char* mapName = mapSel == MAP_FIELD ? "field"
-                        : mapSel == MAP_WAREHOUSE ? "warehouse" : "training";
-    printf("server: map = %s\n", mapName);
+    printf("server: map = %s\n", mapLabel(mapSel));
+    // FPS_PORT lets several map servers share one host on distinct ports; the client
+    // lobby probe scans the range starting at UDP_PORT. Defaults to UDP_PORT.
+    uint16_t port = UDP_PORT;
+    if (const char* portEnv = getenv("FPS_PORT")) {
+        int p = atoi(portEnv);
+        if (p > 0 && p < 65536) port = (uint16_t)p;
+    }
     platformSocketInit();
     int fd = -1;
-    if (!netOpen(fd) || !netBind(fd, UDP_PORT)) {
-        fprintf(stderr, "server: cannot bind UDP %d\n", UDP_PORT);
+    if (!netOpen(fd) || !netBind(fd, port)) {
+        fprintf(stderr, "server: cannot bind UDP %d\n", port);
         return 1;
     }
-    printf("server: listening on UDP %d (max %d players)\n", UDP_PORT, MAX_PLAYERS);
+    printf("server: listening on UDP %d (max %d players)\n", port, MAX_PLAYERS);
 
     const float DT = 1.0f / PHYS_HZ;
     const int   TICKS_PER_STATE = PHYS_HZ / NET_HZ;  // 3

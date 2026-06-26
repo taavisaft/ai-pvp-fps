@@ -9,6 +9,8 @@ enum PacketType : uint8_t {
     PKT_STATE  = 4,   // server → client: full authoritative state
     PKT_BYE    = 6,   // either direction: clean disconnect
     PKT_IMPACT = 7,   // server → client: bullet world-impact decals (cosmetic, unreliable)
+    PKT_QUERY  = 8,   // client → server: lobby probe (stateless, takes no slot)
+    PKT_INFO   = 9,   // server → client: map id + population, reply to PKT_QUERY
 };
 
 // Bullet impacts on world geometry (ground/cover), batched so clients can stamp a
@@ -79,6 +81,18 @@ struct StatePacket {
 };
 
 struct ByePacket { PacketType type; };
+
+// Lobby discovery: client broadcasts PKT_QUERY to a range of ports on a host; each
+// running map-server answers PKT_INFO. Stateless — no slot is reserved, so a probe
+// never disturbs a live match. Lets the connection screen list every game on a box.
+struct QueryPacket { PacketType type; };   // PKT_QUERY
+struct InfoPacket {
+    PacketType type;        // PKT_INFO
+    uint8_t    mapId;       // MapId the server runs
+    uint8_t    players;     // currently occupied slots
+    uint8_t    maxPlayers;  // MAX_PLAYERS
+    char       name[16];    // map label, null-terminated ("FIELD", "WAREHOUSE", ...)
+};
 
 struct ImpactNetState { float x, y, z; uint8_t dir; };  // dir = ImpactDir
 

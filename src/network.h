@@ -40,7 +40,7 @@ struct ClientNet {
     float       lossFrac   = 0.0f;  // FPS_LOSS   packet drop chance,   debug (0..1)
     float       clock      = 0.0f;  // advanced by update(dt) for delay scheduling
 
-    bool connect(const char* ip);          // open socket, start HELLO retries
+    bool connect(const char* ip, uint16_t port = UDP_PORT);  // open socket, start HELLO retries
     void update(float dt);                 // drain socket, handshake, track states
     // viewSeq/viewFrac: the playout seq + fraction (*255) the client is rendering
     // when this input is sent, so the server can lag-compensate shots.
