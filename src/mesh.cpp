@@ -3,7 +3,7 @@
 #include <vector>
 
 bool Mesh::create(const float* verts, size_t floatCount,
-                  const unsigned* indices, size_t idxCount, bool withNormals) {
+                  const unsigned* indices, size_t idxCount, bool withNormals, bool withUV) {
     glGenVertexArrays(1, &vao);
     glGenBuffers(1, &vbo);
     glGenBuffers(1, &ebo);
@@ -15,12 +15,18 @@ bool Mesh::create(const float* verts, size_t floatCount,
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, idxCount * sizeof(unsigned), indices, GL_STATIC_DRAW);
 
-    GLsizei stride = (withNormals ? 6 : 3) * sizeof(float);
+    // withUV implies pos+normal+uv (stride 8); withNormals = pos+normal (6); else pos (3).
+    int comps = withUV ? 8 : (withNormals ? 6 : 3);
+    GLsizei stride = comps * sizeof(float);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
-    if (withNormals) {
+    if (withNormals || withUV) {
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+    }
+    if (withUV) {
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)(6 * sizeof(float)));
     }
 
     glBindVertexArray(0);

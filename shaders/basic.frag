@@ -1,8 +1,10 @@
 #version 330 core
 in vec3 worldPos;
 in vec3 vNormal;
+in vec2 vUV;
 in vec4 lightSpacePos;
 uniform vec3 color;
+uniform int  useFacade;   // 1 = sample diffuseMap by vUV (building facade), no triplanar
 uniform int  hasNormal;   // 1 = use supplied vertex normal (terrain), 0 = derivative
 uniform float alpha;
 uniform int lit;        // 1 = world pass (lighting/grid/fog), 0 = HUD
@@ -147,7 +149,9 @@ vec3 splatTerrain(vec3 p, vec3 an) {
 
 void main() {
     vec3 c = color;
-    if (lit == 1 && splat == 1) {
+    if (lit == 1 && useFacade == 1) {
+        c = texture(diffuseMap, vUV).rgb * tint;   // UV-tiled building facade
+    } else if (lit == 1 && splat == 1) {
         c = splatTerrain(worldPos, axisBlend(worldPos));
     } else if (lit == 1 && grass == 1) {
         c = grassColor(worldPos.xz, time);

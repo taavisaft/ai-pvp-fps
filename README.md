@@ -7,7 +7,7 @@ Up to 16 players drop in and out of a dedicated server and fight across a walled
 
 Two weapons — a 9mm **Uzi** SMG and a **Glock 19** pistol — fire real projectiles with true muzzle velocity (~375–400 m/s), bullet drop, air drag, and distance damage falloff. Collision is swept per bullet, so fast rounds stop dead on cover instead of tunnelling through it. Recoil is sticky: the gun climbs as you spray and stays where it ended — you pull it back down yourself. Switch weapons with the number keys or the scroll wheel — each gun keeps its own magazine and reserve, so swapping isn't a free reload. The mag reloads automatically when it runs dry, or reload early with R. Lean around cover with Q/E to peek without exposing your body.
 
-Launching the client alone drops you into an offline **training** arena (practice range + dummy); connect to a server and you spawn into the **warehouse** match map — or a 1 km² open **field** map with procedurally generated rolling terrain and scattered cover when the server runs `FPS_MAP=field`.
+Launching the client alone drops you into an offline **training** arena (practice range + dummy); connect to a server and you spawn into the **warehouse** match map — or a 1 km² open **field** map with procedurally generated rolling terrain (`FPS_MAP=field`), or a 300×300 m **city** of streets and enterable buildings (`FPS_MAP=city`). The city is generated from a deterministic block grid that runs identically on the server and every client, so it needs no assets and nothing to sync — buildings are open-top wall shells with a doorway you fight through and interior cover.
 
 ![screenshot](screenshot.png)
 
@@ -61,8 +61,10 @@ Each server process serves one map. Run several side by side on distinct ports w
 ```bash
 FPS_PORT=7777 FPS_MAP=field     ./build/server
 FPS_PORT=7778 FPS_MAP=warehouse ./build/server
-FPS_PORT=7779 FPS_MAP=training  ./build/server
+FPS_PORT=7779 FPS_MAP=city      ./build/server
 ```
+
+Valid `FPS_MAP` values: `field` (default), `warehouse`, `training`, `city`.
 
 Starting `./build/game` with no IP launches **training mode** — an offline practice arena with a shooting range and a respawning dummy. Press **C** in-game to type a host address, then **Enter** to scan it for running games: a server browser lists every map found with its map name, player count, and ping. Use **Up/Down** to pick one and **Enter** to join (**Esc** cancels). You can switch servers any time without restarting.
 

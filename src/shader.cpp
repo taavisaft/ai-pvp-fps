@@ -69,6 +69,7 @@ bool Shader::load(const char* vertPath, const char* fragPath) {
     locEye   = glGetUniformLocation(program, "eyePos");
     locDiffuse = glGetUniformLocation(program, "diffuseMap");
     locUseTex  = glGetUniformLocation(program, "useTexture");
+    locUseFacade = glGetUniformLocation(program, "useFacade");
     locTile    = glGetUniformLocation(program, "tileSize");
     locSpec    = glGetUniformLocation(program, "specular");
     locTint    = glGetUniformLocation(program, "tint");

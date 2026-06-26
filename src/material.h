@@ -47,13 +47,18 @@ inline const MaterialId WAREHOUSE_MAT[WAREHOUSE_BOX_COUNT] = {
     MAT_METAL, MAT_METAL,                                   // pipe stacks
 };
 
-// Material array for the active map (parallel to gMapBoxes).
-inline const MaterialId* activeMapMat() {
-    return gMapId == MAP_WAREHOUSE ? WAREHOUSE_MAT : TRAINING_MAT;
+// CITY boxes carry a BoxSurface tag (generated); map it to a renderer material.
+inline MaterialId citySurfaceMat(uint8_t surf) {
+    switch (surf) {
+        case SURF_METAL: return MAT_METAL;
+        case SURF_WOOD:  return MAT_WOOD;
+        default:         return MAT_CONCRETE;
+    }
 }
 
 // Material for box i of the active map. (FIELD has no boxes, so it's never asked.)
 inline MaterialId mapBoxMaterial(int i) {
+    if (gMapId == MAP_CITY)      return citySurfaceMat(gCitySurf[i]);
     if (gMapId == MAP_WAREHOUSE) return WAREHOUSE_MAT[i];
     return TRAINING_MAT[i];
 }

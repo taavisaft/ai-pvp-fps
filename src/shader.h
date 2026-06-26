@@ -13,6 +13,7 @@ struct Shader {
     GLint  locEye   = -1;
     GLint  locDiffuse = -1;
     GLint  locUseTex  = -1;
+    GLint  locUseFacade = -1;  // basic program; 1 = UV facade sampling (buildings)
     GLint  locTile    = -1;
     GLint  locSpec    = -1;
     GLint  locTint    = -1;

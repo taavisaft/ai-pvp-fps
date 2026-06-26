@@ -126,6 +126,7 @@ void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const gl
     shader.setInt(shader.locLit, 1);
     shader.setVec3(shader.locEye, eye);
     shader.setInt(shader.locDiffuse, 0);
+    shader.setInt(shader.locUseFacade, 0);   // facade UV sampling off except for buildings
     shader.setFloat(shader.locTime, frameTime);
     shader.setInt(shader.locGrass, 0);
     shader.setVec3(shader.locSunDir, sunDir);
@@ -342,7 +343,13 @@ void Renderer::drawGround() {
 
 void Renderer::drawGround(MaterialId mat) {
     bindMaterial(*active, materials, mat);
-    active->setMat4(active->locModel, glm::mat4(1.0f));
+    // The base quad is 100x100 (+/-50). The city spans +/-150, so scale the ground to
+    // cover it (grass/triplanar sample by worldPos, so the look is unchanged).
+    glm::mat4 model(1.0f);
+    if (gMapId == MAP_CITY)
+        model = glm::scale(model, glm::vec3((CITY_HALF + 15.0f) / 50.0f, 1.0f,
+                                            (CITY_HALF + 15.0f) / 50.0f));
+    active->setMat4(active->locModel, model);
     active->setVec3(active->locColor, glm::vec3(1.0f));
     // Use the procedural grass shader only when no ground image is loaded; otherwise
     // the triplanar path samples the grass photo (textures/ground.*).
@@ -370,6 +377,48 @@ void Renderer::drawTerrain() {
     active->setInt(active->locHasNormal, 0);
     active->setInt(active->locGrass, 0);
     active->setInt(active->locSplat, 0);
+}
+
+void Renderer::buildCityMeshes() {
+    for (auto& d : cityDraws) d.wall.destroy();
+    cityDraws.clear();
+    if (!facadeTex) facadeTex = makeFacadeTexture();
+    for (int i = 0; i < gCityBuildingCount; i++) {
+        const CityBuilding& b = gCityBuildings[i];
+        CityDraw d;
+        if (!buildFacadeMesh(d.wall, b)) continue;
+        d.center    = b.center;
+        // Concrete parapet cap: a thin slab overhanging the walls at roof height.
+        d.capCenter = {b.center.x, b.h + 0.15f, b.center.z};
+        d.capScale  = {b.w + 0.5f, 0.3f, b.d + 0.5f};
+        cityDraws.push_back(std::move(d));
+    }
+    cityBuilt = true;
+}
+
+void Renderer::drawCityWorld() {
+    if (gMapId != MAP_CITY) return;
+    if (!cityBuilt) buildCityMeshes();
+    glActiveTexture(GL_TEXTURE0);
+    for (const auto& d : cityDraws) {
+        // Facade walls: UV-sampled texture (basic program; the facade uniforms are -1
+        // on the depth program, so this also draws plain depth in the shadow pass).
+        glm::mat4 model = glm::translate(glm::mat4(1.0f), d.center);
+        glBindTexture(GL_TEXTURE_2D, facadeTex);
+        active->setInt(active->locDiffuse, 0);
+        active->setInt(active->locUseFacade, 1);
+        active->setInt(active->locUseTex, 0);
+        active->setInt(active->locHasNormal, 1);
+        active->setFloat(active->locSpec, 0.0f);
+        active->setVec3(active->locTint, glm::vec3(1.0f));
+        active->setVec3(active->locColor, glm::vec3(1.0f));
+        active->setMat4(active->locModel, model);
+        d.wall.draw();
+        active->setInt(active->locUseFacade, 0);
+        active->setInt(active->locHasNormal, 0);
+        // Roof cap (plain concrete cube).
+        drawCube(d.capCenter, d.capScale, MAT_CONCRETE);
+    }
 }
 
 void Renderer::drawFoliage(const glm::mat4& view, const glm::mat4& proj,
@@ -413,6 +462,9 @@ void Renderer::shutdown() {
     depthShader.destroy();
     texShader.destroy();
     for (int i = 0; i < 3; i++) if (mapTex[i]) glDeleteTextures(1, &mapTex[i]);
+    for (auto& d : cityDraws) d.wall.destroy();
+    cityDraws.clear();
+    if (facadeTex) glDeleteTextures(1, &facadeTex);
     if (shadowTex) glDeleteTextures(1, &shadowTex);
     if (shadowFBO) glDeleteFramebuffers(1, &shadowFBO);
     if (glContext) SDL_GL_DeleteContext(glContext);

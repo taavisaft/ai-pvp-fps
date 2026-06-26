@@ -33,7 +33,10 @@ static bool       prevAlive[MAX_PLAYERS];
 
 // Human-readable map name, shared by the startup log and the lobby PKT_INFO reply.
 static const char* mapLabel(MapId id) {
-    return id == MAP_FIELD ? "FIELD" : id == MAP_WAREHOUSE ? "WAREHOUSE" : "TRAINING";
+    return id == MAP_FIELD     ? "FIELD"
+         : id == MAP_WAREHOUSE ? "WAREHOUSE"
+         : id == MAP_CITY      ? "CITY"
+         :                       "TRAINING";
 }
 
 // --- Lag compensation: rewind player hitboxes to the shooter's view-time ---
@@ -141,6 +144,9 @@ static bool rewindLookup(const void* ctx, int pid, float rewindSec,
 // Spawn points on a circle, facing the center. Random point per respawn
 // so deaths don't return you to a campable fixed spot.
 static glm::vec3 spawnPos(int point) {
+    // City: spread across generated street intersections / plazas (already on y=0).
+    if (gMapId == MAP_CITY && gCitySpawnCount > 0)
+        return gCitySpawns[point % gCitySpawnCount];
     float a = glm::radians(point * (360.0f / MAX_PLAYERS));
     // radius 12 keeps every point clear of the warehouse perimeter walls (+/-15 Z);
     // the open field spreads players across the 100 m square (clamp at +/-50).
@@ -149,6 +155,10 @@ static glm::vec3 spawnPos(int point) {
     return {x, terrainHeight(x, z), z};   // sit on the ground (terrain or y=0)
 }
 static float spawnYaw(int point) {
+    if (gMapId == MAP_CITY && gCitySpawnCount > 0) {
+        glm::vec3 p = gCitySpawns[point % gCitySpawnCount];   // face the city center
+        return glm::degrees(atan2f(-p.z, -p.x));
+    }
     return point * (360.0f / MAX_PLAYERS) + 180.0f;  // look toward center
 }
 
@@ -367,6 +377,7 @@ int main() {
     MapId mapSel = MAP_FIELD;
     if (mapEnv && strcmp(mapEnv, "warehouse") == 0) mapSel = MAP_WAREHOUSE;
     else if (mapEnv && strcmp(mapEnv, "training") == 0) mapSel = MAP_TRAINING;
+    else if (mapEnv && strcmp(mapEnv, "city") == 0) mapSel = MAP_CITY;
     setMap(mapSel);
     // Same designed heightmap the clients load — authoritative collision must match.
     if (mapSel == MAP_FIELD) loadHeightmap("maps/field/height.png", 35.0f, FIELD_HALF);

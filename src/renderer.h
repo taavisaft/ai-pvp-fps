@@ -1,11 +1,13 @@
 #pragma once
 #include <SDL.h>
+#include <vector>
 #include <glm/glm.hpp>
 #include "shader.h"
 #include "mesh.h"
 #include "font.h"
 #include "material.h"
 #include "foliage.h"
+#include "building.h"
 
 struct Box;  // map.h; for the satellite map-texture bake
 
@@ -48,6 +50,13 @@ struct Renderer {
     MaterialLib materials;
     Foliage foliage; // instanced trees (MAP_FIELD only)
 
+    // City facade buildings (MAP_CITY): one textured wall mesh + concrete roof cap per
+    // building, built once from gCityBuildings on the first city frame.
+    struct CityDraw { Mesh wall; glm::vec3 center, capCenter, capScale; };
+    std::vector<CityDraw> cityDraws;
+    GLuint facadeTex = 0;
+    bool   cityBuilt = false;
+
     bool  init(const char* title, int w, int h);
     float aspect() const;
     void  setTime(float t) { frameTime = t; }
@@ -65,6 +74,10 @@ struct Renderer {
     void  drawGround();
     void  drawGround(MaterialId mat);
     void  drawTerrain();   // heightfield ground for MAP_FIELD
+    // City facade buildings: lazy-builds meshes on first call, draws walls (UV facade)
+    // + roof caps via the active program, so it works in both the shadow and lit pass.
+    void  drawCityWorld();
+    void  buildCityMeshes();
     // Instanced tree field; scatters lazily on first field-map frame, culls per frame.
     void  drawFoliage(const glm::mat4& view, const glm::mat4& proj,
                       const glm::vec3& eye, float time);

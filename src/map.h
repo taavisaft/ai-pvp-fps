@@ -1,6 +1,7 @@
 #pragma once
 #include <glm/glm.hpp>
 #include <cmath>
+#include <cstdint>
 #include "terrain.h"
 
 // Static arena geometry, shared by server (collision) and client (collision + render).
@@ -17,7 +18,8 @@ struct Box {
     glm::vec3 half;
 };
 
-enum MapId { MAP_TRAINING = 0, MAP_WAREHOUSE = 1, MAP_FIELD = 2 };
+enum MapId { MAP_TRAINING = 0, MAP_WAREHOUSE = 1, MAP_FIELD = 2, MAP_CITY = 3 };
+constexpr int MAP_COUNT = 4;
 
 // --- TRAINING: the original symmetric arena -------------------------------
 inline const Box TRAINING_BOXES[] = {
@@ -82,6 +84,93 @@ inline constexpr float FIELD_HALF = 50.0f;  // 100 m across
 
 inline constexpr float ARENA_HALF = 45.0f;  // default hard clamp on X/Z (walls seal sooner)
 
+// --- CITY: 300x300 m generated block grid (tier B: open-top wall shells) -----
+// Deterministic generator runs identically on server + every client (pure int hash,
+// no rand), so the city needs no asset load and nothing to sync. Buildings are
+// four thin walls with a door gap on one side plus a little interior cover; flat
+// ground, open tops (upper floors/roofs need step-up collision, not built yet).
+inline constexpr float CITY_HALF  = 150.0f;  // 300 m across, clamp at +/-150
+inline constexpr int   CITY_CELLS = 6;       // grid is CITY_CELLS x CITY_CELLS blocks
+inline constexpr float CITY_CELL  = (2.0f * CITY_HALF) / CITY_CELLS;  // 50 m per block
+inline constexpr int   MAX_CITY_BOXES = 1024;
+
+// Per-box surface tag (decoupled from the renderer's MaterialId; material.h maps it).
+enum BoxSurface : uint8_t { SURF_CONCRETE = 0, SURF_METAL, SURF_WOOD };
+
+inline Box     gCityBoxes[MAX_CITY_BOXES];
+inline uint8_t gCitySurf [MAX_CITY_BOXES];
+inline int     gCityBoxCount = 0;
+inline glm::vec3 gCitySpawns[64];
+inline int       gCitySpawnCount = 0;
+
+// Per-building metadata (client builds a textured facade mesh from this; the server
+// ignores it and just uses the matching solid collision box). One box == one building.
+struct CityBuilding {
+    glm::vec3 center;        // footprint center, y = 0 (ground)
+    float     w, d, h;       // full width (X), depth (Z), height (Y)
+    int       baysX, baysZ;  // facade window columns per axis (texture tiles)
+    int       floors;        // facade window rows (texture tiles vertically)
+};
+inline CityBuilding gCityBuildings[64];
+inline int          gCityBuildingCount = 0;
+
+inline uint32_t cityHash(int x, int z, uint32_t salt) {
+    uint32_t h = (uint32_t)(x * 73856093) ^ (uint32_t)(z * 19349663) ^ (salt * 83492791u);
+    h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
+    return h;
+}
+inline float cityRand(int x, int z, uint32_t salt) {  // 0..1
+    return (cityHash(x, z, salt) & 0xffffu) / 65535.0f;
+}
+
+inline void cityPush(const Box& b, uint8_t surf) {
+    if (gCityBoxCount >= MAX_CITY_BOXES) return;
+    gCityBoxes[gCityBoxCount] = b;
+    gCitySurf [gCityBoxCount] = surf;
+    gCityBoxCount++;
+}
+
+inline void generateCity() {
+    gCityBoxCount      = 0;
+    gCitySpawnCount    = 0;
+    gCityBuildingCount = 0;
+    const float FLOOR_M = 3.0f;   // meters per storey (facade window row)
+    const float BAY_M   = 3.4f;   // meters per window column
+    for (int cx = 0; cx < CITY_CELLS; cx++)
+    for (int cz = 0; cz < CITY_CELLS; cz++) {
+        float ccx = -CITY_HALF + CITY_CELL * (cx + 0.5f);
+        float ccz = -CITY_HALF + CITY_CELL * (cz + 0.5f);
+        // ~1 in 5 cells is an open plaza: sightlines + spawn room.
+        if (cityHash(cx, cz, 7) % 5 == 0) {
+            if (gCitySpawnCount < 64) gCitySpawns[gCitySpawnCount++] = {ccx, 0.0f, ccz};
+            continue;
+        }
+        // Rectangular footprint: independent X/Z setback so blocks aren't all square.
+        float mx = 7.0f + cityRand(cx, cz, 1) * 5.0f;       // street setback X (7..12 m)
+        float mz = 7.0f + cityRand(cx, cz, 8) * 5.0f;       // street setback Z
+        float hwx = CITY_CELL * 0.5f - mx;                  // half width  (X)
+        float hwz = CITY_CELL * 0.5f - mz;                  // half depth  (Z)
+        int   floors = 3 + (int)(cityHash(cx, cz, 2) % 5);  // 3..7 storeys
+        float h  = floors * FLOOR_M;
+        // Solid collision box (one per building); the facade mesh skins it client-side.
+        cityPush({{ccx, h * 0.5f, ccz}, {hwx, h * 0.5f, hwz}}, SURF_CONCRETE);
+        if (gCityBuildingCount < 64) {
+            CityBuilding b;
+            b.center = {ccx, 0.0f, ccz};
+            b.w = 2 * hwx; b.d = 2 * hwz; b.h = h;
+            b.baysX  = (int)fmaxf(2.0f, roundf(b.w / BAY_M));
+            b.baysZ  = (int)fmaxf(2.0f, roundf(b.d / BAY_M));
+            b.floors = floors;
+            gCityBuildings[gCityBuildingCount++] = b;
+        }
+    }
+    // Spawns at interior street intersections (always clear of footprints).
+    for (int ix = 1; ix < CITY_CELLS && gCitySpawnCount < 64; ix++)
+    for (int iz = 1; iz < CITY_CELLS && gCitySpawnCount < 64; iz++)
+        gCitySpawns[gCitySpawnCount++] = {-CITY_HALF + CITY_CELL * ix, 0.0f,
+                                          -CITY_HALF + CITY_CELL * iz};
+}
+
 // --- active map (runtime-selected; default training) ----------------------
 inline const Box* gMapBoxes    = TRAINING_BOXES;
 inline int        gMapBoxCount = TRAINING_BOX_COUNT;
@@ -113,6 +202,9 @@ inline void setMap(MapId id) {
         gMapBoxes = WAREHOUSE_BOXES; gMapBoxCount = WAREHOUSE_BOX_COUNT; gArenaHalf = 45.0f;
     } else if (id == MAP_FIELD) {
         gMapBoxes = nullptr;         gMapBoxCount = 0;                   gArenaHalf = FIELD_HALF;
+    } else if (id == MAP_CITY) {
+        generateCity();
+        gMapBoxes = gCityBoxes;      gMapBoxCount = gCityBoxCount;       gArenaHalf = CITY_HALF;
     } else {
         gMapBoxes = TRAINING_BOXES;  gMapBoxCount = TRAINING_BOX_COUNT;  gArenaHalf = 45.0f;
     }

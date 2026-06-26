@@ -6,10 +6,12 @@ struct Mesh {
     GLuint  vao = 0, vbo = 0, ebo = 0;
     GLsizei indexCount = 0;
 
-    // verts: xyz triples (or xyz+normal 6-tuples if withNormals), floatCount = total
-    // floats. withNormals enables attrib 1 (normal) with a stride-6 layout.
+    // verts: xyz triples (or xyz+normal 6-tuples if withNormals, or xyz+normal+uv
+    // 8-tuples if withUV). floatCount = total floats. withNormals enables attrib 1
+    // (normal); withUV additionally enables attrib 2 (uv) with a stride-8 layout.
     bool create(const float* verts, size_t floatCount,
-                const unsigned* indices, size_t idxCount, bool withNormals = false);
+                const unsigned* indices, size_t idxCount,
+                bool withNormals = false, bool withUV = false);
     void draw() const;
     void destroy();
 };

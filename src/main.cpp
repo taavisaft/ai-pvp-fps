@@ -378,9 +378,13 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
                               const float* adsAnim, bool showHitboxes) {
     if (gMapId == MAP_FIELD) r.drawTerrain(); else r.drawGround();
 
-    for (int i = 0; i < gMapBoxCount; i++) {
-        const Box& b = gMapBoxes[i];
-        r.drawCube(b.center, b.half * 2.0f, mapBoxMaterial(i));
+    if (gMapId == MAP_CITY) {
+        r.drawCityWorld();   // buildings = textured facade meshes (collision is the box)
+    } else {
+        for (int i = 0; i < gMapBoxCount; i++) {
+            const Box& b = gMapBoxes[i];
+            r.drawCube(b.center, b.half * 2.0f, mapBoxMaterial(i));
+        }
     }
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (i == localID) continue;
@@ -684,8 +688,8 @@ int main(int argc, char** argv) {
         if (online && !wasOnline) {   // reset offline→online client state
             // Adopt whatever map the server advertised in its ACCEPT (falls back to
             // warehouse if somehow unset), so the client always matches the server.
-            MapId srv = (net.serverMap >= 0 && net.serverMap < 3) ? (MapId)net.serverMap
-                                                                  : MAP_WAREHOUSE;
+            MapId srv = (net.serverMap >= 0 && net.serverMap < MAP_COUNT) ? (MapId)net.serverMap
+                                                                          : MAP_WAREHOUSE;
             setMap(srv);
             prevOwnHP       = PLAYER_HP;
             prevOwnHits     = 0;
