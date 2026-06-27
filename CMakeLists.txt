@@ -29,6 +29,7 @@ set(CLIENT_SOURCES
     src/material.cpp
     src/foliage.cpp
     src/building.cpp
+    src/props.cpp
     src/renderer.cpp
     src/hud.cpp
     src/camera.cpp

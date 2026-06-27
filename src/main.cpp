@@ -375,14 +375,16 @@ static void drawMirror(Renderer& r, const Camera& cam, const GameState& gs, int 
 // cosmetic ground blobs / aim cross, which are added in the main pass only).
 static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
                               const float* walkPhase, const float* walkAmp,
-                              const float* adsAnim, bool showHitboxes) {
+                              const float* adsAnim, bool showHitboxes,
+                              const Frustum& fr, const glm::vec3& eye) {
     if (gMapId == MAP_FIELD) r.drawTerrain(); else r.drawGround();
 
     if (gMapId == MAP_CITY) {
-        r.drawCityWorld();   // buildings = textured facade meshes (collision is the box)
+        r.drawCityWorld(fr, eye);  // facade near, concrete box far (collision is the box)
     } else {
         for (int i = 0; i < gMapBoxCount; i++) {
             const Box& b = gMapBoxes[i];
+            if (!fr.aabbVisible(b.center, b.half)) continue;
             r.drawCube(b.center, b.half * 2.0f, mapBoxMaterial(i));
         }
     }
@@ -429,15 +431,19 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
 
     // Pass 1: scene depth from the sun, focused on the camera (near-field shadows).
     r.beginShadowPass(cam.eye);
-    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, showHitboxes);
+    Frustum sunFr = Frustum::fromVP(r.lightSpace);
+    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, showHitboxes, sunFr, cam.eye);
     r.drawFoliageDepth(r.frameTime);   // trees cast shadows
+    r.drawPropsDepth();                // city props cast shadows
     r.endShadowPass();
 
     // Pass 2: lit main view, sampling the shadow map built above.
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
     r.drawSky(cam.view(), cam.proj(r.aspect()));
-    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, showHitboxes);
+    Frustum camFr = Frustum::fromVP(cam.proj(r.aspect()) * cam.view());
+    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, showHitboxes, camFr, cam.eye);
     r.drawFoliage(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);  // instanced trees (field)
+    r.drawProps(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);    // instanced props (city)
 
     if (drawRange) {
         // the wall itself is a training-map box (drawn by the map loop). Just the
@@ -595,6 +601,10 @@ int main(int argc, char** argv) {
     bool      showHitboxes = false;           // H: draw color-coded hit regions
     bool      fullMap      = false;           // M: full-screen map overlay
     bool      showHud      = true;            // J: hide whole HUD for immersion
+
+    // Debug: FPS_MAP=field|warehouse|training|city forces an offline map (same names
+    // the server uses) so any map can be inspected without a server. Online overrides it.
+    if (const char* mp = getenv("FPS_MAP")) setMap(mapFromName(mp, gMapId));
 
     auto closeConnectPrompt = [&]() {
         if (!connectPromptActive) return;

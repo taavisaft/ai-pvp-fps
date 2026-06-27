@@ -83,6 +83,7 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!font.init()) return false;
     if (!materials.init()) return false;
     if (!foliage.init()) return false;
+    if (!props.init()) return false;
 
     // Shadow map: a depth-only texture rendered from the sun each frame.
     glGenFramebuffers(1, &shadowFBO);
@@ -171,6 +172,7 @@ void Renderer::beginShadowPass(const glm::vec3& focus) {
     glm::mat4 lview = glm::lookAt(leye, focus, up);
     glm::mat4 lproj = glm::ortho(-R, R, -R, R, 1.0f, backDist + R + 50.0f);
     lightSpace = lproj * lview;
+    shadowFocus = focus;
 
     glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
     glViewport(0, 0, shadowSize, shadowSize);
@@ -391,16 +393,31 @@ void Renderer::buildCityMeshes() {
         // Concrete parapet cap: a thin slab overhanging the walls at roof height.
         d.capCenter = {b.center.x, b.h + 0.15f, b.center.z};
         d.capScale  = {b.w + 0.5f, 0.3f, b.d + 0.5f};
+        // Whole-building AABB (incl. cap) for per-frame frustum culling.
+        d.cullCenter = {b.center.x, b.h * 0.5f, b.center.z};
+        d.cullHalf   = {b.w * 0.5f + 0.25f, b.h * 0.5f + 0.3f, b.d * 0.5f + 0.25f};
         cityDraws.push_back(std::move(d));
     }
     cityBuilt = true;
 }
 
-void Renderer::drawCityWorld() {
+void Renderer::drawCityWorld(const Frustum& fr, const glm::vec3& eye) {
     if (gMapId != MAP_CITY) return;
     if (!cityBuilt) buildCityMeshes();
+    // LOD: beyond this distance a building drops its UV facade (texture + tangent
+    // normal map) and renders as a plain concrete box — same silhouette, far cheaper
+    // fragment work. Fog softens the swap so the transition is hard to spot.
+    constexpr float FACADE_LOD_DIST = 120.0f;
     glActiveTexture(GL_TEXTURE0);
     for (const auto& d : cityDraws) {
+        if (!fr.aabbVisible(d.cullCenter, d.cullHalf)) continue;
+        float dist = glm::length(d.cullCenter - eye);
+        if (dist > FACADE_LOD_DIST) {
+            // Far LOD: solid concrete box (walls), still topped by the roof cap below.
+            drawCube(d.cullCenter, d.cullHalf * 2.0f, MAT_CONCRETE);
+            drawCube(d.capCenter, d.capScale, MAT_CONCRETE);
+            continue;
+        }
         // Facade walls: UV-sampled texture (basic program; the facade uniforms are -1
         // on the depth program, so this also draws plain depth in the shadow pass).
         glm::mat4 model = glm::translate(glm::mat4(1.0f), d.center);
@@ -440,6 +457,24 @@ void Renderer::drawFoliageDepth(float time) {
     depthShader.use();   // restore the world depth program for the rest of the pass
 }
 
+void Renderer::drawProps(const glm::mat4& view, const glm::mat4& proj,
+                         const glm::vec3& eye, float time) {
+    if (gMapId != MAP_CITY) {            // street props only exist in the city
+        if (!props.empty()) props.clear();
+        return;
+    }
+    if (props.empty()) props.generate();
+    props.draw(*this, view, proj, eye, time);
+    shader.use();   // restore world program for subsequent draws (view model, HUD)
+}
+
+void Renderer::drawPropsDepth() {
+    if (gMapId != MAP_CITY) { if (!props.empty()) props.clear(); return; }
+    if (props.empty()) props.generate();   // shadow pass runs first; scatter here
+    props.drawDepth(lightSpace, shadowFocus);
+    depthShader.use();   // restore the world depth program for the rest of the pass
+}
+
 void Renderer::endFrame() {
     SDL_GL_SwapWindow(window);
 }
@@ -451,6 +486,7 @@ void Renderer::toggleWireframe() {
 
 void Renderer::shutdown() {
     foliage.destroy();
+    props.destroy();
     materials.destroy();
     font.destroy();
     quad2d.destroy();

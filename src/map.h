@@ -2,6 +2,7 @@
 #include <glm/glm.hpp>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include "terrain.h"
 
 // Static arena geometry, shared by server (collision) and client (collision + render).
@@ -193,6 +194,18 @@ inline float mapViewHalf() {
         return ext * 1.06f;
     }
     return gArenaHalf;   // TRAINING: open clamp (45 m); FIELD: full 100 m
+}
+
+// Parse an FPS_MAP env string ("field"/"warehouse"/"training"/"city") to a MapId.
+// Shared by the server (online map select) and the client (offline debug override) so
+// both honor the same names. Returns `fallback` for null/unknown.
+inline MapId mapFromName(const char* s, MapId fallback) {
+    if (!s) return fallback;
+    if (strcmp(s, "warehouse") == 0) return MAP_WAREHOUSE;
+    if (strcmp(s, "training")  == 0) return MAP_TRAINING;
+    if (strcmp(s, "field")     == 0) return MAP_FIELD;
+    if (strcmp(s, "city")      == 0) return MAP_CITY;
+    return fallback;
 }
 
 inline void setMap(MapId id) {

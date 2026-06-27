@@ -1,6 +1,7 @@
 #include "foliage.h"
 #include "renderer.h"     // full Renderer type (lighting palette + shadow map)
 #include "map.h"          // FIELD_HALF + terrain.h (terrainElevation)
+#include "frustum.h"      // shared view-frustum cull
 #define CGLTF_IMPLEMENTATION   // model.cpp (the other cgltf user) is not compiled
 #include "cgltf.h"
 #include "stb_image.h"    // implementation lives in texture.cpp
@@ -272,24 +273,13 @@ void Foliage::generate(int maxTrees) {
 void Foliage::clear() { trees.clear(); }
 
 int Foliage::cullUpload(const glm::mat4& vp) {
-    // Frustum planes from VP (Gribb-Hartmann). GLM is column-major: m[col][row].
-    glm::vec4 row0(vp[0][0], vp[1][0], vp[2][0], vp[3][0]);
-    glm::vec4 row1(vp[0][1], vp[1][1], vp[2][1], vp[3][1]);
-    glm::vec4 row2(vp[0][2], vp[1][2], vp[2][2], vp[3][2]);
-    glm::vec4 row3(vp[0][3], vp[1][3], vp[2][3], vp[3][3]);
-    glm::vec4 planes[6] = {row3 + row0, row3 - row0, row3 + row1,
-                           row3 - row1, row3 + row2, row3 - row2};
-    for (auto& p : planes) p /= glm::length(glm::vec3(p));
+    Frustum fr = Frustum::fromVP(vp);
 
     packed.clear();
     float cullR = glm::max(treeHeight * 0.5f, treeRadius);
     for (const TreeInstance& t : trees) {
         glm::vec3 c = t.pos + glm::vec3(0.0f, treeHeight * 0.5f * t.scale, 0.0f);
-        float rad = cullR * t.scale;
-        bool in = true;
-        for (auto& p : planes)
-            if (glm::dot(glm::vec3(p), c) + p.w < -rad) { in = false; break; }
-        if (!in) continue;
+        if (!fr.sphereVisible(c, cullR * t.scale)) continue;
         packed.insert(packed.end(), {t.pos.x, t.pos.y, t.pos.z, t.yaw, t.scale});
     }
     int visible = (int)(packed.size() / 5);

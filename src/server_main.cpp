@@ -372,12 +372,8 @@ static void broadcast(int fd, uint32_t seq) {
 int main() {
     setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffered even when piped to a log
     srand((unsigned)time(nullptr));
-    const char* mapEnv = getenv("FPS_MAP");
-    // 1 km^2 terrain is the shared online map; FPS_MAP=warehouse/training overrides.
-    MapId mapSel = MAP_FIELD;
-    if (mapEnv && strcmp(mapEnv, "warehouse") == 0) mapSel = MAP_WAREHOUSE;
-    else if (mapEnv && strcmp(mapEnv, "training") == 0) mapSel = MAP_TRAINING;
-    else if (mapEnv && strcmp(mapEnv, "city") == 0) mapSel = MAP_CITY;
+    // 1 km^2 terrain is the shared online map; FPS_MAP=warehouse/training/city overrides.
+    MapId mapSel = mapFromName(getenv("FPS_MAP"), MAP_FIELD);
     setMap(mapSel);
     // Same designed heightmap the clients load — authoritative collision must match.
     if (mapSel == MAP_FIELD) loadHeightmap("maps/field/height.png", 35.0f, FIELD_HALF);

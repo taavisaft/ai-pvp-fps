@@ -8,6 +8,8 @@
 #include "material.h"
 #include "foliage.h"
 #include "building.h"
+#include "props.h"
+#include "frustum.h"
 
 struct Box;  // map.h; for the satellite map-texture bake
 
@@ -36,6 +38,7 @@ struct Renderer {
     GLuint    shadowTex   = 0;
     int       shadowSize  = 2048;
     glm::mat4 lightSpace  = glm::mat4(1.0f);
+    glm::vec3 shadowFocus = glm::vec3(0.0f);  // camera eye the sun frustum is centered on
     int       fbW = 0, fbH = 0;   // drawable size, to restore viewport after shadow pass
     // Daylight palette — single source of truth, pushed to both basic and sky programs.
     glm::vec3 sunDir        = glm::normalize(glm::vec3(0.50f, 0.65f, 0.25f));
@@ -49,10 +52,12 @@ struct Renderer {
     Font   font;     // bitmap text, HUD pass only
     MaterialLib materials;
     Foliage foliage; // instanced trees (MAP_FIELD only)
+    Props   props;   // instanced street props (MAP_CITY only)
 
     // City facade buildings (MAP_CITY): one textured wall mesh + concrete roof cap per
     // building, built once from gCityBuildings on the first city frame.
-    struct CityDraw { Mesh wall; glm::vec3 center, capCenter, capScale; };
+    struct CityDraw { Mesh wall; glm::vec3 center, capCenter, capScale;
+                      glm::vec3 cullCenter, cullHalf; };  // whole-building AABB for cull
     std::vector<CityDraw> cityDraws;
     GLuint facadeTex = 0;
     bool   cityBuilt = false;
@@ -76,13 +81,17 @@ struct Renderer {
     void  drawTerrain();   // heightfield ground for MAP_FIELD
     // City facade buildings: lazy-builds meshes on first call, draws walls (UV facade)
     // + roof caps via the active program, so it works in both the shadow and lit pass.
-    void  drawCityWorld();
+    void  drawCityWorld(const Frustum& fr, const glm::vec3& eye);
     void  buildCityMeshes();
     // Instanced tree field; scatters lazily on first field-map frame, culls per frame.
     void  drawFoliage(const glm::mat4& view, const glm::mat4& proj,
                       const glm::vec3& eye, float time);
     // Trees as shadow casters — call inside the shadow pass (uses lightSpace).
     void  drawFoliageDepth(float time);
+    // Instanced city props; scatters lazily on first city frame, culls per frame.
+    void  drawProps(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye,
+                    float time);
+    void  drawPropsDepth();   // props as shadow casters (call inside the shadow pass)
     // HUD pass: depth off, blending on, coordinates in NDC [-1,1]
     void  beginHUD();
     void  drawRect(const glm::vec2& center, const glm::vec2& size,
