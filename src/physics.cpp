@@ -37,11 +37,11 @@ bool segmentAabb(const glm::vec3& p0, const glm::vec3& p1,
     return true;
 }
 
-// Segment p0->p1 vs the ground. Flat y=0 plane on arena maps; on the field map it
-// marches the heightfield (the bullet can step several metres per tick, so sample
+// Segment p0->p1 vs the ground. Flat y=0 plane on arena maps; on heightfield maps
+// it marches the terrain (the bullet can step several metres per tick, so sample
 // along the segment and lerp at the first point that dips to/under the terrain).
 static bool segmentGround(const glm::vec3& p0, const glm::vec3& p1, float& tHit) {
-    if (!gTerrainOn) {
+    if (gTerrainMode == TERRAIN_OFF) {
         if (p1.y > 0.0f) return false;            // stays above ground this tick
         if (p0.y <= 0.0f) { tHit = 0.0f; return true; }
         tHit = p0.y / (p0.y - p1.y);

@@ -78,7 +78,8 @@ bool Renderer::init(const char* title, int w, int h) {
 
     if (!createUnitCube(cube)) return false;
     if (!createGroundQuad(ground)) return false;
-    if (!createTerrainMesh(terrain)) return false;
+    if (!createTerrainMesh(terrain, FIELD_HALF, terrainElevation)) return false;
+    if (!createTerrainMesh(lobbyTerrain, LOBBY_HALF, lobbyElevation)) return false;
     if (!createQuad2D(quad2d)) return false;
     if (!font.init()) return false;
     if (!materials.init()) return false;
@@ -375,7 +376,7 @@ void Renderer::drawTerrain() {
     active->setVec3(active->locColor, glm::vec3(1.0f));
     active->setInt(active->locGrass, materials.groundHasImage ? 0 : 1);
     active->setInt(active->locHasNormal, 1);   // smooth analytic heightfield normals
-    terrain.draw();
+    (gMapId == MAP_TRAINING ? lobbyTerrain : terrain).draw();
     active->setInt(active->locHasNormal, 0);
     active->setInt(active->locGrass, 0);
     active->setInt(active->locSplat, 0);
@@ -491,6 +492,7 @@ void Renderer::shutdown() {
     font.destroy();
     quad2d.destroy();
     terrain.destroy();
+    lobbyTerrain.destroy();
     ground.destroy();
     cube.destroy();
     shader.destroy();

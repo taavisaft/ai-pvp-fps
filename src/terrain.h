@@ -2,13 +2,14 @@
 #include <glm/glm.hpp>
 #include <cmath>
 
-// Shared procedural heightfield for the large outdoor map (MAP_FIELD). The same
-// inline float math runs on the server (authoritative physics) and the client
-// (mesh + prediction), so both agree on the ground height without any asset or
-// network sync. terrainElevation() is the raw noise field; terrainHeight() is the
-// gameplay ground height, which stays flat (0) on the small arena maps via the
-// gTerrainOn flag (set by setMap in map.h). Kept dependency-free (glm + cmath
-// only) so map.h can include this without a circular include.
+// Shared procedural heightfield for the outdoor maps. The same inline float math
+// runs on the server (authoritative physics) and the client (mesh + prediction),
+// so both agree on the ground height without any asset or network sync.
+// terrainElevation() is the raw field for MAP_FIELD (designed heightmap or noise);
+// lobbyElevation() shapes the training lobby (flat pad, hills toward the edge).
+// terrainHeight() is the gameplay ground height, selected per map via gTerrainMode
+// (set by setMap in map.h). Kept dependency-free (glm + cmath only) so map.h can
+// include this without a circular include.
 
 // Integer hash → [0,1). Cheap, deterministic, platform-stable (pure int ops).
 inline float terrHash(int x, int z) {
@@ -76,11 +77,29 @@ inline float terrainElevation(float x, float z) {
     return gHeightLoaded ? sampleHeightBilinear(x, z) : terrainProcedural(x, z);
 }
 
-// Set true only while the field map is active (see setMap in map.h). When false,
-// terrainHeight is flat 0 so the arena maps behave exactly as before.
-inline bool gTerrainOn = false;
+// --- training lobby ground (MAP_TRAINING) -----------------------------------
+// Flat pad in the middle (covers the arena cover, firing range, and spawns), then
+// blends into noise hills toward the edge. Always the procedural noise — never the
+// field heightmap — so the lobby looks the same whether or not maps/field/height.png
+// loaded.
+inline constexpr float LOBBY_FLAT_R = 45.0f;   // fully flat inside this radius
+inline constexpr float LOBBY_HILL_R = 100.0f;  // hills at full strength beyond this
+
+inline float lobbyElevation(float x, float z) {
+    float d = sqrtf(x * x + z * z);
+    float t = terrSmooth(terrClamp01((d - LOBBY_FLAT_R) / (LOBBY_HILL_R - LOBBY_FLAT_R)));
+    // Base lift keeps the ring reading as hills enclosing the pad, not random dips.
+    return t * (5.0f + terrainProcedural(x, z));
+}
+
+// Ground shape for the active map (see setMap in map.h). TERRAIN_OFF keeps the
+// flat-y=0 arena maps exactly as before.
+enum TerrainMode { TERRAIN_OFF = 0, TERRAIN_FIELD, TERRAIN_LOBBY };
+inline TerrainMode gTerrainMode = TERRAIN_OFF;
 
 // Gameplay ground height used by physics/spawns/shadows.
 inline float terrainHeight(float x, float z) {
-    return gTerrainOn ? terrainElevation(x, z) : 0.0f;
+    if (gTerrainMode == TERRAIN_FIELD) return terrainElevation(x, z);
+    if (gTerrainMode == TERRAIN_LOBBY) return lobbyElevation(x, z);
+    return 0.0f;
 }

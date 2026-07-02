@@ -92,24 +92,24 @@ bool createGroundQuad(Mesh& m) {
     return m.create(verts, 12, idx, 6);
 }
 
-// Heightfield grid spanning the field map, sampled from terrainElevation(). Built
-// once (static VBO) with analytic per-vertex normals (central difference of the
-// height field) so the hills shade smoothly and self-shadow, instead of faceting
-// from dFdx/dFdy. Interleaved pos.xyz, normal.xyz.
-bool createTerrainMesh(Mesh& m) {
-    const float HALF = FIELD_HALF, STEP = 2.0f;
-    const int   N = (int)(2.0f * HALF / STEP) + 1;   // verts per side
+// Heightfield grid spanning +/-half, sampled from `elev`. Built once (static VBO)
+// with analytic per-vertex normals (central difference of the height field) so the
+// hills shade smoothly and self-shadow, instead of faceting from dFdx/dFdy.
+// Interleaved pos.xyz, normal.xyz.
+bool createTerrainMesh(Mesh& m, float half, float (*elev)(float, float)) {
+    const float STEP = 2.0f;
+    const int   N = (int)(2.0f * half / STEP) + 1;   // verts per side
     const float e = STEP;                            // gradient sample spacing
     std::vector<float> v;
     v.reserve((size_t)N * N * 6);
     for (int zi = 0; zi < N; zi++)
         for (int xi = 0; xi < N; xi++) {
-            float x = -HALF + xi * STEP, z = -HALF + zi * STEP;
-            float dhdx = (terrainElevation(x + e, z) - terrainElevation(x - e, z)) / (2 * e);
-            float dhdz = (terrainElevation(x, z + e) - terrainElevation(x, z - e)) / (2 * e);
+            float x = -half + xi * STEP, z = -half + zi * STEP;
+            float dhdx = (elev(x + e, z) - elev(x - e, z)) / (2 * e);
+            float dhdz = (elev(x, z + e) - elev(x, z - e)) / (2 * e);
             glm::vec3 n = glm::normalize(glm::vec3(-dhdx, 1.0f, -dhdz));
             v.push_back(x);
-            v.push_back(terrainElevation(x, z));
+            v.push_back(elev(x, z));
             v.push_back(z);
             v.push_back(n.x);
             v.push_back(n.y);

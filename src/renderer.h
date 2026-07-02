@@ -47,7 +47,8 @@ struct Renderer {
     glm::vec3 groundAmbient = {0.26f, 0.27f, 0.24f};
     Mesh   cube;     // unit cube, scaled per draw
     Mesh   ground;   // 100x100 quad at y=0
-    Mesh   terrain;  // 1 km^2 heightfield (MAP_FIELD)
+    Mesh   terrain;      // 100 m heightfield (MAP_FIELD)
+    Mesh   lobbyTerrain; // 300 m flat-pad-plus-hills heightfield (MAP_TRAINING)
     Mesh   quad2d;   // unit quad for HUD rects
     Font   font;     // bitmap text, HUD pass only
     MaterialLib materials;
@@ -78,7 +79,7 @@ struct Renderer {
     void  fillDepthFar();                   // far-plane quad; resets depth in stencil region
     void  drawGround();
     void  drawGround(MaterialId mat);
-    void  drawTerrain();   // heightfield ground for MAP_FIELD
+    void  drawTerrain();   // heightfield ground (MAP_FIELD or the training lobby)
     // City facade buildings: lazy-builds meshes on first call, draws walls (UV facade)
     // + roof caps via the active program, so it works in both the shadow and lit pass.
     void  drawCityWorld(const Frustum& fr, const glm::vec3& eye);

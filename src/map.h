@@ -22,7 +22,11 @@ struct Box {
 enum MapId { MAP_TRAINING = 0, MAP_WAREHOUSE = 1, MAP_FIELD = 2, MAP_CITY = 3 };
 constexpr int MAP_COUNT = 4;
 
-// --- TRAINING: the original symmetric arena -------------------------------
+// --- TRAINING: the offline lobby — symmetric arena on a flat pad ------------
+// 300x300 m total: cover + firing range sit on the flat center (< LOBBY_FLAT_R),
+// noise hills ring the pad (lobbyElevation in terrain.h, shared client+server).
+inline constexpr float LOBBY_HALF = 150.0f;  // 300 m across, clamp at +/-150
+
 inline const Box TRAINING_BOXES[] = {
     // center pillar
     {{ 0.0f, 1.5f,  0.0f}, {1.0f, 1.5f, 1.0f}},
@@ -193,7 +197,7 @@ inline float mapViewHalf() {
         }
         return ext * 1.06f;
     }
-    return gArenaHalf;   // TRAINING: open clamp (45 m); FIELD: full 100 m
+    return gArenaHalf;   // TRAINING: full 300 m lobby; FIELD: full 100 m
 }
 
 // Parse an FPS_MAP env string ("field"/"warehouse"/"training"/"city") to a MapId.
@@ -210,7 +214,9 @@ inline MapId mapFromName(const char* s, MapId fallback) {
 
 inline void setMap(MapId id) {
     gMapId = id;
-    gTerrainOn = (id == MAP_FIELD);   // gates terrainHeight() in physics/spawns/render
+    // Ground shape gate for terrainHeight() in physics/spawns/render.
+    gTerrainMode = (id == MAP_FIELD)    ? TERRAIN_FIELD
+                 : (id == MAP_TRAINING) ? TERRAIN_LOBBY : TERRAIN_OFF;
     if (id == MAP_WAREHOUSE) {
         gMapBoxes = WAREHOUSE_BOXES; gMapBoxCount = WAREHOUSE_BOX_COUNT; gArenaHalf = 45.0f;
     } else if (id == MAP_FIELD) {
@@ -219,6 +225,6 @@ inline void setMap(MapId id) {
         generateCity();
         gMapBoxes = gCityBoxes;      gMapBoxCount = gCityBoxCount;       gArenaHalf = CITY_HALF;
     } else {
-        gMapBoxes = TRAINING_BOXES;  gMapBoxCount = TRAINING_BOX_COUNT;  gArenaHalf = 45.0f;
+        gMapBoxes = TRAINING_BOXES;  gMapBoxCount = TRAINING_BOX_COUNT;  gArenaHalf = LOBBY_HALF;
     }
 }

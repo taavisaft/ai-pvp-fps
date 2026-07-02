@@ -335,7 +335,7 @@ static void drawMirror(Renderer& r, const Camera& cam, const GameState& gs, int 
     r.setView(cam.view() * R);
     glCullFace(GL_FRONT);
 
-    r.drawGround();
+    r.drawTerrain();   // the mirror only exists on the training lobby map
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (!(gs.usedMask & (1u << i)) || !gs.players[i].alive) continue;
         const Player& pl = gs.players[i];
@@ -377,7 +377,8 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
                               const float* walkPhase, const float* walkAmp,
                               const float* adsAnim, bool showHitboxes,
                               const Frustum& fr, const glm::vec3& eye) {
-    if (gMapId == MAP_FIELD) r.drawTerrain(); else r.drawGround();
+    if (gMapId == MAP_FIELD || gMapId == MAP_TRAINING) r.drawTerrain();
+    else                                               r.drawGround();
 
     if (gMapId == MAP_CITY) {
         r.drawCityWorld(fr, eye);  // facade near, concrete box far (collision is the box)
@@ -602,9 +603,11 @@ int main(int argc, char** argv) {
     bool      fullMap      = false;           // M: full-screen map overlay
     bool      showHud      = true;            // J: hide whole HUD for immersion
 
-    // Debug: FPS_MAP=field|warehouse|training|city forces an offline map (same names
-    // the server uses) so any map can be inspected without a server. Online overrides it.
-    if (const char* mp = getenv("FPS_MAP")) setMap(mapFromName(mp, gMapId));
+    // Always run setMap so the training lobby gets its terrain mode + 300 m clamp
+    // (the map.h globals default to flat-ground values). FPS_MAP=field|warehouse|
+    // training|city forces an offline map (same names the server uses) so any map
+    // can be inspected without a server. Online overrides it.
+    setMap(mapFromName(getenv("FPS_MAP"), MAP_TRAINING));
 
     auto closeConnectPrompt = [&]() {
         if (!connectPromptActive) return;
