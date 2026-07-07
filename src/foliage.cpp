@@ -246,7 +246,7 @@ void Foliage::generate(int maxTrees) {
         f = f * 0.65f + terrValueNoise(x * 0.13f, z * 0.13f) * 0.35f;       // ragged edges
         return sstep(0.44f, 0.60f, f);   // 0 = clearing, 1 = dense forest
     };
-    const float SPAN = FIELD_HALF * 0.96f;
+    const float SPAN = PALDISKI_HALF * 0.96f;
     const float e = 2.0f;
     const float SINK = sink;     // bury the trunk base so trees never look floaty
     int attempts = 0, maxAttempts = maxTrees * 60;
@@ -255,11 +255,19 @@ void Foliage::generate(int maxTrees) {
         float x = (rnd() * 2.0f - 1.0f) * SPAN;
         float z = (rnd() * 2.0f - 1.0f) * SPAN;
         if (rnd() > forestDensity(x, z)) continue;               // keep to wooded patches
-        float dhdx = (terrainElevation(x + e, z) - terrainElevation(x - e, z)) / (2 * e);
-        float dhdz = (terrainElevation(x, z + e) - terrainElevation(x, z - e)) / (2 * e);
+        float h = terrainHeight(x, z);
+        if (h < 1.5f) continue;                                  // no trees in sea/beach
+        bool onPad = false;                                      // keep town yards clear
+        for (int i = 0; i < gTerrainPadCount; i++) {
+            float dx = x - gTerrainPads[i].x, dz = z - gTerrainPads[i].z;
+            if (dx * dx + dz * dz < gTerrainPads[i].r * gTerrainPads[i].r) { onPad = true; break; }
+        }
+        if (onPad) continue;
+        float dhdx = (terrainHeight(x + e, z) - terrainHeight(x - e, z)) / (2 * e);
+        float dhdz = (terrainHeight(x, z + e) - terrainHeight(x, z - e)) / (2 * e);
         if (sqrtf(dhdx * dhdx + dhdz * dhdz) > 0.55f) continue;  // skip steep ground (rock)
         TreeInstance ti;
-        ti.pos   = glm::vec3(x, terrainElevation(x, z) - SINK, z);
+        ti.pos   = glm::vec3(x, h - SINK, z);
         ti.yaw   = rnd() * 6.2831853f;
         ti.scale = 0.85f + rnd() * 0.95f;   // bigger, more varied canopies
         trees.push_back(ti);
@@ -304,6 +312,12 @@ void Foliage::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& pr
     shader.setVec3(shader.locSkyZenith, r.skyZenith);
     shader.setVec3(shader.locSkyHorizon, r.skyHorizon);
     shader.setVec3(shader.locGroundAmb, r.groundAmbient);
+    shader.setVec3(shader.locSunColor, r.sunColor);
+    shader.setFloat(shader.locFogDist, r.fogDist);
+    shader.setFloat(shader.locFogHeight, r.fogHeightAmt);
+    shader.setFloat(shader.locCloud, r.cloudAmount);
+    shader.setFloat(shader.locExposure, r.exposure);
+    shader.setFloat(shader.locSaturation, r.saturation);
     shader.setMat4(shader.locLightSpace, r.lightSpace);
     shader.setInt(shader.locShadowMap, 1);
     shader.setInt(shader.locUseShadow, 1);

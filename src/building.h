@@ -1,7 +1,7 @@
 #pragma once
 #include "mesh.h"
 #include "gl_loader.h"
-#include "map.h"   // CityBuilding
+#include "map.h"   // TownBuilding
 
 // Procedural Soviet-panel ("Plattenbau") facade: one repeating window-panel cell,
 // GL_REPEAT, sampled by UV so a building tiles it baysX x floors. Returns a GL texture
@@ -10,5 +10,5 @@ GLuint makeFacadeTexture();
 
 // Build the four outward-facing facade walls of one building as a UV-tiled mesh
 // (pos+normal+uv). Centered on X/Z at the origin, base at y=0, top at y=h — the
-// caller translates by the building's footprint center.
-bool buildFacadeMesh(Mesh& out, const CityBuilding& b);
+// caller translates by the building's footprint center (center.y = pad height).
+bool buildFacadeMesh(Mesh& out, const TownBuilding& b);

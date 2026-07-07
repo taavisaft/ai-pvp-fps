@@ -96,7 +96,7 @@ void addWall(std::vector<float>& vb, std::vector<unsigned>& ib,
 }
 }  // namespace
 
-bool buildFacadeMesh(Mesh& out, const CityBuilding& b) {
+bool buildFacadeMesh(Mesh& out, const TownBuilding& b) {
     float hx = b.w * 0.5f, hz = b.d * 0.5f, h = b.h;
     float ux = (float)b.baysX, uz = (float)b.baysZ, vf = (float)b.floors;
     std::vector<float>    vb;

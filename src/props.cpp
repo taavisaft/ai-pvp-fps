@@ -1,6 +1,6 @@
 #include "props.h"
 #include "renderer.h"   // full Renderer type (lighting palette + shadow map)
-#include "map.h"         // CITY_HALF, CITY_CELLS, gCityBuildings, cityHash/cityRand
+#include "map.h"         // PALDISKI_HALF, gTownBuildings, mapHash/mapRand, terrainHeight
 #include <SDL.h>
 #include <cstdio>
 #include <cfloat>
@@ -133,36 +133,40 @@ void Props::generate() {
     PropMesh& crate = meshes[PROP_CRATE];
     PropMesh& lamp  = meshes[PROP_LAMP];
 
-    for (int i = 0; i < gCityBuildingCount; i++) {
-        const CityBuilding& b = gCityBuildings[i];
+    // Ground height helper: props sit on the terrain (the town pads are flat, so
+    // near a building this is just the pad height).
+    auto at = [](float x, float z) { return glm::vec3(x, terrainHeight(x, z), z); };
+
+    for (int i = 0; i < gTownBuildingCount; i++) {
+        const TownBuilding& b = gTownBuildings[i];
         float hw = b.w * 0.5f, hd = b.d * 0.5f;
         glm::vec3 c = b.center;
 
         // Lamps at two opposite outer corners.
-        lamp.instances.push_back({{c.x + hw + 1.2f, 0, c.z + hd + 1.2f}, 0.0f, 1.0f});
-        lamp.instances.push_back({{c.x - hw - 1.2f, 0, c.z - hd - 1.2f}, 0.0f, 1.0f});
+        lamp.instances.push_back({at(c.x + hw + 1.2f, c.z + hd + 1.2f), 0.0f, 1.0f});
+        lamp.instances.push_back({at(c.x - hw - 1.2f, c.z - hd - 1.2f), 0.0f, 1.0f});
 
         // Dumpster against the +X wall, long side parallel to it.
-        float dz = (cityRand(i, 0, 11) * 2 - 1) * hd * 0.5f;
-        dump.instances.push_back({{c.x + hw + 0.9f, 0, c.z + dz}, 1.5708f, 1.0f});
+        float dz = (mapRand(i, 0, 11) * 2 - 1) * hd * 0.5f;
+        dump.instances.push_back({at(c.x + hw + 0.9f, c.z + dz), 1.5708f, 1.0f});
 
         // Crate stack along the -X wall (1..3, varied yaw/scale).
-        int nc = 1 + (int)(cityHash(i, 0, 12) % 3);
+        int nc = 1 + (int)(mapHash(i, 0, 12) % 3);
         for (int k = 0; k < nc; k++) {
-            float cz = (cityRand(i, 0, 20 + k) * 2 - 1) * hd * 0.6f;
-            crate.instances.push_back({{c.x - hw - 0.7f, 0, c.z + cz},
-                                       cityRand(i, 0, 30 + k) * 6.2831853f,
-                                       0.8f + 0.3f * cityRand(i, 0, 40 + k)});
+            float cz = (mapRand(i, 0, 20 + k) * 2 - 1) * hd * 0.6f;
+            crate.instances.push_back({at(c.x - hw - 0.7f, c.z + cz),
+                                       mapRand(i, 0, 30 + k) * 6.2831853f,
+                                       0.8f + 0.3f * mapRand(i, 0, 40 + k)});
         }
 
-        // A parked car on the +Z street, now and then.
-        if (cityRand(i, 0, 13) > 0.45f)
-            car.instances.push_back({{c.x + (cityRand(i, 0, 14) * 2 - 1) * hw * 0.6f,
-                                      0, c.z + hd + 3.0f}, 0.0f, 1.0f});
+        // A parked car on the seaward yard (toward -X... the beach side), now and then.
+        if (mapRand(i, 0, 13) > 0.45f)
+            car.instances.push_back({at(c.x + (mapRand(i, 0, 14) * 2 - 1) * hw * 0.6f,
+                                        c.z + hd + 3.0f), 0.0f, 1.0f});
     }
 
     for (auto& m : meshes) {
-        m.grid.init(CITY_HALF, CITY_CELLS, 0.0f, 8.0f);
+        m.grid.init(PALDISKI_HALF, 10, -10.0f, 40.0f);
         for (int i = 0; i < (int)m.instances.size(); i++)
             m.grid.insert(m.instances[i].pos.x, m.instances[i].pos.z, i);
         glBindBuffer(GL_ARRAY_BUFFER, m.instVBO);
@@ -195,7 +199,7 @@ int Props::cullUpload(PropMesh& m, const Frustum& fr, const glm::vec3& eye) {
 }
 
 void Props::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& proj,
-                 const glm::vec3& eye, float /*time*/) {
+                 const glm::vec3& eye, float time) {
     if (!loaded || empty()) return;
     Frustum fr = Frustum::fromVP(proj * view);
     shader.use();
@@ -206,6 +210,13 @@ void Props::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& proj
     shader.setVec3(shader.locSkyZenith, r.skyZenith);
     shader.setVec3(shader.locSkyHorizon, r.skyHorizon);
     shader.setVec3(shader.locGroundAmb, r.groundAmbient);
+    shader.setVec3(shader.locSunColor, r.sunColor);
+    shader.setFloat(shader.locFogDist, r.fogDist);
+    shader.setFloat(shader.locFogHeight, r.fogHeightAmt);
+    shader.setFloat(shader.locCloud, r.cloudAmount);
+    shader.setFloat(shader.locExposure, r.exposure);
+    shader.setFloat(shader.locSaturation, r.saturation);
+    shader.setFloat(shader.locTime, time);   // cloud-shadow drift
     shader.setMat4(shader.locLightSpace, r.lightSpace);
     shader.setInt(shader.locShadowMap, 1);
     shader.setInt(shader.locUseShadow, 1);

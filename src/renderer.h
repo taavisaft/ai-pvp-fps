@@ -29,9 +29,9 @@ struct Renderer {
     GLint  texUvCenterLoc = -1, texUvHalfLoc = -1;  // texShader custom uniforms
     Shader* active = nullptr;  // program the world draws target (basic or depth)
 
-    // Lazily-built per-map satellite textures (indexed by MapId 0..2).
-    GLuint mapTex[3]     = {0, 0, 0};
-    bool   mapTexTried[3] = {false, false, false};
+    // Lazily-built per-map satellite textures (indexed by MapId).
+    GLuint mapTex[MAP_COUNT]      = {};
+    bool   mapTexTried[MAP_COUNT] = {};
 
     // Shadow map: single ortho sun frustum following the camera (near-field shadows).
     GLuint    shadowFBO   = 0;
@@ -41,27 +41,39 @@ struct Renderer {
     glm::vec3 shadowFocus = glm::vec3(0.0f);  // camera eye the sun frustum is centered on
     int       fbW = 0, fbH = 0;   // drawable size, to restore viewport after shadow pass
     // Daylight palette — single source of truth, pushed to both basic and sky programs.
+    // All fields are set together by setAtmosphere(); defaults = ATMO_CLEAR.
     glm::vec3 sunDir        = glm::normalize(glm::vec3(0.50f, 0.65f, 0.25f));
+    glm::vec3 sunColor      = {1.00f, 0.96f, 0.88f};
     glm::vec3 skyZenith     = {0.30f, 0.50f, 0.78f};
     glm::vec3 skyHorizon    = {0.74f, 0.82f, 0.90f};
     glm::vec3 groundAmbient = {0.26f, 0.27f, 0.24f};
+    float fogDist      = 350.0f;  // distance-fog reach (m)
+    float fogHeightAmt = 0.35f;   // low-altitude haze boost (valleys fill first)
+    float cloudAmount  = 0.20f;   // drifting cloud-shadow strength 0..1
+    float exposure     = 0.82f;   // pre-tonemap exposure
+    float saturation   = 1.12f;   // grade saturation (1 = neutral)
+    int   atmoPreset   = 0;       // ATMO_* currently applied
+
+    // Atmosphere presets: DayZ overcast gloom / PUBG warm clear / golden-hour dusk.
+    enum Atmo { ATMO_CLEAR = 0, ATMO_OVERCAST, ATMO_GOLDEN, ATMO_COUNT };
+    void setAtmosphere(int preset);   // sets every palette field above
     Mesh   cube;     // unit cube, scaled per draw
-    Mesh   ground;   // 100x100 quad at y=0
-    Mesh   terrain;      // 100 m heightfield (MAP_FIELD)
-    Mesh   lobbyTerrain; // 300 m flat-pad-plus-hills heightfield (MAP_TRAINING)
+    Mesh   ground;   // 100x100 quad at y=0 (water plane, scaled per draw)
+    Mesh   terrain;  // Paldiski heightfield (built after setMap)
     Mesh   quad2d;   // unit quad for HUD rects
     Font   font;     // bitmap text, HUD pass only
     MaterialLib materials;
-    Foliage foliage; // instanced trees (MAP_FIELD only)
-    Props   props;   // instanced street props (MAP_CITY only)
+    Foliage foliage; // instanced trees
+    Props   props;   // instanced street props
 
-    // City facade buildings (MAP_CITY): one textured wall mesh + concrete roof cap per
-    // building, built once from gCityBuildings on the first city frame.
-    struct CityDraw { Mesh wall; glm::vec3 center, capCenter, capScale;
+    // Town facade buildings: one textured wall mesh + concrete roof cap per building,
+    // built once from gTownBuildings on the first frame.
+    struct TownDraw { Mesh wall; glm::vec3 center, capCenter, capScale;
                       glm::vec3 cullCenter, cullHalf; };  // whole-building AABB for cull
-    std::vector<CityDraw> cityDraws;
+    std::vector<TownDraw> townDraws;
     GLuint facadeTex = 0;
-    bool   cityBuilt = false;
+    bool   townBuilt = false;
+    int    worldBuiltFor = -1;   // MapId the lazy caches (town/trees/props) were built for
 
     bool  init(const char* title, int w, int h);
     float aspect() const;
@@ -75,15 +87,18 @@ struct Renderer {
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color);
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, MaterialId mat);
     void  drawCubeModel(const glm::mat4& model, const glm::vec3& color);  // oriented (gun)
-    void  setView(const glm::mat4& view);   // override view uniform (mirror reflection pass)
-    void  fillDepthFar();                   // far-plane quad; resets depth in stencil region
-    void  drawGround();
-    void  drawGround(MaterialId mat);
-    void  drawTerrain();   // heightfield ground (MAP_FIELD or the training lobby)
-    // City facade buildings: lazy-builds meshes on first call, draws walls (UV facade)
+    void  drawTerrain();   // Paldiski heightfield ground (lobby: flat quad instead)
+    void  drawGround();    // flat 2*gArenaHalf quad at y=0 (lobby pad)
+    // Drop lazily-built world caches (town meshes, tree/prop scatters) when the
+    // active map changed — call once per frame before the world passes.
+    void  invalidateWorldOnMapChange();
+    // Translucent sea plane at SEA_LEVEL, spanning past the map edge so the water
+    // meets the fog. Draw late in the lit pass (after opaque world), never in shadow.
+    void  drawWater();
+    // Town facade buildings: lazy-builds meshes on first call, draws walls (UV facade)
     // + roof caps via the active program, so it works in both the shadow and lit pass.
-    void  drawCityWorld(const Frustum& fr, const glm::vec3& eye);
-    void  buildCityMeshes();
+    void  drawTownWorld(const Frustum& fr, const glm::vec3& eye);
+    void  buildTownMeshes();
     // Instanced tree field; scatters lazily on first field-map frame, culls per frame.
     void  drawFoliage(const glm::mat4& view, const glm::mat4& proj,
                       const glm::vec3& eye, float time);

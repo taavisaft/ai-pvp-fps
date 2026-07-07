@@ -13,7 +13,6 @@
 #include "game.h"
 #include "physics.h"
 #include "map.h"
-#include "heightmap.h"
 
 struct ClientSlot {
     bool        used = false;
@@ -32,12 +31,7 @@ static ClientSlot clients[MAX_PLAYERS];
 static bool       prevAlive[MAX_PLAYERS];
 
 // Human-readable map name, shared by the startup log and the lobby PKT_INFO reply.
-static const char* mapLabel(MapId id) {
-    return id == MAP_FIELD     ? "FIELD"
-         : id == MAP_WAREHOUSE ? "WAREHOUSE"
-         : id == MAP_CITY      ? "CITY"
-         :                       "TRAINING";
-}
+static const char* mapLabel(MapId) { return "PALDISKI"; }
 
 // --- Lag compensation: rewind player hitboxes to the shooter's view-time ---
 constexpr int   HISTORY_TICKS   = 90;    // 1.5 s of position history at 60 Hz
@@ -144,22 +138,14 @@ static bool rewindLookup(const void* ctx, int pid, float rewindSec,
 // Spawn points on a circle, facing the center. Random point per respawn
 // so deaths don't return you to a campable fixed spot.
 static glm::vec3 spawnPos(int point) {
-    // City: spread across generated street intersections / plazas (already on y=0).
-    if (gMapId == MAP_CITY && gCitySpawnCount > 0)
-        return gCitySpawns[point % gCitySpawnCount];
-    float a = glm::radians(point * (360.0f / MAX_PLAYERS));
-    // radius 12 keeps every point clear of the warehouse perimeter walls (+/-15 Z);
-    // the open field spreads players across the 100 m square (clamp at +/-50).
-    float r = (gMapId == MAP_FIELD) ? 35.0f : 12.0f;
-    float x = r * cosf(a), z = r * sinf(a);
-    return {x, terrainHeight(x, z), z};   // sit on the ground (terrain or y=0)
+    glm::vec3 p = gMapSpawnCount > 0 ? gMapSpawns[point % gMapSpawnCount]
+                                     : glm::vec3(0.0f);
+    p.y = terrainHeight(p.x, p.z);   // sit on the ground
+    return p;
 }
 static float spawnYaw(int point) {
-    if (gMapId == MAP_CITY && gCitySpawnCount > 0) {
-        glm::vec3 p = gCitySpawns[point % gCitySpawnCount];   // face the city center
-        return glm::degrees(atan2f(-p.z, -p.x));
-    }
-    return point * (360.0f / MAX_PLAYERS) + 180.0f;  // look toward center
+    glm::vec3 p = spawnPos(point);   // face the town center-ish (map origin area)
+    return glm::degrees(atan2f(-p.z, -p.x));
 }
 
 // joining=true: fresh player at the slot's own point, score zeroed.
@@ -372,11 +358,9 @@ static void broadcast(int fd, uint32_t seq) {
 int main() {
     setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffered even when piped to a log
     srand((unsigned)time(nullptr));
-    // 1 km^2 terrain is the shared online map; FPS_MAP=warehouse/training/city overrides.
-    MapId mapSel = mapFromName(getenv("FPS_MAP"), MAP_FIELD);
+    // Paldiski is the map; FPS_MAP stays as the registry hook for future maps.
+    MapId mapSel = mapFromName(getenv("FPS_MAP"), MAP_PALDISKI);
     setMap(mapSel);
-    // Same designed heightmap the clients load — authoritative collision must match.
-    if (mapSel == MAP_FIELD) loadHeightmap("maps/field/height.png", 35.0f, FIELD_HALF);
     printf("server: map = %s\n", mapLabel(mapSel));
     // FPS_PORT lets several map servers share one host on distinct ports; the client
     // lobby probe scans the range starting at UDP_PORT. Defaults to UDP_PORT.

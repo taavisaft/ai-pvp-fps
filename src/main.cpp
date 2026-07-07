@@ -13,7 +13,6 @@
 #include "physics.h"
 #include "network.h"
 #include "map.h"
-#include "heightmap.h"
 #include "hud.h"
 #include "audio.h"
 #include "material.h"
@@ -25,7 +24,6 @@
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
 static const glm::vec3 COLOR_BULLET_ENEMY = {1.00f, 0.40f, 0.10f};
-static const glm::vec3 COLOR_SELF         = {0.30f, 0.55f, 0.85f};  // own avatar in mirror
 
 // Persistent bullet-impact decal: a small patch laid flat on whatever surface the round
 // struck (ground, cover, walls). Stamped from the local sim offline and from the
@@ -37,14 +35,7 @@ static const glm::vec3 IMPACT_DIRS[6] = {
     {1,0,0}, {-1,0,0}, {0,1,0}, {0,-1,0}, {0,0,1}, {0,0,-1},
 };
 
-// Offline shooting range: a large flat target wall (client-only, not in MAP_BOXES
-// so it never affects online play) that the practice spawn faces. Bullets that
-// reach it leave persistent marks so the spread/recoil pattern and drop are visible.
-static const glm::vec3 RANGE_WALL_CENTER = {26.0f, 4.0f, 0.0f};
-static const glm::vec3 RANGE_WALL_HALF   = {0.6f, 4.0f, 13.0f};
-static const float     RANGE_WALL_FACE   = 25.4f;  // front face = center.x - half.x
-static const float     RANGE_BULLSEYE_Y  = 1.7f;   // matches standing eye height
-constexpr int          DECAL_MAX         = 512;    // ring buffer of impact decals
+constexpr int DECAL_MAX = 512;    // ring buffer of impact decals
 
 // First-person weapon state (client cosmetic; gameplay is server-authoritative).
 struct ViewModel {
@@ -297,78 +288,6 @@ static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, flo
     leg(BONE_THIGH_R, phase + 3.14159f);
 }
 
-// Training-only mirror on the range wall: a stencil-masked planar reflection (no FBO).
-// Mark the glass into the stencil, reset depth there, then redraw the world reflected
-// across the wall plane with the cull winding flipped. The local player IS drawn here
-// (unlike the first-person pass), so you can see yourself. Must run after the wall is
-// drawn this frame and before the HUD.
-static void drawMirror(Renderer& r, const Camera& cam, const GameState& gs, int localID,
-                       const float* walkPhase, const float* walkAmp, const float* adsAnim) {
-    const float     planeX = RANGE_WALL_FACE;               // reflect across the wall face
-    const glm::vec3 mc     = {planeX - 0.02f, 1.70f, 0.0f};  // glass center, dead ahead
-    const glm::vec3 mscale = {0.04f, 3.60f, 2.60f};         // ~3.6 m tall, 2.6 m wide
-    const float     hh = mscale.y * 0.5f, hw = mscale.z * 0.5f;
-    const glm::mat4 proj = cam.proj(r.aspect());
-
-    // 1. Mark the glass rectangle into the stencil (no color, no depth write). REPLACE
-    //    only on depth-pass, so anything in front of the glass correctly masks it out.
-    glEnable(GL_STENCIL_TEST);
-    glStencilFunc(GL_ALWAYS, 1, 0xFF);
-    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-    glDepthMask(GL_FALSE);
-    r.drawCube(mc, mscale, glm::vec3(0.0f));
-
-    // 2. Reset depth to far inside the glass so the reflected geometry (which lives
-    //    behind the wall in world space) isn't occluded by the wall drawn this frame.
-    glStencilFunc(GL_EQUAL, 1, 0xFF);
-    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-    glDepthMask(GL_TRUE);
-    glDepthFunc(GL_ALWAYS);
-    r.fillDepthFar();                       // clobbers view/proj uniforms (restored below)
-    glDepthFunc(GL_LESS);
-
-    // 3. Reflected world, only where stencil==1. Reflection flips winding -> cull front.
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    glm::mat4 R(1.0f); R[0][0] = -1.0f; R[3][0] = 2.0f * planeX;  // x -> 2*planeX - x
-    r.shader.setMat4(r.shader.locProj, proj);
-    r.setView(cam.view() * R);
-    glCullFace(GL_FRONT);
-
-    r.drawTerrain();   // the mirror only exists on the training lobby map
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (!(gs.usedMask & (1u << i)) || !gs.players[i].alive) continue;
-        const Player& pl = gs.players[i];
-        drawPlayerSkeleton(r, pl.pos, pl.yaw, pl.pitch, pl.lean, pl.weaponId, pl.crouched,
-                           adsAnim[i], walkPhase[i], walkAmp[i],
-                           i == localID ? COLOR_SELF : COLOR_ENEMY);
-    }
-    for (int i = 0; i < MAX_BULLETS; i++) {
-        const Bullet& b = gs.bullets[i];
-        if (b.active)
-            r.drawCube(b.pos, {0.1f, 0.1f, 0.1f},
-                       b.ownerID == localID ? COLOR_BULLET_OWN : COLOR_BULLET_ENEMY);
-    }
-
-    glCullFace(GL_BACK);
-    glDisable(GL_STENCIL_TEST);
-    r.setView(cam.view());
-
-    // 4. Dark frame around the glass + a faint cool sheen, so it reads as a mirror.
-    const glm::vec3 frameCol = {0.09f, 0.09f, 0.11f};
-    const float fx = planeX - 0.05f, ft = 0.07f;
-    r.drawCube({fx, mc.y + hh, mc.z}, {ft, 0.12f, 2 * hw + 0.18f}, frameCol);  // top
-    r.drawCube({fx, mc.y - hh, mc.z}, {ft, 0.12f, 2 * hw + 0.18f}, frameCol);  // bottom
-    r.drawCube({fx, mc.y, mc.z - hw}, {ft, 2 * hh + 0.18f, 0.12f}, frameCol);  // left
-    r.drawCube({fx, mc.y, mc.z + hw}, {ft, 2 * hh + 0.18f, 0.12f}, frameCol);  // right
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    r.shader.setFloat(r.shader.locAlpha, 0.10f);
-    r.drawCube(mc, mscale, {0.55f, 0.68f, 0.80f});       // glass sheen
-    r.shader.setFloat(r.shader.locAlpha, 1.0f);
-    glDisable(GL_BLEND);
-}
-
 // Shadow casters + receivers: ground/terrain, cover boxes, remote players, bullets.
 // Drawn twice per frame — once into the sun's depth map, once into the main view —
 // so it must contain only real world geometry (no HUD, viewmodel, mirror, or the
@@ -377,17 +296,17 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
                               const float* walkPhase, const float* walkAmp,
                               const float* adsAnim, bool showHitboxes,
                               const Frustum& fr, const glm::vec3& eye) {
-    if (gMapId == MAP_FIELD || gMapId == MAP_TRAINING) r.drawTerrain();
-    else                                               r.drawGround();
-
-    if (gMapId == MAP_CITY) {
-        r.drawCityWorld(fr, eye);  // facade near, concrete box far (collision is the box)
-    } else {
+    if (gMapId == MAP_LOBBY) {
+        // Flat pad + plain material boxes (target wall, test cover).
+        r.drawGround();
         for (int i = 0; i < gMapBoxCount; i++) {
             const Box& b = gMapBoxes[i];
             if (!fr.aabbVisible(b.center, b.half)) continue;
             r.drawCube(b.center, b.half * 2.0f, mapBoxMaterial(i));
         }
+    } else {
+        r.drawTerrain();
+        r.drawTownWorld(fr, eye);  // facade near, concrete box far (collision is the box)
     }
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (i == localID) continue;
@@ -424,11 +343,13 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
 static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int localID,
                         const HudState& hud, bool scoreboard, bool online,
                         const ViewModel& vm,
-                        const Decal* decals, int decalCount, bool drawRange,
+                        const Decal* decals, int decalCount,
                         const ConnectPrompt& connectPrompt, const Lobby& lobby,
                         const float* walkPhase, const float* walkAmp,
                         const float* adsAnim, bool showHitboxes, bool fullMap, bool showHud) {
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
+
+    r.invalidateWorldOnMapChange();   // drop town/tree/prop caches on map switch
 
     // Pass 1: scene depth from the sun, focused on the camera (near-field shadows).
     r.beginShadowPass(cam.eye);
@@ -443,14 +364,13 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     r.drawSky(cam.view(), cam.proj(r.aspect()));
     Frustum camFr = Frustum::fromVP(cam.proj(r.aspect()) * cam.view());
     drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, showHitboxes, camFr, cam.eye);
-    r.drawFoliage(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);  // instanced trees (field)
-    r.drawProps(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);    // instanced props (city)
+    r.drawFoliage(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);  // instanced trees
+    r.drawProps(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);    // instanced props
+    r.drawWater();   // translucent Baltic, after all opaque world geometry
 
-    if (drawRange) {
-        // the wall itself is a training-map box (drawn by the map loop). Just the
-        // aim reference: a red cross at standing eye height, offset left of the mirror
-        // (which sits dead ahead at z=0) so the two don't overlap.
-        glm::vec3 c = {RANGE_WALL_FACE - 0.03f, RANGE_BULLSEYE_Y, -7.0f};
+    if (gMapId == MAP_LOBBY) {
+        // Shooting-range aim reference: red cross on the target wall at eye height.
+        glm::vec3 c = {LOBBY_WALL_FACE - 0.03f, LOBBY_BULLSEYE_Y, 0.0f};
         r.drawCube(c, {0.06f, 1.0f, 0.10f}, {0.85f, 0.25f, 0.20f});
         r.drawCube(c, {0.06f, 0.10f, 1.0f}, {0.85f, 0.25f, 0.20f});
     }
@@ -464,7 +384,6 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         r.drawCube({b.pos.x, terrainHeight(b.pos.x, b.pos.z) + 0.01f, b.pos.z},
                    {0.22f, 0.001f, 0.22f}, COLOR_BLOB);
     }
-    if (drawRange) drawMirror(r, cam, gs, localID, walkPhase, walkAmp, adsAnim);
     // First-person gun is an overlay — don't world-shadow it (FPS convention).
     if (gs.players[localID].alive && !connectPrompt.open) {
         r.shader.setInt(r.shader.locUseShadow, 0);
@@ -507,14 +426,12 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Designed terrain for the field map. Loaded before the renderer so the terrain
-    // mesh is built from it. Falls back to procedural noise if the file is missing.
-    {
-        char hmpath[600];
-        const char* hb = SDL_GetBasePath();
-        snprintf(hmpath, sizeof(hmpath), "%smaps/field/height.png", hb ? hb : "");
-        loadHeightmap(hmpath, 35.0f, FIELD_HALF);
-    }
+    // Offline you sit in the LOBBY (flat test range) until you press C and join a
+    // server. setMap must run BEFORE the renderer: the Paldiski heightfield mesh is
+    // baked at init (pads must exist), even though the lobby draws a flat quad.
+    // FPS_MAP=paldiski forces the real map offline (debug/screenshots).
+    setMap(MAP_PALDISKI);                 // generate pads for the terrain-mesh bake
+    MapId offlineMap = mapFromName(getenv("FPS_MAP"), MAP_LOBBY);
 
     Renderer renderer;
     if (!renderer.init("pvp_shooter", 1280, 720)) {
@@ -526,10 +443,12 @@ int main(int argc, char** argv) {
     Audio audio;
     audio.init();   // runs silent if no device
 
+    // Offline practice state: you + a dummy. setupOffline() (below, after `predicted`
+    // exists) switches to `offlineMap` and (re)places both — also used when a server
+    // connection drops, returning you to the lobby.
+    glm::vec3 spawn0(0.0f), dummyPos(0.0f);
     static GameState offline;             // local practice match vs dummy
     offline.usedMask = 0b11;              // slot 0 = self, slot 1 = dummy
-    offline.players[0].pos = {12, 0, 0};  // on the firing line, facing the range wall
-    offline.players[1].pos = {24, 0, 6};  // dummy off to the side, clear of the pattern
     static GameState display;             // what gets rendered when online
 
     // Persistent bullet-impact decals on all world surfaces (offline + online).
@@ -548,8 +467,28 @@ int main(int argc, char** argv) {
     glm::vec3 posError(0.0f);             // smooths the snap to authoritative pos
     const float PRED_SMOOTH_TAU = 0.08f;  // correction half-life (~smoothing window)
 
-    Camera     cam;
-    cam.yaw = 0.0f;  // offline spawn looks down the range (+X) at the target wall
+    Camera cam;
+
+    // Enter (or re-enter) offline practice on `offlineMap`: place self + dummy on
+    // the map's first spawn and face the dummy (lobby: down the firing line).
+    auto setupOffline = [&]() {
+        setMap(offlineMap);
+        spawn0 = gMapSpawnCount > 0 ? gMapSpawns[0] : glm::vec3(0.0f);
+        glm::vec3 off = (gMapId == MAP_LOBBY) ? glm::vec3(8.0f, 0.0f, 7.0f)
+                                              : glm::vec3(14.0f, 0.0f, 5.0f);
+        dummyPos   = spawn0 + off;
+        spawn0.y   = terrainHeight(spawn0.x, spawn0.z);
+        dummyPos.y = terrainHeight(dummyPos.x, dummyPos.z);
+        offline.players[0] = Player{};
+        offline.players[1] = Player{};
+        offline.players[0].pos = spawn0;
+        offline.players[1].pos = dummyPos;
+        predicted.pos = spawn0;
+        cam.yaw = glm::degrees(atan2f(dummyPos.z - spawn0.z, dummyPos.x - spawn0.x));
+    };
+    setupOffline();
+    // FPS_YAW=<deg> overrides the start yaw (debug screenshots).
+    if (const char* yv = getenv("FPS_YAW")) cam.yaw = (float)atof(yv);
     FrameInput input;
 
 
@@ -603,11 +542,13 @@ int main(int argc, char** argv) {
     bool      fullMap      = false;           // M: full-screen map overlay
     bool      showHud      = true;            // J: hide whole HUD for immersion
 
-    // Always run setMap so the training lobby gets its terrain mode + 300 m clamp
-    // (the map.h globals default to flat-ground values). FPS_MAP=field|warehouse|
-    // training|city forces an offline map (same names the server uses) so any map
-    // can be inspected without a server. Online overrides it.
-    setMap(mapFromName(getenv("FPS_MAP"), MAP_TRAINING));
+    // Debug: FPS_ATMO=clear|overcast|golden picks the starting atmosphere preset
+    // (K cycles at runtime; cosmetic and client-only, so nothing to sync).
+    if (const char* at = getenv("FPS_ATMO")) {
+        if      (strcmp(at, "overcast") == 0) renderer.setAtmosphere(Renderer::ATMO_OVERCAST);
+        else if (strcmp(at, "golden")   == 0) renderer.setAtmosphere(Renderer::ATMO_GOLDEN);
+        else                                  renderer.setAtmosphere(Renderer::ATMO_CLEAR);
+    }
 
     auto closeConnectPrompt = [&]() {
         if (!connectPromptActive) return;
@@ -619,8 +560,8 @@ int main(int argc, char** argv) {
     };
 
     printf("controls: WASD move, mouse look, LMB shoot, Q/E lean, 1/2 or scroll weapon "
-           "(Uzi/Glock), C connect, F wireframe, H hitboxes, J toggle HUD, ESC quit\n");
-    printf("offline shooting range: fire at the wall to see your spread; G clears the marks\n");
+           "(Uzi/Glock), C connect, K atmosphere, F wireframe, H hitboxes, J toggle HUD, ESC quit\n");
+    printf("lobby: shooting range + dummy; press C to join a server (Paldiski)\n");
 
     while (running) {
         Uint64 now = SDL_GetPerformanceCounter();
@@ -639,6 +580,11 @@ int main(int argc, char** argv) {
         if (input.hitboxToggle) showHitboxes = !showHitboxes;
         if (input.mapToggle) fullMap = !fullMap;
         if (input.hudToggle) showHud = !showHud;
+        if (input.atmoToggle) {
+            renderer.setAtmosphere(renderer.atmoPreset + 1);
+            static const char* atmoNames[] = {"clear", "overcast", "golden hour"};
+            printf("atmosphere: %s\n", atmoNames[renderer.atmoPreset]);
+        }
         if (input.clearRange) { decalCount = 0; decalHead = 0; }
 
         // Weapon select (1 = Uzi, 2 = Glock). Offline re-arms now; online the server
@@ -699,11 +645,11 @@ int main(int argc, char** argv) {
         if (localID < 0 || localID >= MAX_PLAYERS) localID = 0;
 
         if (online && !wasOnline) {   // reset offline→online client state
-            // Adopt whatever map the server advertised in its ACCEPT (falls back to
-            // warehouse if somehow unset), so the client always matches the server.
-            MapId srv = (net.serverMap >= 0 && net.serverMap < MAP_COUNT) ? (MapId)net.serverMap
-                                                                          : MAP_WAREHOUSE;
-            setMap(srv);
+            // Adopt the map the server advertised in its ACCEPT so client and server
+            // always match. Only real maps (< MAP_LOBBY) are valid from a server.
+            MapId srv = (net.serverMap >= 0 && net.serverMap < MAP_LOBBY) ? (MapId)net.serverMap
+                                                                          : MAP_PALDISKI;
+            if (srv != gMapId) setMap(srv);
             prevOwnHP       = PLAYER_HP;
             prevOwnHits     = 0;
             prevOwnAlive    = true;
@@ -714,7 +660,7 @@ int main(int argc, char** argv) {
             decalHead       = 0;
             remoteShotsSeeded = false;
         }
-        if (!online && wasOnline) setMap(MAP_TRAINING);  // back to the practice arena
+        if (!online && wasOnline) setupOffline();  // back to the lobby test range
         if (!online) remoteShotsSeeded = false;
         wasOnline = online;
 
@@ -823,16 +769,15 @@ int main(int argc, char** argv) {
                     dummy.respawnTimer -= FIXED_DT;
                     if (dummy.respawnTimer <= 0.0f) {
                         dummy = Player{};
-                        dummy.pos = {24, 0, 6};
+                        dummy.pos = dummyPos;
                     }
                 }
             }
             accumulator -= FIXED_DT;
         }
 
-        // Mirror self (training): movePlayer only sets yaw + crouch, so reflect aim
-        // pitch, lean, and ADS onto the offline avatar too — that's what the range
-        // mirror renders for your own reflection.
+        // movePlayer only sets yaw + crouch, so reflect aim pitch, lean, and ADS onto
+        // the offline avatar too (kept for future self-views; harmless otherwise).
         offline.players[0].pitch = input.state.pitch;
         offline.players[0].lean  = input.state.lean;
         offline.players[0].ads   = input.state.ads;
@@ -1003,7 +948,7 @@ int main(int argc, char** argv) {
         renderer.setTime(gameTime);
         hud.adsT = vm.adsT;
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
-                    decals, decalCount, !online, connectPrompt, lobby, walkPhase, walkAmp,
+                    decals, decalCount, connectPrompt, lobby, walkPhase, walkAmp,
                     adsAnim, showHitboxes, fullMap, showHud);
 
         static int frameCount = 0;

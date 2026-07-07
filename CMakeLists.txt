@@ -16,8 +16,7 @@ FetchContent_MakeAvailable(glm)
 
 set(SHARED_SOURCES
     src/physics.cpp
-    src/net_common.cpp
-    src/heightmap.cpp)
+    src/net_common.cpp)
 
 set(CLIENT_SOURCES
     src/main.cpp
@@ -53,10 +52,12 @@ if(WIN32)
     target_compile_definitions(server PRIVATE _WIN32_WINNT=0x0601)
 endif()
 
-# Copy shaders next to the binary
-add_custom_command(TARGET game POST_BUILD
+# Copy shaders next to the binary. A standalone ALL target (not POST_BUILD) so a
+# shader-only edit still refreshes the copy — POST_BUILD skips when game doesn't relink.
+add_custom_target(copy_shaders ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:game>/shaders)
+add_dependencies(copy_shaders game)
 
 # Copy image textures next to the binary (optional; procedural fallback if absent)
 add_custom_command(TARGET game POST_BUILD
@@ -67,11 +68,6 @@ add_custom_command(TARGET game POST_BUILD
 add_custom_command(TARGET game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/models $<TARGET_FILE_DIR:game>/models)
-
-# Copy maps (heightmaps etc.) next to the binary
-add_custom_command(TARGET game POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/maps $<TARGET_FILE_DIR:game>/maps)
 
 # Copy sound assets next to the binary (optional; synth fallback if absent)
 add_custom_command(TARGET game POST_BUILD

@@ -25,6 +25,14 @@ uniform vec3 skyZenith;    // hemispheric ambient from above
 uniform vec3 skyHorizon;   // horizon / distance-fog color
 uniform vec3 groundAmbient;// ambient + bounce from below
 
+// Atmosphere pass (preset-driven; see Renderer::setAtmosphere).
+uniform vec3  sunColor;     // direct sun tint
+uniform float fogDist;      // distance-fog reach in meters
+uniform float fogHeightAmt; // low-altitude haze boost (valleys fill first)
+uniform float cloudAmount;  // drifting cloud-shadow strength 0..1
+uniform float exposure;     // pre-tonemap exposure
+uniform float saturation;   // grade saturation (1 = neutral)
+
 uniform sampler2D shadowMap;  // sun depth, texture unit 1
 uniform int useShadow;        // 1 = sample shadow map, 0 = fully lit
 
@@ -89,6 +97,25 @@ vec3 grassColor(vec2 p, float t) {
     return c;
 }
 
+// Cloud shadows: two octaves of drifting value noise over the ground plane, dimming
+// the direct sun where a cloud passes. Same math in foliage.frag/inst.frag so every
+// surface darkens together (the Arma "cloud sweeping over a field" read).
+float cloudShadow(vec2 xz, float t) {
+    if (cloudAmount <= 0.0) return 1.0;
+    float cl = vnoise(xz * 0.010 + t * 0.010) * 0.65
+             + vnoise(xz * 0.027 - t * 0.013) * 0.35;
+    return 1.0 - cloudAmount * (1.0 - smoothstep(0.35, 0.72, cl));
+}
+
+// Grade: exposure -> saturation -> ACES filmic curve (Narkowicz approximation).
+// Applied to lit world pixels only (HUD stays raw); sky.frag runs the same grade
+// so the fog-to-horizon seam stays invisible.
+vec3 grade(vec3 c) {
+    c *= exposure;
+    c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, saturation);
+    return clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0);
+}
+
 // Triplanar sample of an arbitrary map, given precomputed axis blend weights `an`.
 vec3 triplanarTex(sampler2D s, vec3 p, float tile, vec3 an) {
     return texture(s, p.yz / tile).rgb * an.x
@@ -129,7 +156,7 @@ vec3 splatTerrain(vec3 p, vec3 an) {
     float jitter = (fbm(p.xz * 0.06) - 0.5) * 0.10;
     float s  = clamp(slope * 6.0 + jitter, 0.0, 1.0);
     float rw = smoothstep(0.30, 0.55, s);
-    rw = max(rw, smoothstep(5.0, 9.0, p.y));      // exposed rock on the high ground
+    rw = max(rw, smoothstep(16.0, 24.0, p.y));    // exposed rock only on the highest hills
 
     // Large-scale "biome" mask (~250 m features): bare dirt fields vs lush grass,
     // so the ground reads as varied terrain even where it is near-flat.
@@ -140,6 +167,11 @@ vec3 splatTerrain(vec3 p, vec3 an) {
     float dw = (1.0 - rw) * dirtField;            // dirt fields / paths
     float sum = gw + dw + rw + 1e-4;
     vec3 col = (grassC * gw + dirtC * dw + rockC * rw) / sum;
+
+    // Beach: below ~1.2 m the ground fades to wet sand (tinted dirt), continuing
+    // under the waterline so the shallows read as seabed through the water plane.
+    float sand = 1.0 - smoothstep(0.5, 1.3, p.y);
+    col = mix(col, dirtC * vec3(1.15, 1.08, 0.88), sand);
 
     // Macro variation: large-scale brightness drift (~30 m) so the ground doesn't
     // read as one uniform repeating carpet into the distance.
@@ -164,8 +196,10 @@ void main() {
                                   : normalize(cross(dFdx(worldPos), dFdy(worldPos)));
         vec3 L = normalize(sunDir);
 
-        // 3-term outdoor light: warm direct sun (shadowed) + cool hemispheric sky + bounce.
-        vec3 sun     = vec3(1.0, 0.96, 0.88) * max(dot(n, L), 0.0) * sunVisibility(n, L);
+        // 3-term outdoor light: direct sun (shadowed + cloud-dimmed) + hemispheric
+        // sky + bounce. Sun tint comes from the atmosphere preset.
+        vec3 sun     = sunColor * max(dot(n, L), 0.0)
+                     * sunVisibility(n, L) * cloudShadow(worldPos.xz, time);
         vec3 ambient = mix(groundAmbient, skyZenith, n.y * 0.5 + 0.5);
         ambient     += groundAmbient * 0.25 * max(-n.y, 0.0);   // upward bounce
         vec3 lit3    = c * (sun + ambient);
@@ -177,8 +211,11 @@ void main() {
             lit3 += vec3(spec);
         }
 
-        float fog = clamp(length(worldPos - eyePos) / 350.0, 0.0, 1.0);
-        c = mix(lit3, skyHorizon, fog * fog);
+        // Distance fog, denser at low altitude so valleys fill with haze while
+        // hilltops poke out (DayZ morning). Height term uses the fragment's y.
+        float dens = 1.0 + fogHeightAmt * exp(-max(worldPos.y, 0.0) / 12.0);
+        float fog  = clamp(length(worldPos - eyePos) * dens / fogDist, 0.0, 1.0);
+        c = grade(mix(lit3, skyHorizon, fog * fog));
     }
     fragColor = vec4(c, alpha);
 }

@@ -74,6 +74,7 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
             case SDLK_h:      in.hitboxToggle    = true;        break;
             case SDLK_m:      in.mapToggle       = true;        break;
             case SDLK_j:      in.hudToggle       = true;        break;
+            case SDLK_k:      in.atmoToggle      = true;        break;
             default: break;
             }
             break;

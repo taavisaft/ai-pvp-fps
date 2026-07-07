@@ -2,14 +2,16 @@
 #include <glm/glm.hpp>
 #include <cmath>
 
-// Shared procedural heightfield for the outdoor maps. The same inline float math
-// runs on the server (authoritative physics) and the client (mesh + prediction),
-// so both agree on the ground height without any asset or network sync.
-// terrainElevation() is the raw field for MAP_FIELD (designed heightmap or noise);
-// lobbyElevation() shapes the training lobby (flat pad, hills toward the edge).
-// terrainHeight() is the gameplay ground height, selected per map via gTerrainMode
-// (set by setMap in map.h). Kept dependency-free (glm + cmath only) so map.h can
-// include this without a circular include.
+// Shared procedural heightfield for PALDISKI (the one map, for now). The same inline
+// float math runs on the server (authoritative physics) and the client (mesh +
+// prediction), so both agree on the ground height without any asset or network sync.
+// Kept dependency-free (glm + cmath only) so map.h can include this without a cycle.
+//
+// Paldiski layout (Estonian coastal town): the Baltic on the WEST (x negative side)
+// behind a wavy shoreline, a beach band rising inland, a steeper Pakri-style bank on
+// the north stretch of the coast, rolling hills growing toward the east edge, and a
+// handful of flattened "pads" the shore town's buildings sit on (filled by
+// generatePaldiski in map.h). Sea level is y = 0.
 
 // Integer hash → [0,1). Cheap, deterministic, platform-stable (pure int ops).
 inline float terrHash(int x, int z) {
@@ -20,6 +22,7 @@ inline float terrHash(int x, int z) {
 }
 
 inline float terrSmooth(float t) { return t * t * (3.0f - 2.0f * t); }
+inline float terrClamp01(float t) { return t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t); }
 
 // Value noise: bilinear blend of cell-corner hashes, smoothstep-interpolated.
 inline float terrValueNoise(float x, float z) {
@@ -35,71 +38,66 @@ inline float terrValueNoise(float x, float z) {
     return ab + (cd - ab) * tz;   // [0,1)
 }
 
-// --- optional designed heightmap (filled by heightmap.cpp; same on client+server) ---
-// When gHeightLoaded, terrainElevation samples this bilinearly instead of the noise
-// below. gHeightData is W*H height values in metres, covering world XZ in
-// [-gHeightHalf, +gHeightHalf]. Kept here (inline) so client + server sample identically.
-inline bool         gHeightLoaded = false;
-inline const float* gHeightData   = nullptr;
-inline int          gHeightW = 0, gHeightH = 0;
-inline float        gHeightHalf = 500.0f;
+// --- flattened building pads (filled deterministically by generatePaldiski) -----
+// Terrain blends toward each pad's height inside its radius so buildings sit on
+// level ground. Few pads, so the per-sample loop is cheap enough for physics.
+constexpr int MAX_TERRAIN_PADS = 16;
+struct TerrainPad { float x, z, r, h; };
+inline TerrainPad gTerrainPads[MAX_TERRAIN_PADS];
+inline int        gTerrainPadCount = 0;
 
-inline float terrClamp01(float t) { return t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t); }
-
-inline float sampleHeightBilinear(float x, float z) {
-    float u = terrClamp01((x + gHeightHalf) / (2.0f * gHeightHalf));
-    float v = terrClamp01((z + gHeightHalf) / (2.0f * gHeightHalf));
-    float fx = u * (gHeightW - 1), fz = v * (gHeightH - 1);
-    int x0 = (int)fx, z0 = (int)fz;
-    int x1 = x0 + 1 < gHeightW ? x0 + 1 : x0;
-    int z1 = z0 + 1 < gHeightH ? z0 + 1 : z0;
-    float tx = fx - x0, tz = fz - z0;
-    const float* d = gHeightData;
-    float h00 = d[z0 * gHeightW + x0], h10 = d[z0 * gHeightW + x1];
-    float h01 = d[z1 * gHeightW + x0], h11 = d[z1 * gHeightW + x1];
-    float a = h00 + (h10 - h00) * tx;
-    float b = h01 + (h11 - h01) * tx;
-    return a + (b - a) * tz;
+// World X of the waterline's underwater base at a given Z (the beach crosses y=0 a
+// few meters east of this). Shared so the town generator can hug the coast.
+inline float paldiskiShoreX(float z) {
+    return -90.0f + (terrValueNoise(z * 0.015f + 31.0f, 13.7f) - 0.5f) * 70.0f;
 }
 
-// Procedural fallback: broad rolling hills + medium roll + fine bumps. Used only when
-// no heightmap is loaded.
-inline float terrainProcedural(float x, float z) {
-    float h = 0.0f;
-    h += (terrValueNoise(x * 0.012f, z * 0.012f) - 0.5f) * 16.0f; // broad hills ~±8 m
-    h += (terrValueNoise(x * 0.05f,  z * 0.05f)  - 0.5f) * 4.0f;  // local roll  ~±2 m
-    h += (terrValueNoise(x * 0.18f,  z * 0.18f)  - 0.5f) * 1.0f;  // fine bumps  ~±0.5 m
+// Raw Paldiski elevation, before pad flattening.
+inline float paldiskiBase(float x, float z) {
+    float d = x - paldiskiShoreX(z);            // <0 seaward, >0 landward (m)
+    float tSea  = terrClamp01(-d / 70.0f);      // 0 at shore -> 1 out at sea
+    float tLand = terrClamp01(d / 60.0f);       // beach/bank rise band
+    float h = -1.0f - tSea * 7.0f + terrSmooth(tLand) * 7.0f;   // -8 m ... +6 m
+
+    // Pakri flavor: the northern stretch of coast rises as a steeper, higher bank.
+    float cliff = terrSmooth(terrClamp01((-z - 60.0f) / 60.0f));
+    h += cliff * terrSmooth(terrClamp01(d / 25.0f)) * 6.0f;
+
+    // Rolling hills grow inland (east); clamped upward so no inland lakes form.
+    float inland = terrSmooth(terrClamp01((d - 80.0f) / 140.0f));
+    float hills  = (terrValueNoise(x * 0.012f, z * 0.012f) - 0.5f) * 22.0f
+                 + (terrValueNoise(x * 0.05f,  z * 0.05f)  - 0.5f) * 4.0f;
+    h += inland * fmaxf(hills, 0.0f);
+
+    // Fine bumps on land only (the sea floor stays smooth).
+    if (d > 0.0f)
+        h += (terrValueNoise(x * 0.18f, z * 0.18f) - 0.5f) * 0.6f * terrSmooth(tLand);
     return h;
 }
 
-// Raw elevation (metres) at world (x,z): designed heightmap if loaded, else noise.
-inline float terrainElevation(float x, float z) {
-    return gHeightLoaded ? sampleHeightBilinear(x, z) : terrainProcedural(x, z);
+inline float paldiskiElevation(float x, float z) {
+    float h = paldiskiBase(x, z);
+    for (int i = 0; i < gTerrainPadCount; i++) {
+        const TerrainPad& p = gTerrainPads[i];
+        float dx = x - p.x, dz = z - p.z;
+        float dist = sqrtf(dx * dx + dz * dz);
+        if (dist >= p.r) continue;
+        // Plateau: dead flat out to (r - falloff) — the building footprint must sit
+        // fully inside that — then a smooth 12 m skirt down to the natural ground.
+        constexpr float FALLOFF = 12.0f;
+        float w = terrSmooth(terrClamp01((p.r - dist) / FALLOFF));
+        h = h + (p.h - h) * w;
+    }
+    return h;
 }
 
-// --- training lobby ground (MAP_TRAINING) -----------------------------------
-// Flat pad in the middle (covers the arena cover, firing range, and spawns), then
-// blends into noise hills toward the edge. Always the procedural noise — never the
-// field heightmap — so the lobby looks the same whether or not maps/field/height.png
-// loaded.
-inline constexpr float LOBBY_FLAT_R = 45.0f;   // fully flat inside this radius
-inline constexpr float LOBBY_HILL_R = 100.0f;  // hills at full strength beyond this
-
-inline float lobbyElevation(float x, float z) {
-    float d = sqrtf(x * x + z * z);
-    float t = terrSmooth(terrClamp01((d - LOBBY_FLAT_R) / (LOBBY_HILL_R - LOBBY_FLAT_R)));
-    // Base lift keeps the ring reading as hills enclosing the pad, not random dips.
-    return t * (5.0f + terrainProcedural(x, z));
-}
-
-// Ground shape for the active map (see setMap in map.h). TERRAIN_OFF keeps the
-// flat-y=0 arena maps exactly as before.
-enum TerrainMode { TERRAIN_OFF = 0, TERRAIN_FIELD, TERRAIN_LOBBY };
+// Ground shape for the active map (see setMap in map.h). TERRAIN_OFF = flat y=0,
+// kept so future arena-style maps can opt out of the heightfield.
+enum TerrainMode { TERRAIN_OFF = 0, TERRAIN_PALDISKI };
 inline TerrainMode gTerrainMode = TERRAIN_OFF;
 
-// Gameplay ground height used by physics/spawns/shadows.
+// Gameplay ground height used by physics/spawns/shadows/mesh.
 inline float terrainHeight(float x, float z) {
-    if (gTerrainMode == TERRAIN_FIELD) return terrainElevation(x, z);
-    if (gTerrainMode == TERRAIN_LOBBY) return lobbyElevation(x, z);
+    if (gTerrainMode == TERRAIN_PALDISKI) return paldiskiElevation(x, z);
     return 0.0f;
 }

@@ -30,25 +30,8 @@ struct MaterialLib {
     void destroy();
 };
 
-// Per-map-box material (parallel to each map's box array; server ignores).
-inline const MaterialId TRAINING_MAT[TRAINING_BOX_COUNT] = {
-    MAT_CONCRETE, // center pillar
-    MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, // axis walls
-    MAT_WOOD, MAT_WOOD, MAT_WOOD, MAT_WOOD,                 // crates
-    MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, // outer pillars
-    MAT_CONCRETE,                                           // shooting-range wall
-};
-inline const MaterialId WAREHOUSE_MAT[WAREHOUSE_BOX_COUNT] = {
-    MAT_CONCRETE,                                           // central block
-    MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, MAT_CONCRETE, // perimeter walls
-    MAT_METAL, MAT_METAL, MAT_METAL, MAT_METAL,             // containers (X)
-    MAT_METAL, MAT_METAL,                                   // containers (Z)
-    MAT_WOOD, MAT_WOOD, MAT_WOOD, MAT_WOOD,                 // crates
-    MAT_METAL, MAT_METAL,                                   // pipe stacks
-};
-
-// CITY boxes carry a BoxSurface tag (generated); map it to a renderer material.
-inline MaterialId citySurfaceMat(uint8_t surf) {
+// Map boxes carry a BoxSurface tag (generated); map it to a renderer material.
+inline MaterialId surfaceMat(uint8_t surf) {
     switch (surf) {
         case SURF_METAL: return MAT_METAL;
         case SURF_WOOD:  return MAT_WOOD;
@@ -56,9 +39,5 @@ inline MaterialId citySurfaceMat(uint8_t surf) {
     }
 }
 
-// Material for box i of the active map. (FIELD has no boxes, so it's never asked.)
-inline MaterialId mapBoxMaterial(int i) {
-    if (gMapId == MAP_CITY)      return citySurfaceMat(gCitySurf[i]);
-    if (gMapId == MAP_WAREHOUSE) return WAREHOUSE_MAT[i];
-    return TRAINING_MAT[i];
-}
+// Material for box i of the active map.
+inline MaterialId mapBoxMaterial(int i) { return surfaceMat(gTownSurf[i]); }

@@ -20,6 +20,7 @@ struct FrameInput {
     bool hitboxToggle     = false; // H pressed this frame (debug hitbox view)
     bool mapToggle        = false; // M pressed this frame (full-screen map)
     bool hudToggle        = false; // J pressed this frame (hide/show whole HUD)
+    bool atmoToggle       = false; // K pressed this frame (cycle atmosphere preset)
 };
 
 // Polls all pending SDL events. Updates camera look from mouse motion,

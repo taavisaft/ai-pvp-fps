@@ -24,6 +24,13 @@ struct Shader {
     GLint  locSkyZenith = -1;
     GLint  locSkyHorizon= -1;
     GLint  locGroundAmb = -1;
+    // Atmosphere pass (basic/foliage/inst/sky where present): preset-driven mood
+    GLint  locSunColor  = -1;  // direct sun tint (was hardcoded warm white)
+    GLint  locFogDist   = -1;  // distance-fog reach in meters
+    GLint  locFogHeight = -1;  // low-altitude fog boost (valleys fill with haze)
+    GLint  locCloud     = -1;  // cloud-shadow strength 0..1 (drifting noise)
+    GLint  locExposure  = -1;  // pre-tonemap exposure
+    GLint  locSaturation= -1;  // color-grade saturation
     GLint  locInvVP     = -1;  // sky program only
     GLint  locLightSpace= -1;  // basic + depth programs
     GLint  locShadowMap = -1;  // basic program; sampler on texture unit 1

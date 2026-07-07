@@ -13,6 +13,8 @@ static bool readFile(const char* path, char* out, size_t outSize) {
     size_t n = fread(out, 1, outSize - 1, f);
     fclose(f);
     out[n] = '\0';
+    if (n == outSize - 1)
+        fprintf(stderr, "shader: %s truncated at %zu bytes — grow the buffer\n", path, n);
     return n > 0;
 }
 
@@ -33,7 +35,9 @@ static GLuint compileStage(GLenum type, const char* src, const char* label) {
 }
 
 bool Shader::load(const char* vertPath, const char* fragPath) {
-    char vsrc[8192], fsrc[8192];
+    // Static so the 32 KB sources never live on the stack; load() is startup-only
+    // and single-threaded, so reusing one buffer pair across calls is safe.
+    static char vsrc[32768], fsrc[32768];
     if (!readFile(vertPath, vsrc, sizeof(vsrc))) return false;
     if (!readFile(fragPath, fsrc, sizeof(fsrc))) return false;
 
@@ -79,6 +83,12 @@ bool Shader::load(const char* vertPath, const char* fragPath) {
     locSkyZenith  = glGetUniformLocation(program, "skyZenith");
     locSkyHorizon = glGetUniformLocation(program, "skyHorizon");
     locGroundAmb  = glGetUniformLocation(program, "groundAmbient");
+    locSunColor   = glGetUniformLocation(program, "sunColor");
+    locFogDist    = glGetUniformLocation(program, "fogDist");
+    locFogHeight  = glGetUniformLocation(program, "fogHeightAmt");
+    locCloud      = glGetUniformLocation(program, "cloudAmount");
+    locExposure   = glGetUniformLocation(program, "exposure");
+    locSaturation = glGetUniformLocation(program, "saturation");
     locInvVP      = glGetUniformLocation(program, "invViewProj");
     locLightSpace = glGetUniformLocation(program, "lightSpace");
     locShadowMap  = glGetUniformLocation(program, "shadowMap");

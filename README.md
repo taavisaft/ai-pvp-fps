@@ -3,11 +3,11 @@
 Barebones 3D first-person free-for-all shooter, built from scratch in C++17.
 No game engine, no physics library, no networking library — just SDL2, OpenGL 3.3, GLM, and raw UDP sockets.
 
-Up to 16 players drop in and out of a dedicated server and fight across a walled warehouse yard full of shipping containers, crates, and a central building. Move with sprint, jump, and crouch; aim down sights for accurate fire or shoot from the hip with movement spread, and respawn after 3 seconds at a random spawn point.
+Up to 16 players drop in and out of a dedicated server and fight across **Paldiski** — a 500×500 m Estonian coastal town. Move with sprint, jump, and crouch; aim down sights for accurate fire or shoot from the hip with movement spread, and respawn after 3 seconds at a random spawn point.
 
 Two weapons — a 9mm **Uzi** SMG and a **Glock 19** pistol — fire real projectiles with true muzzle velocity (~375–400 m/s), bullet drop, air drag, and distance damage falloff. Collision is swept per bullet, so fast rounds stop dead on cover instead of tunnelling through it. Recoil is sticky: the gun climbs as you spray and stays where it ended — you pull it back down yourself. Switch weapons with the number keys or the scroll wheel — each gun keeps its own magazine and reserve, so swapping isn't a free reload. The mag reloads automatically when it runs dry, or reload early with R. Lean around cover with Q/E to peek without exposing your body.
 
-Launching the client alone drops you into an offline **training** lobby — a 300×300 m space with a flat central pad (practice range + dummy) ringed by procedurally generated hills you can walk over; connect to a server and you spawn into the **warehouse** match map — or a 1 km² open **field** map with procedurally generated rolling terrain (`FPS_MAP=field`), or a 300×300 m **city** of streets and enterable buildings (`FPS_MAP=city`). The city is generated from a deterministic block grid that runs identically on the server and every client, so it needs no assets and nothing to sync — buildings are open-top wall shells with a doorway you fight through and interior cover. The streets are dressed with instanced props — dumpsters, parked cars, crate stacks, and lamp posts scattered deterministically around each block. Every kind of world clutter (trees, props, buildings) is view-frustum culled and distance-LODed each frame — far buildings drop their window facades for plain concrete boxes and small props fade out — so the scene can stay dense without the framerate paying for what's off-screen or too far to read.
+The map is **Paldiski**: the Baltic Sea on the west behind a wavy shoreline you can wade into (waist-deep, then it walls you off), a sandy beach rising to a grassy bank — steeper and higher on the north stretch, a nod to the Pakri cliffs — a row of Soviet apartment slabs on flattened ground near the shore, and forested hills rolling inland to the east. Everything is generated deterministically from integer-hash noise that runs identically on the server and every client, so the whole town needs no assets and nothing to sync. The yards are dressed with instanced props — dumpsters, parked cars, crate stacks, and lamp posts — and thousands of trees clump into forests on the hills. Every kind of world clutter (trees, props, buildings) is view-frustum culled and distance-LODed each frame — far buildings drop their window facades for plain concrete boxes and small props fade out — so the scene stays dense without the framerate paying for what's off-screen or too far to read. Offline you practice on the same map against a respawning dummy; the map registry (`FPS_MAP`, one name today: `paldiski`) keeps the door open for future maps.
 
 ![screenshot](screenshot.png)
 
@@ -44,31 +44,20 @@ Produces two binaries: `build/game` (client) and `build/server` (dedicated serve
 
 For multiple machines, run the server anywhere reachable and pass its IP to each client.
 
-To play the large open-terrain map instead of the warehouse, launch the **server**
-with `FPS_MAP=field`. Clients auto-detect the server's map on connect (it's sent in
-the join handshake) — no flag needed on the client:
+Clients auto-detect the server's map on connect (it's sent in the join handshake).
+There is one map today — **Paldiski** — but the `FPS_MAP` registry stays wired so
+future maps just add a name. Several servers can share one host on distinct ports
+with `FPS_PORT` (default `7777`); the client lobby scans `7777`–`7784` on the host
+you enter.
 
-```bash
-FPS_MAP=field ./build/server
-./build/game 127.0.0.1          # adopts whatever map the server runs
-```
-
-### Running several maps on one host
-
-Each server process serves one map. Run several side by side on distinct ports with
-`FPS_PORT` (default `7777`); the client lobby scans `7777`–`7784` on the host you enter:
-
-```bash
-FPS_PORT=7777 FPS_MAP=field     ./build/server
-FPS_PORT=7778 FPS_MAP=warehouse ./build/server
-FPS_PORT=7779 FPS_MAP=city      ./build/server
-```
-
-Valid `FPS_MAP` values: `field` (default), `warehouse`, `training`, `city`. The
-**client** honors `FPS_MAP` too, as an offline debug override (`FPS_MAP=city ./build/game`)
-— handy for inspecting any map solo without a server. Joining a server overrides it.
-
-Starting `./build/game` with no IP launches **training mode** — an offline practice arena with a shooting range and a respawning dummy. Press **C** in-game to type a host address, then **Enter** to scan it for running games: a server browser lists every map found with its map name, player count, and ping. Use **Up/Down** to pick one and **Enter** to join (**Esc** cancels). You can switch servers any time without restarting.
+Starting `./build/game` with no IP drops you into the **lobby** — a small flat test
+range (target wall with a bullseye, practice cover, a respawning dummy) where you can
+warm up and test things before joining a match. It's client-only and not a real map.
+Press **C** to type a host address, then **Enter** to scan it for running games: a
+server browser lists every game found with its map name, player count, and ping. Use
+**Up/Down** to pick one and **Enter** to join (**Esc** cancels); losing the connection
+returns you to the lobby. `FPS_MAP=paldiski ./build/game` starts offline on the real
+map instead (debug).
 
 ### Testing netcode (lag, jitter, packet loss)
 
@@ -112,11 +101,22 @@ Without these variables (or on a LAN) there's effectively no delay, so behavior 
 | B            | Cycle fire mode (Uzi: semi/burst/auto; Glock is semi-only) |
 | R            | Reload                            |
 | Tab (hold)   | Scoreboard                        |
-| G            | Clear range marks (offline)       |
+| G            | Clear bullet marks (offline)      |
 | C            | Connect — host prompt, then server browser |
 | M            | Toggle full-screen map            |
 | J            | Toggle HUD on / off (immersion)   |
+| K            | Cycle atmosphere (clear / overcast / golden hour) |
 | F            | Toggle wireframe                  |
 | ESC          | Quit                              |
 
 HP, ammo, and the current weapon show on screen, kills appear in the feed top-right, and holding Tab shows the scoreboard. Press **J** to hide the entire HUD for a clean, immersive view; press again to restore it.
+
+## Atmosphere
+
+The whole scene runs through a filmic tonemap (ACES) with drifting **cloud shadows**
+sweeping over the terrain and **height fog** that pools in valleys while hilltops poke
+out of the haze. Press **K** to cycle three moods: **clear** (bright midday), **overcast**
+(grey DayZ-style gloom — weak flat sun, close fog, desaturated colors), and **golden
+hour** (low warm sun, long shadows, amber horizon). Set `FPS_ATMO=clear|overcast|golden`
+to pick the starting mood. Atmosphere is client-side and cosmetic — every player can run
+their own sky.

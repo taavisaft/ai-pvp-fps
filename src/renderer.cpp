@@ -78,8 +78,9 @@ bool Renderer::init(const char* title, int w, int h) {
 
     if (!createUnitCube(cube)) return false;
     if (!createGroundQuad(ground)) return false;
-    if (!createTerrainMesh(terrain, FIELD_HALF, terrainElevation)) return false;
-    if (!createTerrainMesh(lobbyTerrain, LOBBY_HALF, lobbyElevation)) return false;
+    // Heightfield mesh: setMap must have run first (pads + terrain mode set) so the
+    // mesh matches the ground the server simulates.
+    if (!createTerrainMesh(terrain, PALDISKI_HALF, terrainHeight)) return false;
     if (!createQuad2D(quad2d)) return false;
     if (!font.init()) return false;
     if (!materials.init()) return false;
@@ -118,6 +119,39 @@ float Renderer::aspect() const {
     return (float)width / (float)height;
 }
 
+void Renderer::setAtmosphere(int preset) {
+    atmoPreset = ((preset % ATMO_COUNT) + ATMO_COUNT) % ATMO_COUNT;
+    switch (atmoPreset) {
+    case ATMO_OVERCAST:   // DayZ gloom: weak grey sun, flat light, close haze
+        sunDir        = glm::normalize(glm::vec3(0.35f, 0.75f, 0.30f));
+        sunColor      = {0.38f, 0.40f, 0.43f};
+        skyZenith     = {0.44f, 0.48f, 0.53f};
+        skyHorizon    = {0.63f, 0.66f, 0.69f};
+        groundAmbient = {0.33f, 0.34f, 0.35f};
+        fogDist = 220.0f; fogHeightAmt = 1.30f; cloudAmount = 0.55f;
+        exposure = 1.05f; saturation = 0.80f;
+        break;
+    case ATMO_GOLDEN:     // golden hour: low warm sun, long shadows, amber horizon
+        sunDir        = glm::normalize(glm::vec3(0.75f, 0.28f, 0.42f));
+        sunColor      = {1.25f, 0.85f, 0.52f};
+        skyZenith     = {0.34f, 0.44f, 0.66f};
+        skyHorizon    = {0.94f, 0.78f, 0.58f};
+        groundAmbient = {0.30f, 0.26f, 0.22f};
+        fogDist = 300.0f; fogHeightAmt = 0.60f; cloudAmount = 0.25f;
+        exposure = 1.10f; saturation = 1.06f;
+        break;
+    default:              // ATMO_CLEAR: PUBG bright midday (original palette)
+        sunDir        = glm::normalize(glm::vec3(0.50f, 0.65f, 0.25f));
+        sunColor      = {1.00f, 0.96f, 0.88f};
+        skyZenith     = {0.30f, 0.50f, 0.78f};
+        skyHorizon    = {0.74f, 0.82f, 0.90f};
+        groundAmbient = {0.26f, 0.27f, 0.24f};
+        fogDist = 350.0f; fogHeightAmt = 0.35f; cloudAmount = 0.20f;
+        exposure = 0.82f; saturation = 1.12f;
+        break;
+    }
+}
+
 void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye) {
     active = &shader;
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -135,6 +169,12 @@ void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const gl
     shader.setVec3(shader.locSkyZenith, skyZenith);
     shader.setVec3(shader.locSkyHorizon, skyHorizon);
     shader.setVec3(shader.locGroundAmb, groundAmbient);
+    shader.setVec3(shader.locSunColor, sunColor);
+    shader.setFloat(shader.locFogDist, fogDist);
+    shader.setFloat(shader.locFogHeight, fogHeightAmt);
+    shader.setFloat(shader.locCloud, cloudAmount);
+    shader.setFloat(shader.locExposure, exposure);
+    shader.setFloat(shader.locSaturation, saturation);
     shader.setInt(shader.locHasNormal, 0);   // boxes/ground use derivative normals
     // Terrain splat off by default; rock/dirt samplers live on units 2 and 3.
     shader.setInt(shader.locSplat, 0);
@@ -159,6 +199,9 @@ void Renderer::drawSky(const glm::mat4& view, const glm::mat4& proj) {
     skyShader.setVec3(skyShader.locSunDir, sunDir);
     skyShader.setVec3(skyShader.locSkyZenith, skyZenith);
     skyShader.setVec3(skyShader.locSkyHorizon, skyHorizon);
+    skyShader.setVec3(skyShader.locSunColor, sunColor);
+    skyShader.setFloat(skyShader.locExposure, exposure);
+    skyShader.setFloat(skyShader.locSaturation, saturation);
     quad2d.draw();
     glEnable(GL_DEPTH_TEST);
     shader.use();   // restore the world program for the geometry that follows
@@ -320,45 +363,51 @@ void Renderer::drawCubeModel(const glm::mat4& model, const glm::vec3& color) {
     cube.draw();
 }
 
-void Renderer::setView(const glm::mat4& view) {
-    shader.use();
-    shader.setMat4(shader.locView, view);
-}
 
-void Renderer::fillDepthFar() {
-    // Full-screen quad at the far plane (identity view/proj, z=1 -> depth 1). Used with
-    // a stencil test to reset depth inside the mirror so reflected geometry (which lives
-    // behind the wall in world space) draws instead of being occluded by it. Caller sets
-    // the stencil/colormask/depth-func state; this only issues the geometry.
-    shader.use();
-    bindFlatColor(shader);
-    shader.setMat4(shader.locView, glm::mat4(1.0f));
-    shader.setMat4(shader.locProj, glm::mat4(1.0f));
-    glm::mat4 m = glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 1.0f)),
-                             glm::vec3(2.0f, 2.0f, 1.0f));
-    shader.setMat4(shader.locModel, m);
-    quad2d.draw();
+void Renderer::invalidateWorldOnMapChange() {
+    if (worldBuiltFor == (int)gMapId) return;
+    worldBuiltFor = (int)gMapId;
+    townBuilt = false;        // town meshes rebuild from the new gTownBuildings
+    foliage.clear();          // scatters regenerate lazily (paldiski only)
+    props.clear();
 }
 
 void Renderer::drawGround() {
-    drawGround(MAT_GROUND);
-}
-
-void Renderer::drawGround(MaterialId mat) {
-    bindMaterial(*active, materials, mat);
-    // The base quad is 100x100 (+/-50). The city spans +/-150, so scale the ground to
-    // cover it (grass/triplanar sample by worldPos, so the look is unchanged).
-    glm::mat4 model(1.0f);
-    if (gMapId == MAP_CITY)
-        model = glm::scale(model, glm::vec3((CITY_HALF + 15.0f) / 50.0f, 1.0f,
-                                            (CITY_HALF + 15.0f) / 50.0f));
+    // Flat lobby pad: the 100 m base quad scaled to the arena clamp.
+    bindMaterial(*active, materials, MAT_GROUND);
+    float s = (gArenaHalf + 5.0f) / 50.0f;
+    glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(s, 1.0f, s));
     active->setMat4(active->locModel, model);
     active->setVec3(active->locColor, glm::vec3(1.0f));
-    // Use the procedural grass shader only when no ground image is loaded; otherwise
-    // the triplanar path samples the grass photo (textures/ground.*).
     active->setInt(active->locGrass, materials.groundHasImage ? 0 : 1);
     ground.draw();
     active->setInt(active->locGrass, 0);
+}
+
+void Renderer::drawWater() {
+    if (gMapId != MAP_PALDISKI) return;   // the lobby pad has no sea
+    // Translucent Baltic at SEA_LEVEL: the 100 m ground quad scaled well past the map
+    // edge so the sea runs into the fog on the west horizon. Depth-tested against the
+    // terrain (so the shore contact line is exact) but not depth-written, and drawn
+    // after all opaque world geometry. Slight specular gives a view-aligned glint.
+    const float span = (PALDISKI_HALF * 4.0f) / 50.0f;   // quad half-extent is 50
+    glm::mat4 model = glm::scale(
+        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, SEA_LEVEL, 0.0f)),
+        glm::vec3(span, 1.0f, span));
+    shader.use();
+    bindFlatColor(shader);
+    shader.setMat4(shader.locModel, model);
+    shader.setVec3(shader.locColor, glm::vec3(0.13f, 0.22f, 0.28f));
+    shader.setFloat(shader.locAlpha, 0.82f);
+    shader.setFloat(shader.locSpec, 0.5f);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+    ground.draw();
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+    shader.setFloat(shader.locAlpha, 1.0f);
+    shader.setFloat(shader.locSpec, 0.0f);
 }
 
 void Renderer::drawTerrain() {
@@ -376,41 +425,40 @@ void Renderer::drawTerrain() {
     active->setVec3(active->locColor, glm::vec3(1.0f));
     active->setInt(active->locGrass, materials.groundHasImage ? 0 : 1);
     active->setInt(active->locHasNormal, 1);   // smooth analytic heightfield normals
-    (gMapId == MAP_TRAINING ? lobbyTerrain : terrain).draw();
+    terrain.draw();
     active->setInt(active->locHasNormal, 0);
     active->setInt(active->locGrass, 0);
     active->setInt(active->locSplat, 0);
 }
 
-void Renderer::buildCityMeshes() {
-    for (auto& d : cityDraws) d.wall.destroy();
-    cityDraws.clear();
+void Renderer::buildTownMeshes() {
+    for (auto& d : townDraws) d.wall.destroy();
+    townDraws.clear();
     if (!facadeTex) facadeTex = makeFacadeTexture();
-    for (int i = 0; i < gCityBuildingCount; i++) {
-        const CityBuilding& b = gCityBuildings[i];
-        CityDraw d;
+    for (int i = 0; i < gTownBuildingCount; i++) {
+        const TownBuilding& b = gTownBuildings[i];
+        TownDraw d;
         if (!buildFacadeMesh(d.wall, b)) continue;
-        d.center    = b.center;
+        d.center    = b.center;   // y = pad height; the facade mesh base is y=0
         // Concrete parapet cap: a thin slab overhanging the walls at roof height.
-        d.capCenter = {b.center.x, b.h + 0.15f, b.center.z};
+        d.capCenter = {b.center.x, b.center.y + b.h + 0.15f, b.center.z};
         d.capScale  = {b.w + 0.5f, 0.3f, b.d + 0.5f};
         // Whole-building AABB (incl. cap) for per-frame frustum culling.
-        d.cullCenter = {b.center.x, b.h * 0.5f, b.center.z};
+        d.cullCenter = {b.center.x, b.center.y + b.h * 0.5f, b.center.z};
         d.cullHalf   = {b.w * 0.5f + 0.25f, b.h * 0.5f + 0.3f, b.d * 0.5f + 0.25f};
-        cityDraws.push_back(std::move(d));
+        townDraws.push_back(std::move(d));
     }
-    cityBuilt = true;
+    townBuilt = true;
 }
 
-void Renderer::drawCityWorld(const Frustum& fr, const glm::vec3& eye) {
-    if (gMapId != MAP_CITY) return;
-    if (!cityBuilt) buildCityMeshes();
+void Renderer::drawTownWorld(const Frustum& fr, const glm::vec3& eye) {
+    if (!townBuilt) buildTownMeshes();
     // LOD: beyond this distance a building drops its UV facade (texture + tangent
     // normal map) and renders as a plain concrete box — same silhouette, far cheaper
     // fragment work. Fog softens the swap so the transition is hard to spot.
     constexpr float FACADE_LOD_DIST = 120.0f;
     glActiveTexture(GL_TEXTURE0);
-    for (const auto& d : cityDraws) {
+    for (const auto& d : townDraws) {
         if (!fr.aabbVisible(d.cullCenter, d.cullHalf)) continue;
         float dist = glm::length(d.cullCenter - eye);
         if (dist > FACADE_LOD_DIST) {
@@ -441,36 +489,29 @@ void Renderer::drawCityWorld(const Frustum& fr, const glm::vec3& eye) {
 
 void Renderer::drawFoliage(const glm::mat4& view, const glm::mat4& proj,
                            const glm::vec3& eye, float time) {
-    if (gMapId != MAP_FIELD) {            // forest only exists on the open field map
-        if (!foliage.empty()) foliage.clear();
-        return;
-    }
-    if (foliage.empty()) foliage.generate(2800);
+    if (gMapId != MAP_PALDISKI) return;            // no forest on the lobby pad
+    if (foliage.empty()) foliage.generate(6000);   // 500 m map; grid-culled per frame
     foliage.draw(*this, view, proj, eye, time);
     shader.use();   // restore world program for subsequent draws (view model, HUD)
 }
 
 void Renderer::drawFoliageDepth(float time) {
-    if (gMapId != MAP_FIELD) { if (!foliage.empty()) foliage.clear(); return; }
-    if (foliage.empty()) foliage.generate(60);   // shadow pass runs first; scatter here
-                                                 // (~density-matched to the 100 m field)
+    if (gMapId != MAP_PALDISKI) return;
+    if (foliage.empty()) foliage.generate(6000);   // shadow pass runs first; scatter here
     foliage.drawDepth(lightSpace, time);
     depthShader.use();   // restore the world depth program for the rest of the pass
 }
 
 void Renderer::drawProps(const glm::mat4& view, const glm::mat4& proj,
                          const glm::vec3& eye, float time) {
-    if (gMapId != MAP_CITY) {            // street props only exist in the city
-        if (!props.empty()) props.clear();
-        return;
-    }
+    if (gMapId != MAP_PALDISKI) return;            // props scatter around the town
     if (props.empty()) props.generate();
     props.draw(*this, view, proj, eye, time);
     shader.use();   // restore world program for subsequent draws (view model, HUD)
 }
 
 void Renderer::drawPropsDepth() {
-    if (gMapId != MAP_CITY) { if (!props.empty()) props.clear(); return; }
+    if (gMapId != MAP_PALDISKI) return;
     if (props.empty()) props.generate();   // shadow pass runs first; scatter here
     props.drawDepth(lightSpace, shadowFocus);
     depthShader.use();   // restore the world depth program for the rest of the pass
@@ -492,16 +533,15 @@ void Renderer::shutdown() {
     font.destroy();
     quad2d.destroy();
     terrain.destroy();
-    lobbyTerrain.destroy();
     ground.destroy();
     cube.destroy();
     shader.destroy();
     skyShader.destroy();
     depthShader.destroy();
     texShader.destroy();
-    for (int i = 0; i < 3; i++) if (mapTex[i]) glDeleteTextures(1, &mapTex[i]);
-    for (auto& d : cityDraws) d.wall.destroy();
-    cityDraws.clear();
+    for (int i = 0; i < MAP_COUNT; i++) if (mapTex[i]) glDeleteTextures(1, &mapTex[i]);
+    for (auto& d : townDraws) d.wall.destroy();
+    townDraws.clear();
     if (facadeTex) glDeleteTextures(1, &facadeTex);
     if (shadowTex) glDeleteTextures(1, &shadowTex);
     if (shadowFBO) glDeleteFramebuffers(1, &shadowFBO);

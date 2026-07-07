@@ -10,6 +10,15 @@ uniform vec3 skyZenith;
 uniform vec3 skyHorizon;
 uniform vec3 groundAmbient;
 
+// Atmosphere pass (preset-driven; mirrors basic.frag).
+uniform vec3  sunColor;
+uniform float fogDist;
+uniform float fogHeightAmt;
+uniform float cloudAmount;
+uniform float exposure;
+uniform float saturation;
+uniform float time;
+
 uniform sampler2D diffuseMap;   // baseColor (RGBA), texture unit 0
 uniform float alphaCutoff;      // <0 = opaque; else discard alpha < cutoff
 uniform sampler2D shadowMap;    // sun depth, texture unit 1
@@ -34,6 +43,31 @@ float sunVisibility(vec3 n, vec3 L) {
     return vis / 9.0;
 }
 
+// Cloud shadows + grade: identical math to basic.frag so trees darken with the
+// ground under the same drifting cloud and land on the same filmic curve.
+float chash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
+float cnoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(chash(i), chash(i + vec2(1, 0)), f.x),
+               mix(chash(i + vec2(0, 1)), chash(i + vec2(1, 1)), f.x), f.y);
+}
+float cloudShadow(vec2 xz, float t) {
+    if (cloudAmount <= 0.0) return 1.0;
+    float cl = cnoise(xz * 0.010 + t * 0.010) * 0.65
+             + cnoise(xz * 0.027 - t * 0.013) * 0.35;
+    return 1.0 - cloudAmount * (1.0 - smoothstep(0.35, 0.72, cl));
+}
+vec3 grade(vec3 c) {
+    c *= exposure;
+    c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, saturation);
+    return clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0);
+}
+
 void main() {
     vec4 tex = texture(diffuseMap, vUV);
     if (alphaCutoff >= 0.0 && tex.a < alphaCutoff) discard;   // leaf cutout
@@ -43,10 +77,12 @@ void main() {
     if (!gl_FrontFacing) n = -n;     // double-sided leaves: face the viewer
     vec3 L = normalize(sunDir);
 
-    vec3 sun     = vec3(1.0, 0.96, 0.88) * max(dot(n, L), 0.0) * sunVisibility(n, L);
+    vec3 sun     = sunColor * max(dot(n, L), 0.0)
+                 * sunVisibility(n, L) * cloudShadow(worldPos.xz, time);
     vec3 ambient = mix(groundAmbient, skyZenith, n.y * 0.5 + 0.5);
     vec3 lit     = c * (sun + ambient);
 
-    float fog = clamp(length(worldPos - eyePos) / 350.0, 0.0, 1.0);
-    fragColor = vec4(mix(lit, skyHorizon, fog * fog), 1.0);
+    float dens = 1.0 + fogHeightAmt * exp(-max(worldPos.y, 0.0) / 12.0);
+    float fog  = clamp(length(worldPos - eyePos) * dens / fogDist, 0.0, 1.0);
+    fragColor = vec4(grade(mix(lit, skyHorizon, fog * fog)), 1.0);
 }

@@ -185,6 +185,7 @@ void movePlayer(Player& p, const InputState& in, float dt) {
     p.yaw = in.yaw;
     p.crouched = in.crouch;
 
+    glm::vec2 prevXZ(p.pos.x, p.pos.z);   // for the wade-limit revert below
     float fromY    = p.pos.y;
     bool  grounded = fromY <= supportHeight(p, fromY) + 0.001f;
 
@@ -219,6 +220,18 @@ void movePlayer(Player& p, const InputState& in, float dt) {
         p.velY  = 0.0f;
     }
     collideXZ(p);
+
+    // Wade limit: the sea (terrain below SEA_LEVEL) is walkable to waist depth, then
+    // acts as a wall. Resolve per axis so the shoreline slides like box collision.
+    constexpr float WADE_DEPTH = 1.1f;
+    if (terrainHeight(p.pos.x, p.pos.z) < SEA_LEVEL - WADE_DEPTH) {
+        glm::vec3 tryX(prevXZ.x, 0, p.pos.z);   // keep the axis that stays shallow
+        glm::vec3 tryZ(p.pos.x, 0, prevXZ.y);
+        if      (terrainHeight(tryZ.x, tryZ.z) >= SEA_LEVEL - WADE_DEPTH) { p.pos.z = prevXZ.y; }
+        else if (terrainHeight(tryX.x, tryX.z) >= SEA_LEVEL - WADE_DEPTH) { p.pos.x = prevXZ.x; }
+        else { p.pos.x = prevXZ.x; p.pos.z = prevXZ.y; }
+        p.pos.y = fmaxf(p.pos.y, terrainHeight(p.pos.x, p.pos.z));
+    }
 }
 
 bool spawnBullet(GameState& gs, const glm::vec3& eyePos, const glm::vec3& dir, int ownerID,
