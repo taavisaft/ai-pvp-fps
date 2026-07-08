@@ -19,7 +19,9 @@
 #include "connect_prompt.h"
 #include "lobby.h"
 #include "skeleton.h"
+#include "ragdoll.h"
 #include "weapon_visual.h"
+#include "playerpose.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
@@ -118,43 +120,6 @@ static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
     }
 }
 
-// 2-bone IK: given root joint S and end target T (world space) and bone lengths L1/L2,
-// return the middle joint position. The joint bulges toward `bendHint` (the perpendicular
-// component of it) — pass world-down for elbows, the body's forward for knees. The limb
-// is then drawn as two boxes S->mid->T, so it stays correct at any yaw/pitch/lean.
-static glm::vec3 ikJoint(glm::vec3 S, glm::vec3 T, float L1, float L2, glm::vec3 bendHint) {
-    glm::vec3 v = T - S;
-    float d = glm::length(v);
-    float dmax = L1 + L2 - 1e-3f, dmin = fabsf(L1 - L2) + 1e-3f;
-    if (d > dmax)            { v *= dmax / d; d = dmax; }
-    else if (d < dmin && d > 1e-5f) { v *= dmin / d; d = dmin; }
-    glm::vec3 dir = (d > 1e-5f) ? v / d : glm::vec3(0, 0, 1);
-    float cosA = (L1 * L1 + d * d - L2 * L2) / (2.0f * L1 * d);
-    cosA = cosA < -1.0f ? -1.0f : cosA > 1.0f ? 1.0f : cosA;
-    float proj = L1 * cosA, perp = L1 * sqrtf(1.0f - cosA * cosA);
-    glm::vec3 bend = bendHint - dir * glm::dot(bendHint, dir);   // perpendicular to dir
-    bend = (glm::length(bend) > 1e-4f) ? glm::normalize(bend) : glm::vec3(0, 0, 1);
-    return S + dir * proj + bend * perp;
-}
-
-// Box spanning world points A..B along its local +Y, square cross-section `w` wide.
-// For IK limbs whose endpoints are solved rather than swung from a fixed joint.
-static void drawSegment(Renderer& r, glm::vec3 A, glm::vec3 B, float w, const glm::vec3& c) {
-    glm::vec3 mid = (A + B) * 0.5f, dir = B - A;
-    float len = glm::length(dir);
-    if (len < 1e-5f) return;
-    dir /= len;
-    glm::vec3 up = fabsf(dir.y) > 0.99f ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
-    glm::vec3 bx = glm::normalize(glm::cross(up, dir));
-    glm::vec3 bz = glm::cross(dir, bx);
-    glm::mat4 m(1.0f);
-    m[0] = glm::vec4(bx * w, 0.0f);
-    m[1] = glm::vec4(dir * len, 0.0f);
-    m[2] = glm::vec4(bz * w, 0.0f);
-    m[3] = glm::vec4(mid, 1.0f);
-    r.drawCubeModel(m, c);
-}
-
 // A flat impact patch oriented to the surface normal: a thin box (normal axis short,
 // the other two ~decal-sized) nudged just off the surface so it reads as a mark.
 static void drawDecal(Renderer& r, const Decal& d) {
@@ -173,119 +138,37 @@ static void drawDecal(Renderer& r, const Decal& d) {
     r.drawCubeModel(m, COLOR_DECAL);
 }
 
-// Renders a player from the bone-array Skeleton (skeleton.h) — the ragdoll-ready path.
-// The spine (pelvis/torso/neck/head/nose) is drawn from skeleton FK; arms and legs are
-// solved by two-bone IK (ikJoint) each frame, with
-// the skeleton's own limb-joint positions (shoulders = upper-arm joints, hips = thigh
-// joints) used as the IK anchors. Aim pitch tilts the head + gun, lean rolls the upper
-// body, crouch squashes vertically. The weapon sits at the chest with both hands IK'd
-// onto its grips; feet plant on the terrain with a speed-scaled walk stride. Forward is
-// +Z after the root yaw, matching the nose. One shared skeleton, re-posed per call.
+// Renders a player from the shared pose builder (playerpose.h): FK spine, IK arms
+// onto the weapon grips, the weapon, IK legs — the very same oriented boxes the server
+// hit-tests, just colored by part here. Aim pitch tilts the head + gun, lean rolls the
+// upper body, crouch squashes vertically, feet plant on the terrain with a
+// speed-scaled walk stride.
 static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, float pitch,
                                float lean, uint8_t weaponId, bool crouched, float ads,
                                float phase, float amp, const glm::vec3& bodyCol) {
-    static Skeleton skel = makeBoxMan();
     const glm::vec3 limb     = bodyCol * 0.85f;
     const glm::vec3 skin     = {0.90f, 0.78f, 0.62f};
     const glm::vec3 handCol  = {0.30f, 0.30f, 0.33f};
     const glm::vec3 gunMetal = {0.12f, 0.12f, 0.14f};
     const glm::vec3 gunDark  = {0.20f, 0.20f, 0.23f};
-    skel.bones[BONE_PELVIS].color = skel.bones[BONE_TORSO].color =
-        skel.bones[BONE_NECK].color = bodyCol;
-    skel.bones[BONE_HEAD].color = skin;
-    skel.bones[BONE_NOSE].color = {0.90f, 0.30f, 0.20f};
+    const glm::vec3 nose     = {0.90f, 0.30f, 0.20f};
 
-    // Spine pose: lean roll on the torso, a little aim tilt on the neck. Limb-bone
-    // localRots stay at rest (identity) — the limbs are drawn by IK, not FK, below; we
-    // only read their joint positions as anchors.
-    float la = lean * glm::radians(LEAN_ANGLE_DEG);
-    skel.bones[BONE_TORSO].localRot = glm::angleAxis(-la, glm::vec3(0, 0, 1));
-    skel.bones[BONE_NECK].localRot  = glm::angleAxis(glm::radians(-pitch) * 0.5f, glm::vec3(1, 0, 0));
-
-    float s = crouched ? (CROUCH_HEIGHT / STAND_HEIGHT) : 1.0f;   // vertical squash about feet
-    glm::mat4 root = glm::translate(glm::mat4(1.0f), pos)
-                   * glm::rotate(glm::mat4(1.0f), 1.5707963f - glm::radians(yaw), glm::vec3(0, 1, 0))
-                   * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, s, 1.0f))
-                   * glm::translate(glm::mat4(1.0f), glm::vec3(0, 0.95f, 0));
-    skel.computeWorld(root);
-
-    // Spine + head + nose from FK (skip the 8 limb bones — IK draws those).
-    const int spine[5] = {BONE_PELVIS, BONE_TORSO, BONE_NECK, BONE_HEAD, BONE_NOSE};
-    for (int b : spine) {
-        glm::mat4 m = skel.world[b]
-                    * glm::translate(glm::mat4(1.0f), skel.bones[b].boxOffset)
-                    * glm::scale(glm::mat4(1.0f), skel.bones[b].halfExtents * 2.0f);
-        r.drawCubeModel(m, skel.bones[b].color);
-    }
-
-    // --- Weapon at the chest (pitched by aim), hung off the torso frame so it leans and
-    // crouches with the body; both hands IK'd onto its grips. ---
-    const float upArm = 0.30f, foreArm = 0.30f;
-    // Hold pose lerps from the hipfire chest mount to a raised ADS pose: the gun rises
-    // to the eyeline and onto the body centerline, and the walk bob fades as you aim so
-    // it reads as steady. Aim pitch still tilts the whole weapon; the hands IK onto the
-    // grips below, so they follow the raised gun for free.
-    float bob = sinf(phase) * amp * 0.03f * (1.0f - ads);
-    glm::vec3 hipT = {0.05f, 0.41f + bob, 0.20f};
-    glm::vec3 adsT = {0.0f, 0.54f, 0.21f};
-    glm::mat4 hold = skel.world[BONE_TORSO]
-        * glm::translate(glm::mat4(1.0f), glm::mix(hipT, adsT, ads))
-        * glm::rotate(glm::mat4(1.0f), -glm::radians(pitch), glm::vec3(1, 0, 0));
-    auto gun = [&](glm::vec3 lp, glm::vec3 sz, const glm::vec3& c) {
-        r.drawCubeModel(hold * glm::translate(glm::mat4(1.0f), lp)
-                             * glm::scale(glm::mat4(1.0f), sz), c);
-    };
-    if (weaponId == WEP_GLOCK19) {
-        gun({0.0f,  0.00f, 0.10f}, {0.05f, 0.07f, 0.22f}, gunMetal);  // slide
-        gun({0.0f, -0.10f, 0.04f}, {0.05f, 0.14f, 0.06f}, gunDark);   // grip
-    } else {                                                          // Uzi
-        gun({0.0f,  0.02f, 0.16f}, {0.08f, 0.11f, 0.40f}, gunMetal);  // receiver + barrel
-        gun({0.0f, -0.14f, 0.06f}, {0.05f, 0.22f, 0.05f}, gunDark);   // magazine
-    }
-    // Hand targets from the shared anchor table (weapon_visual.h): the support hand
-    // reaches further on a longer gun, so each weapon's grips live in one place.
-    const WeaponVisual& wv = weaponVisual(weaponId);
-    glm::vec3 gripFire = wv.tpFireGrip, gripSupport = wv.tpSupportGrip;
-    auto holdArm = [&](int shoulderBone, glm::vec3 gripLocal) {
-        glm::vec3 S = glm::vec3(skel.world[shoulderBone][3]);          // shoulder = upper-arm joint
-        glm::vec3 T = glm::vec3(hold * glm::vec4(gripLocal, 1.0f));
-        glm::vec3 E = ikJoint(S, T, upArm, foreArm, glm::vec3(0, -1, 0));
-        drawSegment(r, S, E, 0.12f, limb);                            // upper arm
-        drawSegment(r, E, T, 0.11f, limb);                            // forearm
-        r.drawCubeModel(glm::translate(glm::mat4(1.0f), T)
-                      * glm::scale(glm::mat4(1.0f), glm::vec3(0.13f, 0.12f, 0.13f)), handCol);
-    };
-    holdArm(BONE_UPPERARM_L, gripFire);                               // firing arm
-    holdArm(BONE_UPPERARM_R, gripSupport);                            // support arm
-
-    // --- Legs: feet planted on the terrain, stepping over the stride and lifting in an
-    // arc; knees bend toward facing. Hip anchors come from the thigh-bone joints. ---
-    // Total 0.86 = standing thigh-joint height above the feet (pelvis at s*0.95, thigh
-    // joint at -0.09), so standing legs are straight. Bones aren't scaled by s, so a low
-    // (crouch) hip or a lifted swing foot still bends the knee.
-    const float thighLen = 0.43f, shinLen = 0.43f;
-    const float yr  = glm::radians(yaw);
-    const glm::vec3 fwd = {cosf(yr), 0.0f, sinf(yr)};
-    bool  airborne = pos.y > terrainHeight(pos.x, pos.z) + 0.05f;
-    float stride = (crouched ? 0.18f : 0.38f) * amp;
-    float lift   = (crouched ? 0.07f : 0.16f) * amp;
-    auto leg = [&](int hipBone, float ph) {
-        glm::vec3 hip = glm::vec3(skel.world[hipBone][3]);
-        glm::vec3 foot;
-        if (airborne) {
-            foot = hip + fwd * (sinf(ph) * 0.10f) - glm::vec3(0, 0.55f, 0);
-        } else {
-            glm::vec3 fxz = hip + fwd * (sinf(ph) * stride);
-            float up = fmaxf(0.0f, sinf(ph + 1.5708f)) * lift;
-            foot = glm::vec3(fxz.x, terrainHeight(fxz.x, fxz.z) + up, fxz.z);
+    PoseBox boxes[MAX_POSE_BOXES];
+    int n = buildPlayerPose(pos, yaw, pitch, lean, weaponId, crouched, ads, phase, amp,
+                            boxes);
+    for (int i = 0; i < n; i++) {
+        glm::vec3 c;
+        switch (boxes[i].part) {
+            case POSE_HEAD:      c = skin;     break;
+            case POSE_NOSE:      c = nose;     break;
+            case POSE_ARM: case POSE_LEG: case POSE_FOOT: c = limb; break;
+            case POSE_HAND:      c = handCol;  break;
+            case POSE_GUN_METAL: c = gunMetal; break;
+            case POSE_GUN_DARK:  c = gunDark;  break;
+            default:             c = bodyCol;  break;   // pelvis/torso/neck
         }
-        glm::vec3 knee = ikJoint(hip, foot, thighLen, shinLen, fwd);
-        drawSegment(r, hip, knee, 0.20f, limb);                       // thigh
-        drawSegment(r, knee, foot, 0.18f, limb);                      // shin
-        drawSegment(r, foot, foot + fwd * 0.16f, 0.12f, limb);        // foot, pointing ahead
-    };
-    leg(BONE_THIGH_L, phase);
-    leg(BONE_THIGH_R, phase + 3.14159f);
+        r.drawCubeModel(boxes[i].M * glm::scale(glm::mat4(1.0f), boxes[i].half * 2.0f), c);
+    }
 }
 
 // Shadow casters + receivers: ground/terrain, cover boxes, remote players, bullets.
@@ -294,7 +177,8 @@ static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, flo
 // cosmetic ground blobs / aim cross, which are added in the main pass only).
 static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
                               const float* walkPhase, const float* walkAmp,
-                              const float* adsAnim, bool showHitboxes,
+                              const float* adsAnim, bool showLocal,
+                              const Ragdoll* ragdolls,
                               const Frustum& fr, const glm::vec3& eye) {
     if (gMapId == MAP_LOBBY) {
         // Flat pad + plain material boxes (target wall, test cover).
@@ -309,28 +193,15 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
         r.drawTownWorld(fr, eye);  // facade near, concrete box far (collision is the box)
     }
     for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (i == localID) continue;
+        if (i == localID && !showLocal) continue;   // draw self in third-person test view
         if (!(gs.usedMask & (1u << i))) continue;
-        if (!gs.players[i].alive) continue;
-        const Player& pl = gs.players[i];
-        const glm::vec3& p = pl.pos;
-        if (showHitboxes) {
-            // Debug: draw the actual gameplay hit regions, color-coded by multiplier.
-            static const glm::vec3 regionCol[MAX_HIT_REGIONS] = {
-                {0.20f, 0.45f, 0.95f},   // legs  (0.8x) — blue
-                {0.20f, 0.85f, 0.25f},   // torso (1.0x) — green
-                {0.95f, 0.70f, 0.15f},   // neck  (1.5x) — amber
-                {0.95f, 0.20f, 0.20f},   // head  (2.0x) — red
-                {0.70f, 0.30f, 0.90f},   // arms  (1.0x) — purple
-            };
-            HitRegion rg[MAX_HIT_REGIONS];
-            int nr = playerHitRegions(p, pl.crouched, pl.yaw, pl.ads, rg);
-            for (int k = 0; k < nr; k++)
-                r.drawCube(rg[k].center, rg[k].half * 2.0f, regionCol[k]);
-        } else {
-            drawPlayerSkeleton(r, p, pl.yaw, pl.pitch, pl.lean, pl.weaponId, pl.crouched,
-                               adsAnim[i], walkPhase[i], walkAmp[i], COLOR_ENEMY);
+        if (!gs.players[i].alive) {
+            if (ragdolls && ragdolls[i].active) ragdolls[i].draw(r);  // cosmetic corpse
+            continue;
         }
+        const Player& pl = gs.players[i];
+        drawPlayerSkeleton(r, pl.pos, pl.yaw, pl.pitch, pl.lean, pl.weaponId, pl.crouched,
+                           adsAnim[i], walkPhase[i], walkAmp[i], COLOR_ENEMY);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
         const Bullet& b = gs.bullets[i];
@@ -346,7 +217,8 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
                         const Decal* decals, int decalCount,
                         const ConnectPrompt& connectPrompt, const Lobby& lobby,
                         const float* walkPhase, const float* walkAmp,
-                        const float* adsAnim, bool showHitboxes, bool fullMap, bool showHud) {
+                        const float* adsAnim, bool showHitboxes, bool fullMap, bool showHud,
+                        bool thirdPerson, const Ragdoll* ragdolls) {
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
 
     r.invalidateWorldOnMapChange();   // drop town/tree/prop caches on map switch
@@ -354,7 +226,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     // Pass 1: scene depth from the sun, focused on the camera (near-field shadows).
     r.beginShadowPass(cam.eye);
     Frustum sunFr = Frustum::fromVP(r.lightSpace);
-    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, showHitboxes, sunFr, cam.eye);
+    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, thirdPerson, ragdolls, sunFr, cam.eye);
     r.drawFoliageDepth(r.frameTime);   // trees cast shadows
     r.drawPropsDepth();                // city props cast shadows
     r.endShadowPass();
@@ -363,7 +235,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
     r.drawSky(cam.view(), cam.proj(r.aspect()));
     Frustum camFr = Frustum::fromVP(cam.proj(r.aspect()) * cam.view());
-    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, showHitboxes, camFr, cam.eye);
+    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, thirdPerson, ragdolls, camFr, cam.eye);
     r.drawFoliage(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);  // instanced trees
     r.drawProps(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);    // instanced props
     r.drawWater();   // translucent Baltic, after all opaque world geometry
@@ -377,6 +249,25 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     // Bullet-impact decals on every surface (online + offline), oriented to the hit face.
     for (int i = 0; i < decalCount; i++)
         drawDecal(r, decals[i]);
+    if (showHitboxes) {
+        // Debug (H): translucent green gameplay hit regions overlaid on the models.
+        // Dead players get the stack at their (frozen) death pos so the ragdoll can be
+        // compared against the boxes — hits don't actually register on corpses.
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            if (!(gs.usedMask & (1u << i))) continue;
+            if (i == localID && !thirdPerson) continue;
+            const Player& pl = gs.players[i];
+            HitRegion rg[MAX_HIT_REGIONS];
+            int nr = playerHitRegions(pl.pos, pl.crouched, pl.yaw, pl.pitch, pl.lean,
+                                      pl.ads, pl.weaponId, rg);
+            // Each region carries its own oriented frame — the exact volumes the
+            // server sweeps, so what you see is what gets hit.
+            for (int k = 0; k < nr; k++)
+                r.drawCubeModelTranslucent(
+                    rg[k].M * glm::scale(glm::mat4(1.0f), rg[k].half * 2.0f),
+                    {0.20f, 0.90f, 0.30f}, 0.35f);
+        }
+    }
     // Bullet ground blobs (real shadows replace the old per-player blob).
     for (int i = 0; i < MAX_BULLETS; i++) {
         const Bullet& b = gs.bullets[i];
@@ -385,7 +276,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
                    {0.22f, 0.001f, 0.22f}, COLOR_BLOB);
     }
     // First-person gun is an overlay — don't world-shadow it (FPS convention).
-    if (gs.players[localID].alive && !connectPrompt.open) {
+    if (gs.players[localID].alive && !connectPrompt.open && !thirdPerson) {
         r.shader.setInt(r.shader.locUseShadow, 0);
         drawViewModel(r, cam, vm);
         r.shader.setInt(r.shader.locUseShadow, 1);
@@ -489,6 +380,7 @@ int main(int argc, char** argv) {
     setupOffline();
     // FPS_YAW=<deg> overrides the start yaw (debug screenshots).
     if (const char* yv = getenv("FPS_YAW")) cam.yaw = (float)atof(yv);
+    if (const char* pv = getenv("FPS_PITCH")) cam.pitch = (float)atof(pv);
     FrameInput input;
 
 
@@ -538,9 +430,13 @@ int main(int argc, char** argv) {
     float     walkSpeed[MAX_PLAYERS] = {0};   // smoothed horizontal speed (m/s)
     glm::vec3 prevPlayerPos[MAX_PLAYERS];
     bool      prevPosValid[MAX_PLAYERS] = {false};
-    bool      showHitboxes = false;           // H: draw color-coded hit regions
+    Ragdoll   ragdolls[MAX_PLAYERS];          // cosmetic death-flop, seeded on alive→dead
+    bool      prevAlive[MAX_PLAYERS];         // last frame's alive flag, for the edge
+    for (int i = 0; i < MAX_PLAYERS; i++) prevAlive[i] = true;
+    bool      showHitboxes = false;           // H: overlay translucent hit regions
     bool      fullMap      = false;           // M: full-screen map overlay
     bool      showHud      = true;            // J: hide whole HUD for immersion
+    bool      thirdPerson  = getenv("FPS_TPP") != nullptr;  // V: orbit self-view (see your own body)
 
     // Debug: FPS_ATMO=clear|overcast|golden picks the starting atmosphere preset
     // (K cycles at runtime; cosmetic and client-only, so nothing to sync).
@@ -560,7 +456,7 @@ int main(int argc, char** argv) {
     };
 
     printf("controls: WASD move, mouse look, LMB shoot, Q/E lean, 1/2 or scroll weapon "
-           "(Uzi/Glock), C connect, K atmosphere, F wireframe, H hitboxes, J toggle HUD, ESC quit\n");
+           "(Uzi/Glock), C connect, V third-person, K atmosphere, F wireframe, H hitboxes, J toggle HUD, ESC quit\n");
     printf("lobby: shooting range + dummy; press C to join a server (Paldiski)\n");
 
     while (running) {
@@ -580,6 +476,7 @@ int main(int argc, char** argv) {
         if (input.hitboxToggle) showHitboxes = !showHitboxes;
         if (input.mapToggle) fullMap = !fullMap;
         if (input.hudToggle) showHud = !showHud;
+        if (input.thirdPersonToggle) thirdPerson = !thirdPerson;
         if (input.atmoToggle) {
             renderer.setAtmosphere(renderer.atmoPreset + 1);
             static const char* atmoNames[] = {"clear", "overcast", "golden hour"};
@@ -601,6 +498,7 @@ int main(int argc, char** argv) {
                            (input.state.leanLeft  ? 1.0f : 0.0f);
         cam.updateLean(leanTarget, dt);
         input.state.lean = cam.lean;
+        if (const char* lv = getenv("FPS_LEAN")) { cam.lean = (float)atof(lv); input.state.lean = cam.lean; }
 
         if (connectPromptActive && !connectPrompt.open) closeConnectPrompt();
 
@@ -921,6 +819,23 @@ int main(int argc, char** argv) {
             }
         }
 
+        // Cosmetic ragdolls: seed on the alive→dead edge (carrying the corpse's last
+        // velocity so a runner tumbles), clear on respawn/leave, and step every frame.
+        // prevPlayerPos still holds last frame here (the walk loop below refreshes it).
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            bool used  = shown->usedMask & (1u << i);
+            bool alive = used && shown->players[i].alive;
+            if (used && prevAlive[i] && !alive) {
+                glm::vec3 vel(0.0f);
+                if (prevPosValid[i])
+                    vel = (shown->players[i].pos - prevPlayerPos[i]) / (dt > 1e-4f ? dt : 1e-4f);
+                ragdolls[i].seed(shown->players[i].pos, shown->players[i].yaw, COLOR_ENEMY, vel);
+            }
+            if (alive || !used) ragdolls[i].active = false;
+            ragdolls[i].step(dt);
+            prevAlive[i] = alive;
+        }
+
         // Advance each visible player's walk animation from how fast their rendered
         // position moves on the ground. Includes the local player so the training
         // mirror's self-reflection animates while you walk.
@@ -947,9 +862,35 @@ int main(int argc, char** argv) {
         gameTime += dt;
         renderer.setTime(gameTime);
         hud.adsT = vm.adsT;
+        // Third-person boom with collision: march back from the head along -front, stop
+        // short of terrain or any cover box so the camera never clips through the world
+        // (uncollided it dives underground when you aim up). A small up-tilt over the
+        // shoulder; the resolved point is handed to the camera for view().
+        cam.tpDist = thirdPerson ? 1.0f : 0.0f;
+        if (thirdPerson) {
+            glm::vec3 head = cam.eyePos() + glm::vec3(0.0f, 0.25f, 0.0f);
+            glm::vec3 back = -cam.front();
+            float maxD = 3.0f, d = maxD;
+            for (float t = 0.15f; t <= maxD; t += 0.15f) {
+                glm::vec3 c = head + back * t;
+                bool hit = c.y < terrainHeight(c.x, c.z) + 0.2f;
+                for (int bi = 0; bi < gMapBoxCount && !hit; bi++) {
+                    const Box& b = gMapBoxes[bi];
+                    glm::vec3 e2 = b.half + glm::vec3(0.2f);   // pad so we stop before the face
+                    if (fabsf(c.x - b.center.x) < e2.x && fabsf(c.y - b.center.y) < e2.y &&
+                        fabsf(c.z - b.center.z) < e2.z) hit = true;
+                }
+                if (hit) { d = t - 0.15f; break; }
+            }
+            if (d < 0.4f) d = 0.4f;                            // don't jam inside the body
+            glm::vec3 cpos = head + back * d;
+            float gy = terrainHeight(cpos.x, cpos.z) + 0.2f;
+            if (cpos.y < gy) cpos.y = gy;
+            cam.tpPos = cpos;
+        }
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
                     decals, decalCount, connectPrompt, lobby, walkPhase, walkAmp,
-                    adsAnim, showHitboxes, fullMap, showHud);
+                    adsAnim, showHitboxes, fullMap, showHud, thirdPerson, ragdolls);
 
         static int frameCount = 0;
         const char* shotPath = getenv("FPS_SHOT");

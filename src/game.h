@@ -15,7 +15,7 @@ constexpr float MOVE_SPEED     = 5.0f;   // m/s
 constexpr float SPRINT_SPEED   = 8.0f;   // m/s, shift held
 constexpr float JUMP_SPEED      = 3.5f;   // m/s upward; ~0.6 m peak
 constexpr float CROUCH_SPEED   = 2.5f;   // m/s, left-ctrl held
-constexpr float STAND_HEIGHT   = 2.0f;   // full body height
+constexpr float STAND_HEIGHT   = 1.8f;   // full body height (matches box-man/ragdoll)
 constexpr float CROUCH_HEIGHT  = 1.2f;   // crouched body height (hitbox + render)
 constexpr float GRAVITY        = 9.8f;   // m/s²
 constexpr int   NET_HZ         = 20;     // state sync rate
@@ -28,8 +28,9 @@ constexpr float CROUCH_EYE     = 1.0f;   // camera height while crouched
 
 // Lean (Q/E): the upper body pivots around a hip point, so the head arcs out
 // sideways (and dips slightly) and the view rolls — not a flat sideways slide.
-// The same arc moves the authoritative shot origin so you shoot from the peek;
-// the body hitbox stays put (classic corner-peek). All tunable.
+// The same arc moves the authoritative shot origin so you shoot from the peek,
+// and the FK hitboxes lean with the model — the peeking head is shootable where
+// it is seen (playerHitRegions). All tunable.
 constexpr float LEAN_ANGLE_DEG  = 22.0f; // upper-body tilt at full lean
 constexpr float LEAN_PIVOT      = 0.95f; // m from eye down to the hip pivot
 constexpr float LEAN_LERP_SPEED = 12.0f; // smoothing rate toward target lean
@@ -42,6 +43,13 @@ inline LeanShift leanShift(float lean) {
     float a = lean * glm::radians(LEAN_ANGLE_DEG);
     return { LEAN_PIVOT * std::sin(a), LEAN_PIVOT * (1.0f - std::cos(a)) };
 }
+
+// Third-person gun mount, relative to the torso joint frame (+Z = facing): chest-height
+// hipfire hold vs raised ADS hold. The client hangs the weapon + IK hands here
+// (drawPlayerSkeleton); the server anchors the arms/hands hit region to the same mount
+// so the box always wraps the visible gun. Keep the two in sync via these constants.
+constexpr glm::vec3 GUN_HOLD_HIP = {0.05f, 0.41f, 0.20f};
+constexpr glm::vec3 GUN_HOLD_ADS = {0.00f, 0.54f, 0.21f};
 
 // Weapon: aim-down-sights vs hipfire (PUBG-style)
 constexpr float HIP_FOV        = 75.0f;  // degrees
@@ -91,8 +99,8 @@ struct Player {
     float     airVZ        = 0.0f;       // (no mid-air steering)
     bool      crouched     = false;      // affects height, hitbox, speed
     float     yaw          = 0.0f;       // degrees
-    float     pitch        = 0.0f;       // degrees; client-side render (aim tilt) only
-    float     lean         = 0.0f;       // -1..+1; client-side render (peek pose) only
+    float     pitch        = 0.0f;       // degrees; render aim tilt + poses the head hitbox
+    float     lean         = 0.0f;       // -1..+1; render peek pose + moves upper-body hitboxes
     bool      ads          = false;      // aiming; client-side render (raised-gun pose) only
     int       hp           = PLAYER_HP;
     uint8_t   weaponId     = WEP_UZI;        // current weapon (per-player)

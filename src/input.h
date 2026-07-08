@@ -21,6 +21,7 @@ struct FrameInput {
     bool mapToggle        = false; // M pressed this frame (full-screen map)
     bool hudToggle        = false; // J pressed this frame (hide/show whole HUD)
     bool atmoToggle       = false; // K pressed this frame (cycle atmosphere preset)
+    bool thirdPersonToggle = false;// V pressed this frame (orbit self-view for testing)
 };
 
 // Polls all pending SDL events. Updates camera look from mouse motion,

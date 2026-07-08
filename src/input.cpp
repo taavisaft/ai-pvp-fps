@@ -16,6 +16,8 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
     in.hitboxToggle     = false;
     in.mapToggle        = false;
     in.hudToggle        = false;
+    in.atmoToggle       = false;
+    in.thirdPersonToggle = false;
 
     float wheelAccum = 0.0f;   // summed scroll delta this frame (y, or x when Shift maps it)
 
@@ -75,6 +77,7 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
             case SDLK_m:      in.mapToggle       = true;        break;
             case SDLK_j:      in.hudToggle       = true;        break;
             case SDLK_k:      in.atmoToggle      = true;        break;
+            case SDLK_v:      in.thirdPersonToggle = true;      break;
             default: break;
             }
             break;

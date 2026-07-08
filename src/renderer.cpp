@@ -363,6 +363,21 @@ void Renderer::drawCubeModel(const glm::mat4& model, const glm::vec3& color) {
     cube.draw();
 }
 
+void Renderer::drawCubeModelTranslucent(const glm::mat4& model, const glm::vec3& color,
+                                        float alpha) {
+    bindFlatColor(*active);
+    active->setMat4(active->locModel, model);
+    active->setVec3(active->locColor, color);
+    active->setFloat(active->locAlpha, alpha);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+    cube.draw();
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+    active->setFloat(active->locAlpha, 1.0f);
+}
+
 
 void Renderer::invalidateWorldOnMapChange() {
     if (worldBuiltFor == (int)gMapId) return;

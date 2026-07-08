@@ -76,6 +76,13 @@ glm::vec3 Camera::up() const {
 
 glm::mat4 Camera::view() const {
     glm::vec3 e = eyePos();
+    if (tpDist > 0.0f) {
+        // Orbit from the collision-resolved boom, kept UPRIGHT (world up, no lean roll):
+        // in third person you watch the body lean rather than rolling the whole screen.
+        glm::vec3 dir = glm::normalize(e - tpPos);
+        glm::vec3 ref = fabsf(dir.y) > 0.99f ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
+        return glm::lookAt(tpPos, e, ref);
+    }
     return glm::lookAt(e, e + front(), up());
 }
 

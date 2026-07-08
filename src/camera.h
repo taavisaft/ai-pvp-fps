@@ -14,6 +14,13 @@ struct Camera {
 
     float     lean = 0.0f;        // smoothed lean -1 (left)..+1 (right), Q/E
 
+    // Render-only third-person view. tpDist > 0 = active (flag only); tpPos is the
+    // collision-resolved camera position (computed in main, where terrain + cover boxes
+    // are known) that view() looks from. Aim math / muzzle origin stay at the head so
+    // shooting is unchanged. A testing aid to watch your own body move as enemies see it.
+    float     tpDist = 0.0f;
+    glm::vec3 tpPos  = {0.0f, 0.0f, 0.0f};
+
     void      addLook(float xrel, float yrel);  // mouse deltas, sensitivity 0.1
     void      updateLean(float target, float dt); // lerp lean toward target (-1..1)
     float     aimYaw() const;                   // yaw + recoil

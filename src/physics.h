@@ -4,15 +4,21 @@
 // Returns true if point p is inside the player's AABB (shorter when crouched)
 bool aabbHit(glm::vec3 p, glm::vec3 playerPos, bool crouched);
 
-// A regional hitbox: an AABB plus a damage multiplier (head 2x, torso 1x, legs 0.8x).
-struct HitRegion { glm::vec3 center; glm::vec3 half; float mult; };
+// A regional hitbox + damage multiplier (head 2x, torso 1x, legs 0.8x). An oriented
+// box: `M` maps the box's local frame to world (box spans ±half around M's origin),
+// `invM` is the cached inverse for sweeps. To test, transform the segment by invM and
+// run segmentAabb against `half` at the origin; to draw, use M * scale(2*half).
+struct HitRegion { glm::mat4 M; glm::mat4 invM; glm::vec3 half; float mult; };
 
-// Fills the player's stacked hit regions for the stance: legs, torso, neck, head, and
-// a forward arms/hands box that tracks the gun-hold pose (projected along `yaw`, raised
-// when `ads`). Depends only on pos + crouched + yaw + ads — all carried in the lag-comp
-// rewind snapshot — so server hit tests match the rewound pose. Returns the count (5).
-constexpr int MAX_HIT_REGIONS = 5;
-int playerHitRegions(const glm::vec3& pos, bool crouched, float yaw, bool ads,
+// Fills the player's hit regions from buildPlayerPose (playerpose.h) — the exact
+// oriented boxes the client renders (FK spine, IK arms + weapon, IK legs), each tagged
+// with its damage multiplier, plus ~1 cm pad (legs a bit more: their walk swing is
+// client-side animation). Depends only on pos + crouched + yaw + pitch + lean + ads +
+// weaponId — all carried in the lag-comp rewind snapshot — so server hit tests match
+// the rewound pose. Returns the count.
+constexpr int MAX_HIT_REGIONS = 24;   // = MAX_POSE_BOXES
+int playerHitRegions(const glm::vec3& pos, bool crouched, float yaw, float pitch,
+                     float lean, bool ads, uint8_t weaponId,
                      HitRegion out[MAX_HIT_REGIONS]);
 
 // Swept collision: does segment p0->p1 hit AABB(center, half)? tHit = entry point
@@ -51,8 +57,8 @@ void updateReload(Player& p, bool wantReload, float dt);
 // false if the player wasn't present/alive then (skip the hit). Used by the server
 // for lag compensation; ctx is the server's position history.
 typedef bool (*RewindLookup)(const void* ctx, int pid, float rewindSec,
-                             glm::vec3& pos, bool& crouched, float& yaw, bool& ads,
-                             bool& alive);
+                             glm::vec3& pos, bool& crouched, float& yaw, float& pitch,
+                             float& lean, bool& ads, uint8_t& weaponId, bool& alive);
 
 // A bullet's resting point on world geometry + the surface normal it struck. Collected
 // so callers can stamp decals (offline) or broadcast them to clients (server). Player

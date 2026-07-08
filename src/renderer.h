@@ -87,6 +87,10 @@ struct Renderer {
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color);
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, MaterialId mat);
     void  drawCubeModel(const glm::mat4& model, const glm::vec3& color);  // oriented (gun)
+    // Alpha-blended oriented cube for debug overlays (hitbox view). Depth-tested but
+    // not depth-written; lit-pass only — never call during the shadow pass.
+    void  drawCubeModelTranslucent(const glm::mat4& model, const glm::vec3& color,
+                                   float alpha);
     void  drawTerrain();   // Paldiski heightfield ground (lobby: flat quad instead)
     void  drawGround();    // flat 2*gArenaHalf quad at y=0 (lobby pad)
     // Drop lazily-built world caches (town meshes, tree/prop scatters) when the

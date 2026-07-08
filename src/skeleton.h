@@ -2,12 +2,13 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include "renderer.h"
 
-// Generic bone-array skeleton for the blocky "box-man". Each bone is one cuboid,
-// drawn through Renderer::drawCubeModel. Forward kinematics for now; the very same
-// per-bone transforms will later be produced by a ragdoll solver (one rigid body per
-// box), so the renderer never has to know which mode is driving the pose.
+// Generic bone-array skeleton for the blocky "box-man". Each bone is one cuboid;
+// the client draws them through Renderer::drawCubeModel, the server poses the same
+// skeleton to derive hitboxes (playerHitRegions) — keep this header GL-free.
+// Forward kinematics for now; the very same per-bone transforms will later be
+// produced by a ragdoll solver (one rigid body per box), so neither consumer has
+// to know which mode is driving the pose.
 //
 // Layout is built in makeBoxMan() below. Conventions:
 //   jointOffset = this bone's pivot, expressed in the PARENT bone's joint space (rest).
@@ -49,14 +50,6 @@ struct Skeleton {
         }
     }
 
-    void draw(Renderer& r) const {
-        for (int i = 0; i < BONE_COUNT; ++i) {
-            glm::mat4 m = world[i]
-                        * glm::translate(glm::mat4(1.0f), bones[i].boxOffset)
-                        * glm::scale(glm::mat4(1.0f), bones[i].halfExtents * 2.0f);
-            r.drawCubeModel(m, bones[i].color);
-        }
-    }
 };
 
 // Procedural walk cycle: write thigh/shin/arm localRot from a single phase. Legs swing
@@ -92,7 +85,8 @@ inline void poseWalk(Skeleton& s, float phase, float amp = 1.0f) {
     s.bones[BONE_LOWERARM_R].localRot = rotX(-(elbowBase + elbowSwing * fmaxf(0.0f, sinf(L))));
 }
 
-// Build the rest-pose humanoid (~1.88 m tall, pelvis joint at the origin of `root`).
+// Build the rest-pose humanoid (1.80 m tall — head top exactly at STAND_HEIGHT so the
+// hitbox stack covers the whole skull; pelvis joint at the origin of `root`).
 // spineCol/armCol/legCol/headCol tint the chains so the hierarchy reads at a glance.
 inline Skeleton makeBoxMan(glm::vec3 spineCol = {0.45f, 0.42f, 0.72f},
                            glm::vec3 armCol   = {0.18f, 0.62f, 0.50f},
@@ -101,9 +95,9 @@ inline Skeleton makeBoxMan(glm::vec3 spineCol = {0.45f, 0.42f, 0.72f},
     Skeleton s{};
     //                       parent            jointOffset            halfExtents             boxOffset            color
     s.bones[BONE_PELVIS]     = {-1,             { 0.00f,  0.00f, 0.0f}, {0.18f, 0.090f, 0.11f}, { 0.0f,  0.000f, 0.0f}, spineCol};
-    s.bones[BONE_TORSO]      = {BONE_PELVIS,    { 0.00f,  0.09f, 0.0f}, {0.17f, 0.250f, 0.11f}, { 0.0f,  0.250f, 0.0f}, spineCol};
-    s.bones[BONE_NECK]       = {BONE_TORSO,     { 0.00f,  0.50f, 0.0f}, {0.06f, 0.050f, 0.06f}, { 0.0f,  0.050f, 0.0f}, spineCol};
-    s.bones[BONE_HEAD]       = {BONE_NECK,      { 0.00f,  0.10f, 0.0f}, {0.12f, 0.120f, 0.12f}, { 0.0f,  0.120f, 0.0f}, headCol};
+    s.bones[BONE_TORSO]      = {BONE_PELVIS,    { 0.00f,  0.09f, 0.0f}, {0.17f, 0.220f, 0.11f}, { 0.0f,  0.220f, 0.0f}, spineCol};
+    s.bones[BONE_NECK]       = {BONE_TORSO,     { 0.00f,  0.44f, 0.0f}, {0.06f, 0.050f, 0.06f}, { 0.0f,  0.050f, 0.0f}, spineCol};
+    s.bones[BONE_HEAD]       = {BONE_NECK,      { 0.00f,  0.08f, 0.0f}, {0.12f, 0.120f, 0.12f}, { 0.0f,  0.120f, 0.0f}, headCol};
     s.bones[BONE_UPPERARM_L] = {BONE_TORSO,     { 0.27f,  0.41f, 0.0f}, {0.07f, 0.180f, 0.07f}, { 0.0f, -0.180f, 0.0f}, armCol};
     s.bones[BONE_UPPERARM_R] = {BONE_TORSO,     {-0.27f,  0.41f, 0.0f}, {0.07f, 0.180f, 0.07f}, { 0.0f, -0.180f, 0.0f}, armCol};
     s.bones[BONE_LOWERARM_L] = {BONE_UPPERARM_L,{ 0.00f, -0.36f, 0.0f}, {0.06f, 0.180f, 0.06f}, { 0.0f, -0.180f, 0.0f}, armCol};

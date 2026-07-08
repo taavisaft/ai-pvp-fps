@@ -106,6 +106,8 @@ Without these variables (or on a LAN) there's effectively no delay, so behavior 
 | M            | Toggle full-screen map            |
 | J            | Toggle HUD on / off (immersion)   |
 | K            | Cycle atmosphere (clear / overcast / golden hour) |
+| V            | Toggle third-person self-view (see your own body) |
+| H            | Toggle hitbox overlay (translucent green, debug) |
 | F            | Toggle wireframe                  |
 | ESC          | Quit                              |
 

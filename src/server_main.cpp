@@ -47,8 +47,11 @@ struct Snap {
     glm::vec3 pos[MAX_PLAYERS];
     bool      crouched[MAX_PLAYERS];
     bool      alive[MAX_PLAYERS];
-    float     yaw[MAX_PLAYERS];     // for the yaw-projected arms hitbox
+    float     yaw[MAX_PLAYERS];     // hit regions are yaw-oriented
+    float     pitch[MAX_PLAYERS];   // neck aim tilt moves the head box
+    float     lean[MAX_PLAYERS];    // torso lean roll moves the upper-body boxes
     bool      ads[MAX_PLAYERS];     // raises the arms box when aiming
+    uint8_t   weaponId[MAX_PLAYERS];// gun + hand-grip boxes are weapon-shaped
 };
 static Snap history[HISTORY_TICKS];
 static int  histHead  = -1;   // index of newest snapshot
@@ -81,14 +84,18 @@ static void recordSnapshot() {
         s.crouched[i] = game.players[i].crouched;
         s.alive[i]    = game.players[i].alive;
         s.yaw[i]      = game.players[i].yaw;
+        s.pitch[i]    = game.players[i].pitch;
+        s.lean[i]     = game.players[i].lean;
         s.ads[i]      = game.players[i].ads;
+        s.weaponId[i] = game.players[i].weaponId;
     }
     if (histCount < HISTORY_TICKS) histCount++;
 }
 
 // RewindLookup: where player `pid`'s hitbox was `rewindSec` seconds ago.
 static bool rewindLookup(const void* ctx, int pid, float rewindSec,
-                         glm::vec3& pos, bool& crouched, float& yaw, bool& ads, bool& alive) {
+                         glm::vec3& pos, bool& crouched, float& yaw, float& pitch,
+                         float& lean, bool& ads, uint8_t& weaponId, bool& alive) {
     (void)ctx;
     if (histCount == 0) return false;
     float    target = serverTime - rewindSec;
@@ -125,12 +132,16 @@ static bool rewindLookup(const void* ctx, int pid, float rewindSec,
     crouched = sb.crouched[pid];
     ads      = sb.ads[pid];
     // Shortest-arc yaw interp so a player spinning across the 0/360 seam doesn't make
-    // the arms box swing the long way round between snapshots.
+    // the hit regions swing the long way round between snapshots.
     float ya = olderValid ? sa.yaw[pid] : sb.yaw[pid];
     float dy = sb.yaw[pid] - ya;
     while (dy > 180.0f)  dy -= 360.0f;
     while (dy < -180.0f) dy += 360.0f;
     yaw      = ya + dy * a;
+    // Pitch is clamped to ±89 and lean to ±1 — no seam, plain lerp.
+    pitch    = glm::mix(olderValid ? sa.pitch[pid] : sb.pitch[pid], sb.pitch[pid], a);
+    lean     = glm::mix(olderValid ? sa.lean[pid]  : sb.lean[pid],  sb.lean[pid],  a);
+    weaponId = sb.weaponId[pid];
     alive    = true;
     return true;
 }
@@ -258,7 +269,9 @@ static void tick(float dt) {
         if (p.weaponId != c.input.weaponId)   // client swapped weapons (1/2 keys)
             giveWeapon(p, c.input.weaponId);
         movePlayer(p, c.input, dt);
-        p.ads = c.input.ads;                  // recorded into the lag-comp snapshot
+        p.ads   = c.input.ads;                // recorded into the lag-comp snapshot
+        p.pitch = c.input.pitch;              // pose the head/neck hitboxes
+        p.lean  = c.input.lean;               // lean moves the upper-body hitboxes
         updateReload(p, c.input.reload, dt);
         if (c.firedShots < c.shotSeq) {   // one shot per tick; drains any backlog
             float eyeH = p.crouched ? CROUCH_EYE : EYE_HEIGHT;
