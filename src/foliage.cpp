@@ -5,6 +5,7 @@
 #define CGLTF_IMPLEMENTATION   // model.cpp (the other cgltf user) is not compiled
 #include "cgltf.h"
 #include "stb_image.h"    // implementation lives in texture.cpp
+#include "texture.h"
 #include <cmath>
 #include <cstdio>
 #include <cfloat>
@@ -157,17 +158,46 @@ bool Foliage::init() {
     locBlobRadius = glGetUniformLocation(blobShader.program, "radius");
     locBlobGround = glGetUniformLocation(blobShader.program, "groundOffset");
 
-    std::vector<float>    v;
+    // Performance-first tree: two crossed alpha-tested cards (4 triangles) using
+    // the coastal pine tile from the shared 4x4 vegetation atlas. The previous glTF
+    // tree cost ~6k triangles per instance, which was unsuitable for a 6000-tree map.
+    // Vertex layout remains pos/normal/uv so the existing instancing/shaders work.
+    std::vector<float> v;
     std::vector<unsigned> idx;
-    char mpath[600];
-    snprintf(mpath, sizeof(mpath), "%smodels/tree.glb", base);
-    if (!loadTreeGLB(mpath, v, idx, parts, texes, treeHeight, treeRadius)) {
-        if (!loadTreeGLB("models/tree.glb", v, idx, parts, texes, treeHeight, treeRadius)) {
-            fprintf(stderr, "foliage: models/tree.glb not found — trees disabled\n");
-            loaded = false;
-            return true;   // optional system; renderer still starts
-        }
+    const float hw = 3.0f, h = 8.0f;
+    // Atlas tile (0,3), inset to keep neighbouring tiles out of mip levels.
+    const float u0 = 0.016f, u1 = 0.984f, v0 = 0.016f, v1 = 0.984f;
+    auto card = [&](glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 d, glm::vec3 n) {
+        unsigned baseIdx = (unsigned)(v.size() / 8);
+        glm::vec3 p[4] = {a,b,c,d};
+        glm::vec2 uv[4] = {{u0,v0},{u1,v0},{u1,v1},{u0,v1}};
+        for (int i = 0; i < 4; i++)
+            v.insert(v.end(), {p[i].x,p[i].y,p[i].z,n.x,n.y,n.z,uv[i].x,uv[i].y});
+        idx.insert(idx.end(), {baseIdx,baseIdx+1,baseIdx+2,baseIdx,baseIdx+2,baseIdx+3});
+    };
+    card({-hw,0,0},{hw,0,0},{hw,h,0},{-hw,h,0},{0,0,1});
+    card({0,0,hw},{0,0,-hw},{0,h,-hw},{0,h,hw},{1,0,0});
+    char atlasPath[600];
+    snprintf(atlasPath, sizeof(atlasPath), "%stextures/environment/baltic_vegetation_atlas_1024.png", base);
+    GLuint atlas = loadTextureRGBA(atlasPath);
+    if (!atlas) atlas = loadTextureRGBA("textures/environment/baltic_vegetation_atlas_1024.png");
+    if (!atlas) {
+        fprintf(stderr, "foliage: vegetation atlas missing — trees disabled\n");
+        loaded = false;
+        return true;
     }
+    TreePart part;
+    part.tex = atlas;
+    part.indexOffset = 0;
+    part.indexCount = (GLsizei)idx.size();
+    part.alphaCutoff = 0.32f;
+    part.doubleSided = true;
+    parts.push_back(part);
+    texes.push_back(atlas);
+    treeHeight = h;
+    treeRadius = hw;
+    printf("foliage: billboard atlas tree verts=%zu tris=%zu height=%.1fm\n",
+           v.size() / 8, idx.size() / 3, treeHeight);
 
     glGenVertexArrays(1, &vao);
     glGenBuffers(1, &vbo);
@@ -189,13 +219,16 @@ bool Foliage::init() {
 
     // Per-instance attributes (divisor 1): pos.xyz (loc 3), yaw+scale (loc 4).
     glBindBuffer(GL_ARRAY_BUFFER, instVBO);
-    const GLsizei is = 5 * sizeof(float);
+    const GLsizei is = 6 * sizeof(float);
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, is, (void*)0);
     glVertexAttribDivisor(3, 1);
     glEnableVertexAttribArray(4);
     glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, is, (void*)(3 * sizeof(float)));
     glVertexAttribDivisor(4, 1);
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, is, (void*)(5 * sizeof(float)));
+    glVertexAttribDivisor(5, 1);
     glBindVertexArray(0);
 
     // Blob-decal quad: a unit XZ quad (corner coords -1..1) instanced from instVBO.
@@ -219,6 +252,9 @@ bool Foliage::init() {
     glEnableVertexAttribArray(4);
     glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, is, (void*)(3 * sizeof(float)));
     glVertexAttribDivisor(4, 1);
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, is, (void*)(5 * sizeof(float)));
+    glVertexAttribDivisor(5, 1);
     glBindVertexArray(0);
 
     loaded = true;
@@ -234,6 +270,25 @@ void Foliage::generate(int maxTrees) {
         rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
         return (float)(rng & 0xffffff) / (float)0x1000000;
     };
+    if (gMapId == MAP_LOBBY) {
+        // One instance of every atlas tile, arranged in two readable rows.
+        for (int i = 0; i < 16; i++) {
+            glm::vec2 q(-42.0f + (i % 8) * 12.0f, i < 8 ? -34.0f : 36.0f);
+            TreeInstance t;
+            t.tile = (float)i;
+            if (i <= 5 || i == 14 || i == 15) t.scale = 0.16f;      // grass/reed/fern/weed
+            else if (i <= 9 || i == 13)        t.scale = 0.32f;      // shrubs
+            else                               t.scale = 0.85f;      // saplings/pine
+            t.yaw = rnd() * 6.2831853f;
+            t.pos = {q.x, terrainHeight(q.x, q.y) - sink * t.scale, q.y};
+            trees.push_back(t);
+        }
+        glBindBuffer(GL_ARRAY_BUFFER, instVBO);
+        glBufferData(GL_ARRAY_BUFFER, trees.size() * 6 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+        instCap = (GLint)trees.size();
+        printf("foliage: placed %zu lobby showcase trees\n", trees.size());
+        return;
+    }
     auto sstep = [](float a, float b, float x) {
         float t = (x - a) / (b - a);
         t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
@@ -267,13 +322,16 @@ void Foliage::generate(int maxTrees) {
         float dhdz = (terrainHeight(x, z + e) - terrainHeight(x, z - e)) / (2 * e);
         if (sqrtf(dhdx * dhdx + dhdz * dhdz) > 0.55f) continue;  // skip steep ground (rock)
         TreeInstance ti;
-        ti.pos   = glm::vec3(x, h - SINK, z);
         ti.yaw   = rnd() * 6.2831853f;
         ti.scale = 0.85f + rnd() * 0.95f;   // bigger, more varied canopies
+        ti.tile  = rnd() < 0.28f ? (10.0f + floorf(rnd() * 2.0f)) : 12.0f;
+        // The atlas sprite has transparent space below its visible roots. Scale the
+        // burial with the card or large trees regain that gap and appear to float.
+        ti.pos   = glm::vec3(x, h - SINK * ti.scale, z);
         trees.push_back(ti);
     }
     glBindBuffer(GL_ARRAY_BUFFER, instVBO);
-    glBufferData(GL_ARRAY_BUFFER, trees.size() * 5 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, trees.size() * 6 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
     instCap = (GLint)trees.size();
     printf("foliage: scattered %zu trees in forests (%d attempts)\n", trees.size(), attempts);
 }
@@ -288,9 +346,9 @@ int Foliage::cullUpload(const glm::mat4& vp) {
     for (const TreeInstance& t : trees) {
         glm::vec3 c = t.pos + glm::vec3(0.0f, treeHeight * 0.5f * t.scale, 0.0f);
         if (!fr.sphereVisible(c, cullR * t.scale)) continue;
-        packed.insert(packed.end(), {t.pos.x, t.pos.y, t.pos.z, t.yaw, t.scale});
+        packed.insert(packed.end(), {t.pos.x, t.pos.y, t.pos.z, t.yaw, t.scale, t.tile});
     }
-    int visible = (int)(packed.size() / 5);
+    int visible = (int)(packed.size() / 6);
     if (visible == 0) return 0;
     glBindBuffer(GL_ARRAY_BUFFER, instVBO);
     glBufferSubData(GL_ARRAY_BUFFER, 0, packed.size() * sizeof(float), packed.data());

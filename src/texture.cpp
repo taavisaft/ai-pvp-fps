@@ -15,6 +15,25 @@ GLuint loadTexture(const char* path) {
     return tex;
 }
 
+GLuint loadTextureRGBA(const char* path) {
+    stbi_set_flip_vertically_on_load(1);
+    int w = 0, h = 0, c = 0;
+    unsigned char* px = stbi_load(path, &w, &h, &c, 4);
+    if (!px) return 0;
+    GLuint tex = 0;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, px);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    stbi_image_free(px);
+    return tex;
+}
+
 static float fractf(float x) { return x - floorf(x); }
 
 static float smoothstepf(float a, float b, float x) {

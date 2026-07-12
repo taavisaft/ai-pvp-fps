@@ -7,6 +7,8 @@ GLuint uploadTextureRGB(const unsigned char* px, int w, int h);
 // Load an image file (PNG/JPG/...) as an RGB8 tileable texture. Returns 0 if the
 // file is missing/unreadable, so callers can fall back to a procedural texture.
 GLuint loadTexture(const char* path);
+// Load an RGBA texture for alpha-tested/blended atlases such as environment decals.
+GLuint loadTextureRGBA(const char* path);
 
 // Top-down "satellite" map texture baked from the arena box layout: muted terrain
 // noise + box footprints shaded by height with drop shadows. Spans world XZ in

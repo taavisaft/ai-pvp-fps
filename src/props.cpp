@@ -137,6 +137,15 @@ void Props::generate() {
     // near a building this is just the pad height).
     auto at = [](float x, float z) { return glm::vec3(x, terrainHeight(x, z), z); };
 
+    if (gMapId == MAP_LOBBY) {
+        dump.instances.push_back({at(-18.0f, -18.0f), 0.35f, 1.0f});
+        car.instances.push_back({at(-30.0f, 18.0f), 1.15f, 1.0f});
+        crate.instances.push_back({at(18.0f, -18.0f), 0.4f, 1.0f});
+        crate.instances.push_back({at(20.0f, -19.0f), -0.2f, 0.8f});
+        lamp.instances.push_back({at(-16.0f, 18.0f), 0.0f, 1.0f});
+        lamp.instances.push_back({at(16.0f, 18.0f), 0.0f, 1.0f});
+    }
+
     for (int i = 0; i < gTownBuildingCount; i++) {
         const TownBuilding& b = gTownBuildings[i];
         float hw = b.w * 0.5f, hd = b.d * 0.5f;

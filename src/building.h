@@ -12,3 +12,6 @@ GLuint makeFacadeTexture();
 // (pos+normal+uv). Centered on X/Z at the origin, base at y=0, top at y=h — the
 // caller translates by the building's footprint center (center.y = pad height).
 bool buildFacadeMesh(Mesh& out, const TownBuilding& b);
+// Two deterministic weathering overlays per building, packed into one mesh and
+// sampling the shared 4x4 environment decal atlas.
+bool buildBuildingDecalMesh(Mesh& out, const TownBuilding& b, int buildingIndex);

@@ -4,6 +4,7 @@ layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
 layout(location = 3) in vec3 iPos;        // per-instance world position (feet)
 layout(location = 4) in vec2 iYawScale;   // per-instance yaw (rad), uniform scale
+layout(location = 5) in float iTile;
 
 uniform mat4 view;
 uniform mat4 proj;
@@ -29,7 +30,10 @@ void main() {
     vec3 wp = iPos + rot * lp;
     worldPos      = wp;
     vNormal       = rot * aNormal;
-    vUV           = vec2(aUV.x, 1.0 - aUV.y);   // glTF top-left -> GL bottom-left
+    // The RGBA atlas is flipped once by stb_image during upload, so its UVs already
+    // use OpenGL's bottom-left convention. The old glTF path required another flip.
+    float col = mod(iTile, 4.0), row = floor(iTile / 4.0);
+    vUV = (vec2(col, 3.0 - row) + aUV) * 0.25;
     lightSpacePos = lightSpace * vec4(wp, 1.0);
     gl_Position   = proj * view * vec4(wp, 1.0);
 }

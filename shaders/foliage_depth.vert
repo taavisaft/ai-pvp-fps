@@ -4,6 +4,7 @@ layout(location = 1) in vec3 aNormal;     // unused (depth only)
 layout(location = 2) in vec2 aUV;
 layout(location = 3) in vec3 iPos;
 layout(location = 4) in vec2 iYawScale;
+layout(location = 5) in float iTile;
 
 uniform mat4 lightSpace;
 uniform float time;
@@ -22,6 +23,7 @@ void main() {
     lp.z += cos(time * 1.1 + iPos.x * 0.4 - iPos.z * 0.3) * 0.18 * scale * h * h;
 
     vec3 wp = iPos + rot * lp;
-    vUV = vec2(aUV.x, 1.0 - aUV.y);
+    float col = mod(iTile, 4.0), row = floor(iTile / 4.0);
+    vUV = (vec2(col, 3.0 - row) + aUV) * 0.25;
     gl_Position = lightSpace * vec4(wp, 1.0);
 }

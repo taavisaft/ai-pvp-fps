@@ -169,7 +169,7 @@ inline void setMap(MapId id) {
     // Future maps add their generator + clamp + terrain mode as branches here.
     if (id == MAP_LOBBY) {
         generateLobby();
-        gTerrainMode = TERRAIN_OFF;      // flat pad
+        gTerrainMode = TERRAIN_LOBBY;
         gArenaHalf   = LOBBY_HALF;
     } else {
         generatePaldiski();

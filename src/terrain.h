@@ -93,11 +93,18 @@ inline float paldiskiElevation(float x, float z) {
 
 // Ground shape for the active map (see setMap in map.h). TERRAIN_OFF = flat y=0,
 // kept so future arena-style maps can opt out of the heightfield.
-enum TerrainMode { TERRAIN_OFF = 0, TERRAIN_PALDISKI };
+enum TerrainMode { TERRAIN_OFF = 0, TERRAIN_PALDISKI, TERRAIN_LOBBY };
 inline TerrainMode gTerrainMode = TERRAIN_OFF;
 
 // Gameplay ground height used by physics/spawns/shadows/mesh.
 inline float terrainHeight(float x, float z) {
     if (gTerrainMode == TERRAIN_PALDISKI) return paldiskiElevation(x, z);
+    if (gTerrainMode == TERRAIN_LOBBY) {
+        float lane = terrSmooth(terrClamp01((fabsf(z) - 14.0f) / 12.0f));
+        float edge = terrSmooth(terrClamp01((sqrtf(x*x + z*z) - 18.0f) / 35.0f));
+        float broad = (terrValueNoise(x * 0.035f + 8.0f, z * 0.035f - 3.0f) - 0.42f) * 5.0f;
+        float detail = (terrValueNoise(x * 0.11f, z * 0.11f) - 0.5f) * 0.7f;
+        return fmaxf(0.0f, (broad + detail) * fmaxf(lane, edge));
+    }
     return 0.0f;
 }

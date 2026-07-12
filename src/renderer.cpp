@@ -382,6 +382,8 @@ void Renderer::drawCubeModelTranslucent(const glm::mat4& model, const glm::vec3&
 void Renderer::invalidateWorldOnMapChange() {
     if (worldBuiltFor == (int)gMapId) return;
     worldBuiltFor = (int)gMapId;
+    terrain.destroy();
+    createTerrainMesh(terrain, gArenaHalf, terrainHeight);
     townBuilt = false;        // town meshes rebuild from the new gTownBuildings
     foliage.clear();          // scatters regenerate lazily (paldiski only)
     props.clear();
@@ -447,13 +449,15 @@ void Renderer::drawTerrain() {
 }
 
 void Renderer::buildTownMeshes() {
-    for (auto& d : townDraws) d.wall.destroy();
+    for (auto& d : townDraws) { d.wall.destroy(); d.decals.destroy(); }
     townDraws.clear();
     if (!facadeTex) facadeTex = makeFacadeTexture();
+    if (!decalTex) decalTex = loadTextureRGBA("textures/environment/baltic_decal_atlas_1024.png");
     for (int i = 0; i < gTownBuildingCount; i++) {
         const TownBuilding& b = gTownBuildings[i];
         TownDraw d;
         if (!buildFacadeMesh(d.wall, b)) continue;
+        buildBuildingDecalMesh(d.decals, b, i);
         d.center    = b.center;   // y = pad height; the facade mesh base is y=0
         // Concrete parapet cap: a thin slab overhanging the walls at roof height.
         d.capCenter = {b.center.x, b.center.y + b.h + 0.15f, b.center.z};
@@ -497,6 +501,22 @@ void Renderer::drawTownWorld(const Frustum& fr, const glm::vec3& eye) {
         d.wall.draw();
         active->setInt(active->locUseFacade, 0);
         active->setInt(active->locHasNormal, 0);
+        // Short-range cosmetic overlay only. It is omitted from the depth/shadow
+        // program and distant buildings, keeping the cost bounded.
+        if (active == &shader && decalTex && dist < 70.0f) {
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glDepthMask(GL_FALSE);
+            glBindTexture(GL_TEXTURE_2D, decalTex);
+            active->setInt(active->locUseFacade, 1);
+            active->setInt(active->locHasNormal, 1);
+            active->setFloat(active->locAlpha, 1.0f);
+            d.decals.draw();
+            active->setInt(active->locUseFacade, 0);
+            active->setInt(active->locHasNormal, 0);
+            glDepthMask(GL_TRUE);
+            glDisable(GL_BLEND);
+        }
         // Roof cap (plain concrete cube).
         drawCube(d.capCenter, d.capScale, MAT_CONCRETE);
     }
@@ -504,29 +524,25 @@ void Renderer::drawTownWorld(const Frustum& fr, const glm::vec3& eye) {
 
 void Renderer::drawFoliage(const glm::mat4& view, const glm::mat4& proj,
                            const glm::vec3& eye, float time) {
-    if (gMapId != MAP_PALDISKI) return;            // no forest on the lobby pad
-    if (foliage.empty()) foliage.generate(6000);   // 500 m map; grid-culled per frame
+    if (foliage.empty()) foliage.generate(gMapId == MAP_LOBBY ? 12 : 6000);
     foliage.draw(*this, view, proj, eye, time);
     shader.use();   // restore world program for subsequent draws (view model, HUD)
 }
 
 void Renderer::drawFoliageDepth(float time) {
-    if (gMapId != MAP_PALDISKI) return;
-    if (foliage.empty()) foliage.generate(6000);   // shadow pass runs first; scatter here
+    if (foliage.empty()) foliage.generate(gMapId == MAP_LOBBY ? 12 : 6000);
     foliage.drawDepth(lightSpace, time);
     depthShader.use();   // restore the world depth program for the rest of the pass
 }
 
 void Renderer::drawProps(const glm::mat4& view, const glm::mat4& proj,
                          const glm::vec3& eye, float time) {
-    if (gMapId != MAP_PALDISKI) return;            // props scatter around the town
     if (props.empty()) props.generate();
     props.draw(*this, view, proj, eye, time);
     shader.use();   // restore world program for subsequent draws (view model, HUD)
 }
 
 void Renderer::drawPropsDepth() {
-    if (gMapId != MAP_PALDISKI) return;
     if (props.empty()) props.generate();   // shadow pass runs first; scatter here
     props.drawDepth(lightSpace, shadowFocus);
     depthShader.use();   // restore the world depth program for the rest of the pass
@@ -558,6 +574,7 @@ void Renderer::shutdown() {
     for (auto& d : townDraws) d.wall.destroy();
     townDraws.clear();
     if (facadeTex) glDeleteTextures(1, &facadeTex);
+    if (decalTex) glDeleteTextures(1, &decalTex);
     if (shadowTex) glDeleteTextures(1, &shadowTex);
     if (shadowFBO) glDeleteFramebuffers(1, &shadowFBO);
     if (glContext) SDL_GL_DeleteContext(glContext);

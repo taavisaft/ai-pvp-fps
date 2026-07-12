@@ -111,3 +111,33 @@ bool buildFacadeMesh(Mesh& out, const TownBuilding& b) {
     addWall(vb, ib, {-hx, 0, -hz}, {-hx, 0, hz}, {-hx, h, hz}, {-hx, h, -hz}, {-1, 0, 0}, uz, vf);
     return out.create(vb.data(), vb.size(), ib.data(), ib.size(), true, true);
 }
+
+bool buildBuildingDecalMesh(Mesh& out, const TownBuilding& b, int buildingIndex) {
+    std::vector<float> vb;
+    std::vector<unsigned> ib;
+    auto decal = [&](glm::vec3 p0, glm::vec3 p1, glm::vec3 p2, glm::vec3 p3,
+                     glm::vec3 n, int tile) {
+        // Half-texel-ish inset within each 256px atlas tile limits mip bleeding.
+        float col = (float)(tile & 3), row = (float)(tile >> 2);
+        float e = 0.004f;
+        float u0 = col * 0.25f + e, u1 = (col + 1.0f) * 0.25f - e;
+        // Source images are documented top-down; stb flips the full atlas on load.
+        float v0 = (3.0f - row) * 0.25f + e, v1 = (4.0f - row) * 0.25f - e;
+        unsigned base = (unsigned)(vb.size() / 8);
+        glm::vec3 ps[4] = {p0, p1, p2, p3};
+        glm::vec2 uv[4] = {{u0,v0},{u1,v0},{u1,v1},{u0,v1}};
+        for (int i = 0; i < 4; i++)
+            vb.insert(vb.end(), {ps[i].x,ps[i].y,ps[i].z,n.x,n.y,n.z,uv[i].x,uv[i].y});
+        ib.insert(ib.end(), {base,base+1,base+2,base,base+2,base+3});
+    };
+    float hx = b.w * 0.5f, hz = b.d * 0.5f;
+    float y0 = 0.35f, y1 = glm::min(b.h - 0.4f, 3.8f + (buildingIndex % 3));
+    float w = glm::min(3.8f, b.w * 0.28f), x = -b.w * 0.22f + (buildingIndex % 5) * 0.17f;
+    decal({x-w,y0,hz+0.012f},{x+w,y0,hz+0.012f},{x+w,y1,hz+0.012f},{x-w,y1,hz+0.012f},
+          {0,0,1}, buildingIndex % 6); // stains, soot, runoff, moss, algae
+    float z = -b.d * 0.18f, sy = glm::min(b.h - 0.5f, 2.8f);
+    decal({hx+0.012f,0.3f,z+2.0f},{hx+0.012f,0.3f,z-2.0f},
+          {hx+0.012f,sy,z-2.0f},{hx+0.012f,sy,z+2.0f},{1,0,0},
+          8 + (buildingIndex % 4)); // cracks, rust, peeling paint
+    return out.create(vb.data(), vb.size(), ib.data(), ib.size(), true, true);
+}

@@ -6,14 +6,14 @@
 
 struct Renderer;  // borrows lighting palette + shadow map; full type in foliage.cpp
 
-// Instanced tree field for MAP_FIELD. A textured glTF tree (models/tree.glb) is loaded
-// once and drawn for every instance via glDrawElementsInstanced. Trees are scattered
+// Instanced tree field for Paldiski. A four-triangle crossed-card tree samples the
+// shared vegetation atlas and is drawn via glDrawElementsInstanced. Trees are scattered
 // deterministically on the shared heightfield (slope-filtered) and CPU frustum-culled
 // each frame so only the visible subset is uploaded + drawn. Pure decoration:
 // client-only, no collision, no net sync.
 //
 // Per-instance data is 5 floats: world pos.xyz, yaw (radians), uniform scale.
-struct TreeInstance { glm::vec3 pos; float yaw; float scale; };
+struct TreeInstance { glm::vec3 pos; float yaw; float scale; float tile; };
 
 // One draw range of the tree, sharing the combined VBO/EBO. Opaque parts and
 // alpha-masked (cutout leaf) parts differ in cutoff and face culling.
@@ -44,7 +44,7 @@ struct Foliage {
     std::vector<float>        packed;   // visible subset, 5 floats each (upload scratch)
     float treeHeight = 8.0f;            // baked height at scale 1 (cull sphere + radius)
     float treeRadius = 4.0f;            // baked canopy radius at scale 1
-    float sink = 0.4f;                  // trunk-base burial (blob sits on ground above it)
+    float sink = 1.05f;                 // absorb atlas padding and uneven sloped terrain
 
     bool init();                 // shaders + load tree.glb + instance buffer
     void generate(int maxTrees); // scatter trees in forest clumps on the heightfield

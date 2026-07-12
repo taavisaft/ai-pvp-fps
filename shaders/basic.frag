@@ -182,7 +182,9 @@ vec3 splatTerrain(vec3 p, vec3 an) {
 void main() {
     vec3 c = color;
     if (lit == 1 && useFacade == 1) {
-        c = texture(diffuseMap, vUV).rgb * tint;   // UV-tiled building facade
+        vec4 texel = texture(diffuseMap, vUV);
+        if (texel.a < 0.03) discard;
+        c = texel.rgb * tint;   // UV facade or transparent environment decal
     } else if (lit == 1 && splat == 1) {
         c = splatTerrain(worldPos, axisBlend(worldPos));
     } else if (lit == 1 && grass == 1) {
@@ -217,5 +219,7 @@ void main() {
         float fog  = clamp(length(worldPos - eyePos) * dens / fogDist, 0.0, 1.0);
         c = grade(mix(lit3, skyHorizon, fog * fog));
     }
-    fragColor = vec4(c, alpha);
+    float outAlpha = alpha;
+    if (lit == 1 && useFacade == 1) outAlpha *= texture(diffuseMap, vUV).a;
+    fragColor = vec4(c, outAlpha);
 }

@@ -68,10 +68,11 @@ struct Renderer {
 
     // Town facade buildings: one textured wall mesh + concrete roof cap per building,
     // built once from gTownBuildings on the first frame.
-    struct TownDraw { Mesh wall; glm::vec3 center, capCenter, capScale;
+    struct TownDraw { Mesh wall, decals; glm::vec3 center, capCenter, capScale;
                       glm::vec3 cullCenter, cullHalf; };  // whole-building AABB for cull
     std::vector<TownDraw> townDraws;
     GLuint facadeTex = 0;
+    GLuint decalTex  = 0;
     bool   townBuilt = false;
     int    worldBuiltFor = -1;   // MapId the lazy caches (town/trees/props) were built for
 

@@ -182,7 +182,7 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
                               const Frustum& fr, const glm::vec3& eye) {
     if (gMapId == MAP_LOBBY) {
         // Flat pad + plain material boxes (target wall, test cover).
-        r.drawGround();
+        r.drawTerrain();
         for (int i = 0; i < gMapBoxCount; i++) {
             const Box& b = gMapBoxes[i];
             if (!fr.aabbVisible(b.center, b.half)) continue;
