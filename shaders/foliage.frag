@@ -71,7 +71,11 @@ vec3 grade(vec3 c) {
 void main() {
     vec4 tex = texture(diffuseMap, vUV);
     if (alphaCutoff >= 0.0 && tex.a < alphaCutoff) discard;   // leaf cutout
-    vec3 c = tex.rgb;
+    // Small deterministic hue/value drift keeps large instanced stands from reading
+    // as exact copies. It is derived from position, so no instance memory is added.
+    float variation = fract(sin(dot(worldPos.xz, vec2(0.127, 0.311))) * 43758.5453);
+    vec3 c = tex.rgb * mix(0.91, 1.07, variation);
+    c *= mix(vec3(0.96, 1.02, 0.94), vec3(1.03, 0.98, 0.92), variation);
 
     vec3 n = normalize(vNormal);
     if (!gl_FrontFacing) n = -n;     // double-sided leaves: face the viewer

@@ -21,6 +21,8 @@ struct HudState {
     float    flashTimer = 0.0f;   // red hit flash
     float    deathTimer = 0.0f;   // local respawn countdown while dead
     float    fps        = 0.0f;   // smoothed frames/sec, top-left readout
+    float    frameMs    = 0.0f;   // smoothed wall-clock frame duration
+    float    renderCpuMs= 0.0f;   // CPU time spent submitting the previous scene
     int      fireMode   = 0;      // FireMode enum, current mode
     float    fireModeTimer = 0.0f;// >0 while flashing the mode name (set on B change)
     KillFeed feed;

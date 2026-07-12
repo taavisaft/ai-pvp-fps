@@ -467,6 +467,8 @@ int main(int argc, char** argv) {
             float inst = 1.0f / dt;
             fpsAvg = fpsAvg <= 0.0f ? inst : fpsAvg + (inst - fpsAvg) * 0.1f;
             hud.fps = fpsAvg;
+            float ms = dt * 1000.0f;
+            hud.frameMs = hud.frameMs <= 0.0f ? ms : hud.frameMs + (ms - hud.frameMs) * 0.1f;
         }
         if (dt > 0.05f) dt = 0.05f;   // cap to avoid spiral
 
@@ -888,9 +890,14 @@ int main(int argc, char** argv) {
             if (cpos.y < gy) cpos.y = gy;
             cam.tpPos = cpos;
         }
+        Uint64 renderStart = SDL_GetPerformanceCounter();
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
                     decals, decalCount, connectPrompt, lobby, walkPhase, walkAmp,
                     adsAnim, showHitboxes, fullMap, showHud, thirdPerson, ragdolls);
+        float renderMs = (float)(SDL_GetPerformanceCounter() - renderStart) * 1000.0f /
+                         (float)SDL_GetPerformanceFrequency();
+        hud.renderCpuMs = hud.renderCpuMs <= 0.0f ? renderMs
+                          : hud.renderCpuMs + (renderMs - hud.renderCpuMs) * 0.1f;
 
         static int frameCount = 0;
         const char* shotPath = getenv("FPS_SHOT");

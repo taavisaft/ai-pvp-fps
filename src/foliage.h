@@ -6,7 +6,7 @@
 
 struct Renderer;  // borrows lighting palette + shadow map; full type in foliage.cpp
 
-// Instanced tree field for Paldiski. A four-triangle crossed-card tree samples the
+// Instanced vegetation for Paldiski/lobby. A six-triangle three-card profile samples the
 // shared vegetation atlas and is drawn via glDrawElementsInstanced. Trees are scattered
 // deterministically on the shared heightfield (slope-filtered) and CPU frustum-culled
 // each frame so only the visible subset is uploaded + drawn. Pure decoration:
@@ -60,5 +60,6 @@ struct Foliage {
   private:
     // Frustum-cull all trees against `vp`, upload the visible subset to instVBO,
     // return the visible instance count. Shared by the main and shadow passes.
-    int cullUpload(const glm::mat4& vp);
+    int cullUpload(const glm::mat4& vp, const glm::vec3* eye = nullptr,
+                   bool woodyOnly = false);
 };

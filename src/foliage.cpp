@@ -158,7 +158,8 @@ bool Foliage::init() {
     locBlobRadius = glGetUniformLocation(blobShader.program, "radius");
     locBlobGround = glGetUniformLocation(blobShader.program, "groundOffset");
 
-    // Performance-first tree: two crossed alpha-tested cards (4 triangles) using
+    // Performance-first vegetation: three alpha-tested cards at 60-degree intervals
+    // (6 triangles). This reads rounder than a two-plane X while remaining tiny.
     // the coastal pine tile from the shared 4x4 vegetation atlas. The previous glTF
     // tree cost ~6k triangles per instance, which was unsuitable for a 6000-tree map.
     // Vertex layout remains pos/normal/uv so the existing instancing/shaders work.
@@ -175,8 +176,12 @@ bool Foliage::init() {
             v.insert(v.end(), {p[i].x,p[i].y,p[i].z,n.x,n.y,n.z,uv[i].x,uv[i].y});
         idx.insert(idx.end(), {baseIdx,baseIdx+1,baseIdx+2,baseIdx,baseIdx+2,baseIdx+3});
     };
-    card({-hw,0,0},{hw,0,0},{hw,h,0},{-hw,h,0},{0,0,1});
-    card({0,0,hw},{0,0,-hw},{0,h,-hw},{0,h,hw},{1,0,0});
+    for (int k = 0; k < 3; k++) {
+        float a = (float)k * 1.04719755f;  // 0, 60, 120 degrees
+        glm::vec3 axis(cosf(a) * hw, 0.0f, sinf(a) * hw);
+        glm::vec3 n(-sinf(a), 0.0f, cosf(a));
+        card(-axis, axis, axis + glm::vec3(0,h,0), -axis + glm::vec3(0,h,0), n);
+    }
     char atlasPath[600];
     snprintf(atlasPath, sizeof(atlasPath), "%stextures/environment/baltic_vegetation_atlas_1024.png", base);
     GLuint atlas = loadTextureRGBA(atlasPath);
@@ -196,7 +201,7 @@ bool Foliage::init() {
     texes.push_back(atlas);
     treeHeight = h;
     treeRadius = hw;
-    printf("foliage: billboard atlas tree verts=%zu tris=%zu height=%.1fm\n",
+    printf("foliage: three-card atlas vegetation verts=%zu tris=%zu height=%.1fm\n",
            v.size() / 8, idx.size() / 3, treeHeight);
 
     glGenVertexArrays(1, &vao);
@@ -283,10 +288,47 @@ void Foliage::generate(int maxTrees) {
             t.pos = {q.x, terrainHeight(q.x, q.y) - sink * t.scale, q.y};
             trees.push_back(t);
         }
+        // Dense offline stress grove on the west side of the lobby. Clustered
+        // placement creates realistic layers and deliberately exercises alpha-test
+        // overdraw, while x < -18 keeps the shooting lane and target wall clear.
+        constexpr glm::vec2 centers[] = {{-43,-20},{-39,2},{-45,23},{-27,25}};
+        constexpr int STRESS_COUNT = 900;
+        for (int i = 0; i < STRESS_COUNT; i++) {
+            const glm::vec2 c = centers[i % 4];
+            float angle = rnd() * 6.2831853f;
+            float radius = sqrtf(rnd()) * (7.0f + 5.0f * rnd());
+            glm::vec2 q = c + glm::vec2(cosf(angle), sinf(angle)) * radius;
+            q.x = glm::clamp(q.x, -57.0f, -18.0f);
+            q.y = glm::clamp(q.y, -52.0f, 52.0f);
+
+            float pick = rnd();
+            int tile;
+            float scale;
+            if (pick < 0.48f) {                 // grass/reeds: dense understory
+                tile = (int)(rnd() * 6.0f);
+                scale = 0.10f + rnd() * 0.10f;
+            } else if (pick < 0.78f) {          // shrubs/dead brush
+                tile = 6 + (int)(rnd() * 4.0f);
+                if (rnd() < 0.12f) tile = 13;
+                scale = 0.22f + rnd() * 0.20f;
+            } else if (pick < 0.88f) {          // fern/coastal weeds
+                tile = 14 + (int)(rnd() * 2.0f);
+                scale = 0.12f + rnd() * 0.12f;
+            } else {                            // sparse canopy above understory
+                tile = rnd() < 0.62f ? 12 : 10 + (int)(rnd() * 2.0f);
+                scale = 0.65f + rnd() * 0.50f;
+            }
+            TreeInstance t;
+            t.tile = (float)tile;
+            t.scale = scale;
+            t.yaw = rnd() * 6.2831853f;
+            t.pos = {q.x, terrainHeight(q.x, q.y) - sink * scale, q.y};
+            trees.push_back(t);
+        }
         glBindBuffer(GL_ARRAY_BUFFER, instVBO);
         glBufferData(GL_ARRAY_BUFFER, trees.size() * 6 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
         instCap = (GLint)trees.size();
-        printf("foliage: placed %zu lobby showcase trees\n", trees.size());
+        printf("foliage: placed %zu lobby showcase/stress instances\n", trees.size());
         return;
     }
     auto sstep = [](float a, float b, float x) {
@@ -330,21 +372,59 @@ void Foliage::generate(int maxTrees) {
         ti.pos   = glm::vec3(x, h - SINK * ti.scale, z);
         trees.push_back(ti);
     }
+    // Broad grass biome: clumps occupy most valid land, but only clumps within 60 m
+    // are uploaded. This gives dense local coverage without drawing the full map.
+    constexpr int GRASS_COUNT = 35000;
+    int grassMade = 0, grassAttempts = 0;
+    while (grassMade < GRASS_COUNT && grassAttempts++ < GRASS_COUNT * 4) {
+        float x = (rnd() * 2.0f - 1.0f) * SPAN;
+        float z = (rnd() * 2.0f - 1.0f) * SPAN;
+        float h = terrainHeight(x, z);
+        if (h < 0.35f) continue;                                  // sea/wet beach
+        bool onPad = false;
+        for (int i = 0; i < gTerrainPadCount; i++) {
+            float dx = x - gTerrainPads[i].x, dz = z - gTerrainPads[i].z;
+            float safeR = gTerrainPads[i].r * 0.72f;
+            if (dx*dx + dz*dz < safeR*safeR) { onPad = true; break; }
+        }
+        if (onPad) continue;
+        float dhx = (terrainHeight(x + e, z) - terrainHeight(x - e, z)) / (2 * e);
+        float dhz = (terrainHeight(x, z + e) - terrainHeight(x, z - e)) / (2 * e);
+        if (sqrtf(dhx*dhx + dhz*dhz) > 0.65f) continue;
+        float r = rnd();
+        int tile = r < 0.72f ? (int)(rnd() * 4.0f)
+                 : r < 0.88f ? 4 + (int)(rnd() * 2.0f)
+                 : 14 + (int)(rnd() * 2.0f);
+        TreeInstance g;
+        g.tile = (float)tile;
+        g.scale = 0.09f + rnd() * 0.10f;
+        g.yaw = rnd() * 6.2831853f;
+        g.pos = {x, h - sink * g.scale, z};
+        trees.push_back(g);
+        grassMade++;
+    }
     glBindBuffer(GL_ARRAY_BUFFER, instVBO);
     glBufferData(GL_ARRAY_BUFFER, trees.size() * 6 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
     instCap = (GLint)trees.size();
-    printf("foliage: scattered %zu trees in forests (%d attempts)\n", trees.size(), attempts);
+    printf("foliage: %d trees + %d grass clumps (%zu total instances)\n",
+           maxTrees, grassMade, trees.size());
 }
 
 void Foliage::clear() { trees.clear(); }
 
-int Foliage::cullUpload(const glm::mat4& vp) {
+int Foliage::cullUpload(const glm::mat4& vp, const glm::vec3* eye, bool woodyOnly) {
     Frustum fr = Frustum::fromVP(vp);
 
     packed.clear();
     float cullR = glm::max(treeHeight * 0.5f, treeRadius);
     for (const TreeInstance& t : trees) {
+        bool small = t.tile < 10.0f || t.tile >= 13.0f;
+        if (woodyOnly && small) continue;
         glm::vec3 c = t.pos + glm::vec3(0.0f, treeHeight * 0.5f * t.scale, 0.0f);
+        if (small && eye) {
+            glm::vec3 d = c - *eye;
+            if (glm::dot(d, d) > 3600.0f) continue;               // 60 m grass LOD
+        }
         if (!fr.sphereVisible(c, cullR * t.scale)) continue;
         packed.insert(packed.end(), {t.pos.x, t.pos.y, t.pos.z, t.yaw, t.scale, t.tile});
     }
@@ -358,7 +438,7 @@ int Foliage::cullUpload(const glm::mat4& vp) {
 void Foliage::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& proj,
                    const glm::vec3& eye, float time) {
     if (!loaded || trees.empty()) return;
-    int visible = cullUpload(proj * view);
+    int visible = cullUpload(proj * view, &eye);
     if (visible == 0) return;
 
     shader.use();
@@ -394,8 +474,10 @@ void Foliage::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& pr
     }
     glEnable(GL_CULL_FACE);   // restore world default
 
-    // Far blob decals: cheap ground shadows beyond the real shadow-map range. Same
-    // culled instance set; the shader fades them in by distance so near trees keep
+    // Far blob decals for woody vegetation only; grass never receives one.
+    visible = cullUpload(proj * view, &eye, true);
+    if (visible == 0) { glBindVertexArray(0); return; }
+    // The shader fades them in by distance so near trees keep
     // their real dappled shadow and only distant ones get the blob.
     blobShader.use();
     blobShader.setMat4(blobShader.locView, view);
@@ -417,7 +499,7 @@ void Foliage::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& pr
 
 void Foliage::drawDepth(const glm::mat4& lightSpace, float time) {
     if (!loaded || trees.empty()) return;
-    int visible = cullUpload(lightSpace);   // cull to the sun's ortho frustum
+    int visible = cullUpload(lightSpace, nullptr, true); // grass does not cast shadows
     if (visible == 0) return;
 
     depthShader.use();

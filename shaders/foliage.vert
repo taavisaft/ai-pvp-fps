@@ -21,7 +21,11 @@ void main() {
     float c = cos(yaw), s = sin(yaw);
     mat3 rot = mat3(c, 0.0, -s,   0.0, 1.0, 0.0,   s, 0.0, c);
 
+    // Stable per-instance width variation breaks repeated card silhouettes without
+    // extra instance attributes or draw calls. Height remains controlled by scale.
+    float shape = fract(sin(dot(iPos.xz, vec2(12.9898, 78.233))) * 43758.5453);
     vec3 lp = aPos * scale;
+    lp.xz *= mix(0.82, 1.16, shape);
     // Wind sway grows with height up the tree; phase varies per tree position.
     float h = clamp(lp.y / (8.0 * scale), 0.0, 1.0);
     lp.x += sin(time * 1.3 + iPos.x * 0.5 + iPos.z * 0.5) * 0.25 * scale * h * h;
