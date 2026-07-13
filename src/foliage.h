@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include "shader.h"
 #include "gl_loader.h"
+#include "spatial.h"
 
 struct Renderer;  // borrows lighting palette + shadow map; full type in foliage.cpp
 
@@ -12,7 +13,7 @@ struct Renderer;  // borrows lighting palette + shadow map; full type in foliage
 // each frame so only the visible subset is uploaded + drawn. Pure decoration:
 // client-only, no collision, no net sync.
 //
-// Per-instance data is 5 floats: world pos.xyz, yaw (radians), uniform scale.
+// Per-instance data is 6 floats: world pos.xyz, yaw, scale, atlas tile.
 struct TreeInstance { glm::vec3 pos; float yaw; float scale; float tile; };
 
 // One draw range of the tree, sharing the combined VBO/EBO. Opaque parts and
@@ -41,7 +42,8 @@ struct Foliage {
     std::vector<TreePart>     parts;    // sub-meshes (opaque trunk + cutout leaves)
     std::vector<GLuint>       texes;    // owned textures (for cleanup)
     std::vector<TreeInstance> trees;    // every scattered tree
-    std::vector<float>        packed;   // visible subset, 5 floats each (upload scratch)
+    std::vector<float>        packed;   // visible subset, 6 floats each (upload scratch)
+    SpatialGrid               grid;     // rejects whole vegetation chunks per frame
     float treeHeight = 8.0f;            // baked height at scale 1 (cull sphere + radius)
     float treeRadius = 4.0f;            // baked canopy radius at scale 1
     float sink = 1.05f;                 // absorb atlas padding and uneven sloped terrain
