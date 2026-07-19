@@ -1,15 +1,19 @@
 #version 330 core
-in vec3 worldPos;
-in vec3 vNormal;
-in vec2 vUV;
-in vec2 vLocal;
-in vec4 lightSpacePos;
+in vec3  worldPos;
+in vec3  vNormal;
+in vec2  vUV;
+in float vRootT;
+in float vTintSeed;
+in vec4  lightSpacePos;
 
 uniform vec3 eyePos;
 uniform vec3 sunDir;
 uniform vec3 skyZenith;
 uniform vec3 skyHorizon;
 uniform vec3 groundAmbient;
+uniform sampler2D diffuseMap;   // blade atlas (4 columns), texture unit 0
+uniform sampler2D shadowMap;    // sun depth, texture unit 1
+uniform int useShadow;
 
 // Atmosphere pass (preset-driven; mirrors basic.frag).
 uniform vec3  sunColor;
@@ -20,16 +24,12 @@ uniform float exposure;
 uniform float saturation;
 uniform float time;
 
-uniform sampler2D diffuseMap;   // baseColor (RGBA), texture unit 0
-uniform float alphaCutoff;      // <0 = opaque; else discard alpha < cutoff
-uniform sampler2D shadowMap;    // sun depth, texture unit 1
-uniform int useShadow;
-uniform float rootBlend;        // 0..1: fade the card base into the ground albedo
-uniform vec3  groundTint;       // ground albedo the roots blend toward
-
 out vec4 fragColor;
 
-// 3x3 PCF, matching basic.frag so trees sit in the same light as the ground.
+// Ring where 3D clumps hand over to the flat fragment-grass ground texture.
+const float FADE_START = 34.0;
+const float FADE_END   = 44.0;
+
 float sunVisibility(vec3 n, vec3 L) {
     if (useShadow == 0) return 1.0;
     vec3 p = lightSpacePos.xyz / lightSpacePos.w;
@@ -46,8 +46,6 @@ float sunVisibility(vec3 n, vec3 L) {
     return vis / 9.0;
 }
 
-// Cloud shadows + grade: identical math to basic.frag so trees darken with the
-// ground under the same drifting cloud and land on the same filmic curve.
 float chash(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
     p += dot(p, p + 45.32);
@@ -72,35 +70,39 @@ vec3 grade(vec3 c) {
 }
 
 void main() {
+    float dist = length(worldPos - eyePos);
+
+    // Screen-door fade at the ring edge: distant clumps dissolve pixel-by-pixel
+    // into the ground grass texture instead of popping.
+    float fade = smoothstep(FADE_START, FADE_END, dist);
+    if (fade > 0.0) {
+        float dither = chash(floor(gl_FragCoord.xy));
+        if (dither < fade) discard;
+    }
+
     vec4 tex = texture(diffuseMap, vUV);
-    // Mip filtering erodes coverage of thin blades, so distant tufts collapse into
-    // sparse cores under a fixed cutoff. Boost sampled alpha with distance to keep
-    // silhouette density roughly constant (Arma-style alpha sharpening).
-    float eyeDist = length(worldPos - eyePos);
-    float a = tex.a * mix(1.0, 1.45, smoothstep(6.0, 45.0, eyeDist));
-    if (alphaCutoff >= 0.0 && a < alphaCutoff) discard;   // leaf cutout
-    // Small deterministic hue/value drift keeps large instanced stands from reading
-    // as exact copies. It is derived from position, so no instance memory is added.
-    float variation = fract(sin(dot(worldPos.xz, vec2(0.127, 0.311))) * 43758.5453);
-    vec3 c = tex.rgb * mix(0.91, 1.07, variation);
-    c *= mix(vec3(0.96, 1.02, 0.94), vec3(1.03, 0.98, 0.92), variation);
-    // Fade the card base into the ground albedo so tufts grow out of the terrain
-    // instead of sitting on it (the DayZ/Arma terrain-tinted-clutter trick).
-    c = mix(c, groundTint, rootBlend * (1.0 - smoothstep(0.02, 0.30, vLocal.y)));
+    // Blade cutout (atlas alpha is binarized on load, so edges are crisp). Mip
+    // minification still averages alpha down, so the threshold relaxes a little
+    // with distance to keep far clumps from eroding away.
+    float cut = mix(0.55, 0.22, smoothstep(10.0, 35.0, dist));
+    if (tex.a < cut) discard;
 
+    // Per-clump tint drift so the field isn't one flat green, and root blend: the
+    // card base fades toward the ground albedo so clumps grow out of the soil
+    // instead of sitting on it (vUV.y fract = within-tile v; 1 = root baseline).
+    vec3 c = tex.rgb * (0.88 + 0.24 * vTintSeed);
+    c = mix(c, vec3(0.50, 0.47, 0.30), smoothstep(0.88, 1.0, vRootT) * 0.45);
+
+    // Lit with the TERRAIN normal, not the quad normal — every blade shades like
+    // the ground beneath it, so clumps melt into the field instead of sparkling.
     vec3 n = normalize(vNormal);
-    if (!gl_FrontFacing) n = -n;     // double-sided leaves: face the viewer
-    // Grass adopts near-vertical normals so tufts take the same light as the ground
-    // they grow from — kills the hard lit/shadow split across card faces (Arma trick).
-    n = normalize(mix(n, vec3(0.0, 1.0, 0.0), 0.8 * rootBlend));
     vec3 L = normalize(sunDir);
-
     vec3 sun     = sunColor * max(dot(n, L), 0.0)
                  * sunVisibility(n, L) * cloudShadow(worldPos.xz, time);
     vec3 ambient = mix(groundAmbient, skyZenith, n.y * 0.5 + 0.5);
     vec3 lit     = c * (sun + ambient);
 
     float dens = 1.0 + fogHeightAmt * exp(-max(worldPos.y, 0.0) / 12.0);
-    float fog  = clamp(length(worldPos - eyePos) * dens / fogDist, 0.0, 1.0);
+    float fog  = clamp(dist * dens / fogDist, 0.0, 1.0);
     fragColor = vec4(grade(mix(lit, skyHorizon, fog * fog)), 1.0);
 }

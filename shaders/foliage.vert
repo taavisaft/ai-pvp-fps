@@ -14,6 +14,7 @@ uniform float time;
 out vec3 worldPos;
 out vec3 vNormal;
 out vec2 vUV;
+out vec2 vLocal;   // card-local UV: y=0 at the root, 1 at the tip
 out vec4 lightSpacePos;
 
 void main() {
@@ -38,6 +39,7 @@ void main() {
     // use OpenGL's bottom-left convention. The old glTF path required another flip.
     float col = mod(iTile, 4.0), row = floor(iTile / 4.0);
     vUV = (vec2(col, 3.0 - row) + aUV) * 0.25;
+    vLocal = aUV;
     lightSpacePos = lightSpace * vec4(wp, 1.0);
     gl_Position   = proj * view * vec4(wp, 1.0);
 }

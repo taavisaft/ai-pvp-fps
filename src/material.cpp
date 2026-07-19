@@ -30,7 +30,12 @@ bool MaterialLib::init() {
         if (!tex) tex = loadTexture((base + ".jpg").c_str());
         if (tex) {
             mats[e.id].tint = {1.0f, 1.0f, 1.0f};        // image has its own color
-            if (e.id == MAT_GROUND) groundHasImage = true;
+            if (e.id == MAT_GROUND) {
+                groundHasImage = true;
+                // Warm the forest-floor photo toward a dried-meadow tan so the ground
+                // sits in the same palette family as the grass/vegetation atlases.
+                mats[e.id].tint = {1.14f, 1.06f, 0.88f};
+            }
             printf("material: loaded image for %s\n", e.name);
         } else {
             tex = e.proc();                              // procedural fallback

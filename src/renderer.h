@@ -9,6 +9,7 @@
 #include "foliage.h"
 #include "building.h"
 #include "props.h"
+#include "grass.h"
 #include "frustum.h"
 
 struct Box;  // map.h; for the satellite map-texture bake
@@ -65,6 +66,7 @@ struct Renderer {
     MaterialLib materials;
     Foliage foliage; // instanced trees
     Props   props;   // instanced street props
+    Grass   grass;   // instanced 3D grass ring around the camera
 
     // Town facade buildings: one textured wall mesh + concrete roof cap per building,
     // built once from gTownBuildings on the first frame.
@@ -113,6 +115,9 @@ struct Renderer {
     void  drawProps(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye,
                     float time);
     void  drawPropsDepth();   // props as shadow casters (call inside the shadow pass)
+    // 3D grass ring; draw after the opaque world, before water (no shadow casting).
+    void  drawGrass(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye,
+                    float time);
     // HUD pass: depth off, blending on, coordinates in NDC [-1,1]
     void  beginHUD();
     void  drawRect(const glm::vec2& center, const glm::vec2& size,

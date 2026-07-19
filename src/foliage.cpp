@@ -139,6 +139,8 @@ bool Foliage::init() {
         if (!shader.load("shaders/foliage.vert", "shaders/foliage.frag")) return false;
     }
     locCutoff = glGetUniformLocation(shader.program, "alphaCutoff");
+    locRootBlend  = glGetUniformLocation(shader.program, "rootBlend");
+    locGroundTint = glGetUniformLocation(shader.program, "groundTint");
 
     char dvpath[600], dfpath[600];
     snprintf(dvpath, sizeof(dvpath), "%sshaders/foliage_depth.vert", base);
@@ -199,6 +201,10 @@ bool Foliage::init() {
     part.doubleSided = true;
     parts.push_back(part);
     texes.push_back(atlas);
+    snprintf(atlasPath, sizeof(atlasPath), "%stextures/environment/close_grass_atlas_1024.png", base);
+    grassTex = loadTextureRGBA(atlasPath);
+    if (!grassTex) grassTex = loadTextureRGBA("textures/environment/close_grass_atlas_1024.png");
+    if (!grassTex) fprintf(stderr, "foliage: close grass atlas missing; using vegetation fallback\n");
     treeHeight = h;
     treeRadius = hw;
     printf("foliage: three-card atlas vegetation verts=%zu tris=%zu height=%.1fm\n",
@@ -449,22 +455,29 @@ void Foliage::generate(int maxTrees) {
 
 void Foliage::clear() { trees.clear(); grid.clear(); }
 
-int Foliage::cullUpload(const glm::mat4& vp, const glm::vec3* eye, bool woodyOnly) {
+int Foliage::cullUpload(const glm::mat4& vp, const glm::vec3* eye, int filter) {
     Frustum fr = Frustum::fromVP(vp);
 
     packed.clear();
     float cullR = glm::max(treeHeight * 0.5f, treeRadius);
     auto consider = [&](int index) {
         const TreeInstance& t = trees[index];
+        bool grass = t.tile <= 5.0f || t.tile >= 14.0f;
         bool small = t.tile < 10.0f || t.tile >= 13.0f;
-        if (woodyOnly && small) return;
+        if (filter == 1 && grass) return;
+        if (filter == 2 && !grass) return;
         glm::vec3 c = t.pos + glm::vec3(0.0f, treeHeight * 0.5f * t.scale, 0.0f);
+        float scale = t.scale;
         if (small && eye) {
-            glm::vec3 d = c - *eye;
-            if (glm::dot(d, d) > 3600.0f) return;                 // 60 m grass LOD
+            // Small clutter fades out by shrinking into the ground instead of the
+            // old hard 60 m pop; the ground texture carries the look beyond.
+            float dist = glm::length(c - *eye);
+            float fade = 1.0f - glm::smoothstep(42.0f, 60.0f, dist);
+            if (fade < 0.03f) return;
+            scale *= fade;
         }
         if (!fr.sphereVisible(c, cullR * t.scale)) return;
-        packed.insert(packed.end(), {t.pos.x, t.pos.y, t.pos.z, t.yaw, t.scale, t.tile});
+        packed.insert(packed.end(), {t.pos.x, t.pos.y, t.pos.z, t.yaw, scale, t.tile});
     };
     if (!grid.empty()) grid.forEachVisible(fr, consider);
     else for (int i = 0; i < (int)trees.size(); i++) consider(i);
@@ -478,8 +491,7 @@ int Foliage::cullUpload(const glm::mat4& vp, const glm::vec3* eye, bool woodyOnl
 void Foliage::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& proj,
                    const glm::vec3& eye, float time) {
     if (!loaded || trees.empty()) return;
-    int visible = cullUpload(proj * view, &eye);
-    if (visible == 0) return;
+    int visible = cullUpload(proj * view, &eye, 1);
 
     shader.use();
     shader.setMat4(shader.locView, view);
@@ -503,43 +515,63 @@ void Foliage::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& pr
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, r.shadowTex);
 
+    // Ground albedo the card roots blend into (matches textures/ground.jpg mean).
+    const glm::vec3 groundTint(0.58f, 0.53f, 0.35f);
+    shader.setVec3(locGroundTint, groundTint);
+    shader.setFloat(locRootBlend, 0.35f);   // trees/shrubs: mild grounding only
+
     glBindVertexArray(vao);
-    for (const TreePart& part : parts) {
-        if (part.doubleSided) glDisable(GL_CULL_FACE); else glEnable(GL_CULL_FACE);
-        shader.setFloat(locCutoff, part.alphaCutoff);
+    if (visible > 0)
+        for (const TreePart& part : parts) {
+            if (part.doubleSided) glDisable(GL_CULL_FACE); else glEnable(GL_CULL_FACE);
+            shader.setFloat(locCutoff, part.alphaCutoff);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, part.tex);
+            glDrawElementsInstanced(GL_TRIANGLES, part.indexCount, GL_UNSIGNED_INT,
+                                    (void*)(size_t)part.indexOffset, visible);
+        }
+
+    // Far blob decals for woody vegetation only (the instance buffer still holds the
+    // filter-1 set); grass never receives one. The shader fades them in by distance
+    // so near trees keep their real dappled shadow and only distant ones get the blob.
+    if (visible > 0) {
+        blobShader.use();
+        blobShader.setMat4(blobShader.locView, view);
+        blobShader.setMat4(blobShader.locProj, proj);
+        blobShader.setVec3(blobShader.locEye, eye);
+        blobShader.setFloat(locBlobRadius, treeRadius);
+        blobShader.setFloat(locBlobGround, sink + 0.06f);   // sit above sunk base
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);          // decal: test depth, don't write it
+        glDisable(GL_CULL_FACE);
+        glBindVertexArray(blobVao);
+        glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr, visible);
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
+    }
+
+    // Grass is a second instanced batch using the dedicated dense-patch atlas,
+    // uploaded last so it overwrites the shared instance buffer after the blobs.
+    int grassVisible = cullUpload(proj * view, &eye, 2);
+    if (grassVisible > 0) {
+        shader.use();
+        glBindVertexArray(vao);
+        glDisable(GL_CULL_FACE);
+        shader.setFloat(locCutoff, 0.32f);
+        shader.setFloat(locRootBlend, 1.0f);   // grass roots merge fully with ground
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, part.tex);
-        glDrawElementsInstanced(GL_TRIANGLES, part.indexCount, GL_UNSIGNED_INT,
-                                (void*)(size_t)part.indexOffset, visible);
+        glBindTexture(GL_TEXTURE_2D, grassTex ? grassTex : parts[0].tex);
+        glDrawElementsInstanced(GL_TRIANGLES, parts[0].indexCount, GL_UNSIGNED_INT,
+                                (void*)(size_t)parts[0].indexOffset, grassVisible);
     }
     glEnable(GL_CULL_FACE);   // restore world default
-
-    // Far blob decals for woody vegetation only; grass never receives one.
-    visible = cullUpload(proj * view, &eye, true);
-    if (visible == 0) { glBindVertexArray(0); return; }
-    // The shader fades them in by distance so near trees keep
-    // their real dappled shadow and only distant ones get the blob.
-    blobShader.use();
-    blobShader.setMat4(blobShader.locView, view);
-    blobShader.setMat4(blobShader.locProj, proj);
-    blobShader.setVec3(blobShader.locEye, eye);
-    blobShader.setFloat(locBlobRadius, treeRadius);
-    blobShader.setFloat(locBlobGround, sink + 0.06f);   // sit on ground above sunk base
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDepthMask(GL_FALSE);          // decal: test depth, don't write it
-    glDisable(GL_CULL_FACE);
-    glBindVertexArray(blobVao);
-    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr, visible);
-    glDepthMask(GL_TRUE);
-    glDisable(GL_BLEND);
-    glEnable(GL_CULL_FACE);
     glBindVertexArray(0);
 }
 
 void Foliage::drawDepth(const glm::mat4& lightSpace, float time) {
     if (!loaded || trees.empty()) return;
-    int visible = cullUpload(lightSpace, nullptr, true); // grass does not cast shadows
+    int visible = cullUpload(lightSpace, nullptr, 1); // grass does not cast shadows
     if (visible == 0) return;
 
     depthShader.use();
@@ -562,6 +594,8 @@ void Foliage::drawDepth(const glm::mat4& lightSpace, float time) {
 
 void Foliage::destroy() {
     for (GLuint t : texes) if (t) glDeleteTextures(1, &t);
+    if (grassTex) glDeleteTextures(1, &grassTex);
+    grassTex = 0;
     texes.clear();
     if (blobVbo) glDeleteBuffers(1, &blobVbo);
     if (blobVao) glDeleteVertexArrays(1, &blobVao);

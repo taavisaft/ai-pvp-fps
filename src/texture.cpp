@@ -4,6 +4,52 @@
 #include "stb_image.h"
 #include <cmath>
 #include <cstdlib>
+#include <vector>
+
+// Keyed cutout atlases store black RGB in their transparent texels, so mip filtering
+// and cutout edges average toward black and distant foliage turns into dark blobs.
+// Bleed opaque RGB outward a few texels, then flood the remaining empty space with
+// the average opaque color so even the deepest mips stay on-palette. Load-time only.
+static void bleedTransparentRGB(unsigned char* px, int w, int h) {
+    const int n = w * h;
+    std::vector<unsigned char> filled((size_t)n);
+    long ar = 0, ag = 0, ab = 0, an = 0;
+    for (int i = 0; i < n; i++) {
+        filled[i] = px[i * 4 + 3] >= 16;
+        if (filled[i]) { ar += px[i*4]; ag += px[i*4+1]; ab += px[i*4+2]; an++; }
+    }
+    if (an == 0 || an == n) return;                  // fully transparent or opaque
+    std::vector<unsigned char> next(filled);
+    for (int pass = 0; pass < 8; pass++) {
+        bool any = false;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                int i = y * w + x;
+                if (filled[i]) continue;
+                int r = 0, g = 0, b = 0, cnt = 0;
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++) {
+                        int xx = x + dx, yy = y + dy;
+                        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+                        int j = yy * w + xx;
+                        if (!filled[j]) continue;
+                        r += px[j*4]; g += px[j*4+1]; b += px[j*4+2]; cnt++;
+                    }
+                if (cnt) {
+                    px[i*4] = (unsigned char)(r / cnt);
+                    px[i*4+1] = (unsigned char)(g / cnt);
+                    px[i*4+2] = (unsigned char)(b / cnt);
+                    next[i] = 1; any = true;
+                }
+            }
+        filled = next;
+        if (!any) break;
+    }
+    unsigned char mr = (unsigned char)(ar / an), mg = (unsigned char)(ag / an),
+                  mb = (unsigned char)(ab / an);
+    for (int i = 0; i < n; i++)
+        if (!filled[i]) { px[i*4] = mr; px[i*4+1] = mg; px[i*4+2] = mb; }
+}
 
 GLuint loadTexture(const char* path) {
     stbi_set_flip_vertically_on_load(1);          // GL texture origin is bottom-left
@@ -20,6 +66,7 @@ GLuint loadTextureRGBA(const char* path) {
     int w = 0, h = 0, c = 0;
     unsigned char* px = stbi_load(path, &w, &h, &c, 4);
     if (!px) return 0;
+    bleedTransparentRGB(px, w, h);
     GLuint tex = 0;
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
@@ -58,6 +105,22 @@ static float noise2(float x, float y) {
     return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
 }
 
+// Periodic value noise: lattice coordinates wrap at `period`, so sampling u,v in
+// [0,1) with an integer period yields a seamlessly tiling texture (GL_REPEAT safe).
+static float noise2Tiled(float x, float y, float period) {
+    float ix = floorf(x), iy = floorf(y);
+    float fx = x - ix, fy = y - iy;
+    float x0 = fmodf(ix, period), x1 = fmodf(ix + 1.0f, period);
+    float y0 = fmodf(iy, period), y1 = fmodf(iy + 1.0f, period);
+    float a = hash2(x0, y0);
+    float b = hash2(x1, y0);
+    float c = hash2(x0, y1);
+    float d = hash2(x1, y1);
+    float ux = fx * fx * (3.0f - 2.0f * fx);
+    float uy = fy * fy * (3.0f - 2.0f * fy);
+    return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+
 static void fbmTile(unsigned char* px, int w, int h,
                     void (*rgb)(float u, float v, float n, float& r, float& g, float& b)) {
     for (int y = 0; y < h; y++) {
@@ -66,7 +129,7 @@ static void fbmTile(unsigned char* px, int w, int h,
             float v = (float)y / (float)h;
             float n = 0.0f, amp = 0.5f, freq = 4.0f;
             for (int o = 0; o < 4; o++) {
-                n += noise2(u * freq, v * freq) * amp;
+                n += noise2Tiled(u * freq, v * freq, freq) * amp;
                 amp *= 0.5f;
                 freq *= 2.0f;
             }
@@ -238,12 +301,13 @@ GLuint makeRockTexture() {
 
 GLuint makeDirtTexture() {
     return makeTex([](float u, float v, float n, float& r, float& g, float& b) {
-        // Warm brown soil: broad tonal variation + sparse darker grit specks.
-        float base  = 0.30f + n * 0.18f;
-        float speck = noise2(u * 90.0f, v * 90.0f) > 0.82f ? -0.07f : 0.0f;
+        // Dry earthen soil (DayZ dirt-path): warm mid tan, strong tonal variation
+        // + grit specks so it still reads as dirt when minified at distance.
+        float base  = 0.36f + n * 0.26f;
+        float speck = noise2Tiled(u * 90.0f, v * 90.0f, 90.0f) > 0.80f ? -0.11f : 0.0f;
         float t = base + speck;
-        if (t < 0.10f) t = 0.10f;
-        r = t * 0.66f; g = t * 0.47f; b = t * 0.30f;
+        if (t < 0.12f) t = 0.12f;
+        r = t * 1.02f; g = t * 0.82f; b = t * 0.58f;
     });
 }
 

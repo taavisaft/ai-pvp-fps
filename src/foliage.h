@@ -31,11 +31,13 @@ struct Foliage {
     Shader depthShader;                  // instanced shadow-caster pass (alpha cutout)
     Shader blobShader;                   // far blob decals (beyond real-shadow range)
     GLuint vao = 0, vbo = 0, ebo = 0;   // combined tree geometry
+    GLuint grassTex = 0;                 // dedicated close/mid grass atlas
     GLuint instVBO = 0;                  // per-instance transforms (dynamic)
     GLuint blobVao = 0, blobVbo = 0;     // ground decal quad (reuses instVBO)
     GLint  instCap  = 0;
     GLint  locCutoff = -1;               // extra uniform beyond Shader's cache
     GLint  locCutoffDepth = -1;
+    GLint  locRootBlend = -1, locGroundTint = -1;   // ground-blend at the card base
     GLint  locBlobRadius = -1, locBlobGround = -1;
 
     bool   loaded = false;              // false if tree.glb missing -> no-op
@@ -62,6 +64,6 @@ struct Foliage {
   private:
     // Frustum-cull all trees against `vp`, upload the visible subset to instVBO,
     // return the visible instance count. Shared by the main and shadow passes.
-    int cullUpload(const glm::mat4& vp, const glm::vec3* eye = nullptr,
-                   bool woodyOnly = false);
+    // filter: 0=all, 1=non-grass, 2=grass tiles only.
+    int cullUpload(const glm::mat4& vp, const glm::vec3* eye = nullptr, int filter = 0);
 };

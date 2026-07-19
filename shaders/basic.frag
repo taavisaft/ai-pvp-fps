@@ -146,7 +146,7 @@ vec3 triplanar(vec3 p, float tile) {
 // transitions look organic instead of contour-line clean. Erangel/Miramar look.
 vec3 splatTerrain(vec3 p, vec3 an) {
     vec3 grassC = (grass == 1) ? grassColor(p.xz, time)
-                               : antiTile(diffuseMap, p, tileSize, an);
+                               : antiTile(diffuseMap, p, tileSize, an) * tint;
     vec3 dirtC  = antiTile(dirtMap, p, dirtTile, an);
     vec3 rockC  = antiTile(rockMap, p, rockTile, an);
 

@@ -128,3 +128,18 @@ hard chipped surfaces and conventional alpha blending for stains/runoff. Cap vis
 decals per spatial cell and cull small decals aggressively by projected screen size.
 Several soft edges retain minor chroma contamination; clean these before treating
 the atlas as a final shipping asset.
+
+## Close grass atlas
+
+`close_grass_atlas_1024.png` is a transparent 1024x1024, 4x4 atlas dedicated to
+near/mid grass rendering. Each tile is 256x256 and shares a consistent root baseline.
+
+- Row 0: short olive meadow patches.
+- Row 1: tall mixed meadow and dry grass.
+- Row 2: dry straw and seed-head patches.
+- Row 3: broadleaf weeds, flattened grass, and sparse transition grass.
+
+The atlas is intended for a separate grass renderer, not the mixed tree/bush pass.
+Near LODs should use reusable blade/strip patch meshes; mid LODs should use card
+clusters sampling these tiles. The generated source retains some pink edge spill and
+must receive a final edge-color cleanup before shipping.

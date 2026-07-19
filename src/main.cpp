@@ -238,6 +238,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, thirdPerson, ragdolls, camFr, cam.eye);
     r.drawFoliage(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);  // instanced trees
     r.drawProps(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);    // instanced props
+    r.drawGrass(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);  // clump ring
     r.drawWater();   // translucent Baltic, after all opaque world geometry
 
     if (gMapId == MAP_LOBBY) {
@@ -378,8 +379,9 @@ int main(int argc, char** argv) {
         cam.yaw = glm::degrees(atan2f(dummyPos.z - spawn0.z, dummyPos.x - spawn0.x));
     };
     setupOffline();
-    // FPS_YAW=<deg> overrides the start yaw (debug screenshots).
-    if (const char* yv = getenv("FPS_YAW")) cam.yaw = (float)atof(yv);
+    // FPS_YAW/FPS_PITCH=<deg> override the start view (debug screenshots).
+    if (const char* yv = getenv("FPS_YAW"))   cam.yaw   = (float)atof(yv);
+    if (const char* pv = getenv("FPS_PITCH")) cam.pitch = (float)atof(pv);
     if (const char* pv = getenv("FPS_PITCH")) cam.pitch = (float)atof(pv);
     FrameInput input;
 

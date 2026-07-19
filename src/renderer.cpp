@@ -86,6 +86,7 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!materials.init()) return false;
     if (!foliage.init()) return false;
     if (!props.init()) return false;
+    if (!grass.init()) return false;
 
     // Shadow map: a depth-only texture rendered from the sun each frame.
     glGenFramebuffers(1, &shadowFBO);
@@ -387,6 +388,7 @@ void Renderer::invalidateWorldOnMapChange() {
     townBuilt = false;        // town meshes rebuild from the new gTownBuildings
     foliage.clear();          // scatters regenerate lazily (paldiski only)
     props.clear();
+    grass.clear();            // ring rebuilds on the next draw
 }
 
 void Renderer::drawGround() {
@@ -548,6 +550,13 @@ void Renderer::drawPropsDepth() {
     depthShader.use();   // restore the world depth program for the rest of the pass
 }
 
+void Renderer::drawGrass(const glm::mat4& view, const glm::mat4& proj,
+                         const glm::vec3& eye, float time) {
+    // Dense clump ring on both maps (lobby lawn keeps its firing lane mowed).
+    grass.draw(*this, view, proj, eye, time);
+    shader.use();   // restore world program for subsequent draws (view model, HUD)
+}
+
 void Renderer::endFrame() {
     SDL_GL_SwapWindow(window);
 }
@@ -560,6 +569,7 @@ void Renderer::toggleWireframe() {
 void Renderer::shutdown() {
     foliage.destroy();
     props.destroy();
+    grass.destroy();
     materials.destroy();
     font.destroy();
     quad2d.destroy();
