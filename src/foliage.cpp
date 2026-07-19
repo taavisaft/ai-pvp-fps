@@ -331,44 +331,13 @@ void Foliage::generate(int maxTrees) {
             t.pos = {q.x, terrainHeight(q.x, q.y) - sink * scale, q.y};
             trees.push_back(t);
         }
-        // General lobby grass field for offline visual/performance testing. Keep the
-        // central x-directed firing lane (|z| < 13) sparse and leave breathing room
-        // around the player spawn, target wall, and test-cover cluster.
-        constexpr int LOBBY_GRASS = 2600;
-        int made = 0, attempts = 0;
-        while (made < LOBBY_GRASS && attempts++ < LOBBY_GRASS * 5) {
-            float x = (rnd() * 2.0f - 1.0f) * 56.0f;
-            float z = (rnd() * 2.0f - 1.0f) * 56.0f;
-            if (fabsf(z) < 13.0f && x > -14.0f) continue;        // firing lane
-            float sx = x - 12.0f, sz = z;                        // spawn clearance
-            if (sx*sx + sz*sz < 9.0f * 9.0f) continue;
-            if (x > 22.0f && fabsf(z) < 17.0f) continue;         // target-wall apron
-            bool nearBox = false;
-            for (int bi = 0; bi < gMapBoxCount; bi++) {
-                const Box& b = gMapBoxes[bi];
-                if (fabsf(x - b.center.x) < b.half.x + 1.2f &&
-                    fabsf(z - b.center.z) < b.half.z + 1.2f) { nearBox = true; break; }
-            }
-            if (nearBox) continue;
-            float choose = rnd();
-            int tile = choose < 0.72f ? (int)(rnd() * 4.0f)
-                     : choose < 0.88f ? 4 + (int)(rnd() * 2.0f)
-                     : 14 + (int)(rnd() * 2.0f);
-            TreeInstance g;
-            g.tile = (float)tile;
-            g.scale = 0.09f + rnd() * 0.10f;
-            g.yaw = rnd() * 6.2831853f;
-            g.pos = {x, terrainHeight(x, z) - sink * g.scale, z};
-            trees.push_back(g);
-            made++;
-        }
         grid.init(LOBBY_HALF, 8, -3.0f, 18.0f);
         for (int i = 0; i < (int)trees.size(); i++)
             grid.insert(trees[i].pos.x, trees[i].pos.z, i);
         glBindBuffer(GL_ARRAY_BUFFER, instVBO);
         glBufferData(GL_ARRAY_BUFFER, trees.size() * 6 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
         instCap = (GLint)trees.size();
-        printf("foliage: lobby has %zu showcase/stress/grass instances\n", trees.size());
+        printf("foliage: lobby has %zu showcase/stress instances\n", trees.size());
         return;
     }
     auto sstep = [](float a, float b, float x) {
@@ -412,45 +381,13 @@ void Foliage::generate(int maxTrees) {
         ti.pos   = glm::vec3(x, h - SINK * ti.scale, z);
         trees.push_back(ti);
     }
-    // Broad grass biome: clumps occupy most valid land, but only clumps within 60 m
-    // are uploaded. This gives dense local coverage without drawing the full map.
-    constexpr int GRASS_COUNT = 35000;
-    int grassMade = 0, grassAttempts = 0;
-    while (grassMade < GRASS_COUNT && grassAttempts++ < GRASS_COUNT * 4) {
-        float x = (rnd() * 2.0f - 1.0f) * SPAN;
-        float z = (rnd() * 2.0f - 1.0f) * SPAN;
-        float h = terrainHeight(x, z);
-        if (h < 0.35f) continue;                                  // sea/wet beach
-        bool onPad = false;
-        for (int i = 0; i < gTerrainPadCount; i++) {
-            float dx = x - gTerrainPads[i].x, dz = z - gTerrainPads[i].z;
-            float safeR = gTerrainPads[i].r * 0.72f;
-            if (dx*dx + dz*dz < safeR*safeR) { onPad = true; break; }
-        }
-        if (onPad) continue;
-        float dhx = (terrainHeight(x + e, z) - terrainHeight(x - e, z)) / (2 * e);
-        float dhz = (terrainHeight(x, z + e) - terrainHeight(x, z - e)) / (2 * e);
-        if (sqrtf(dhx*dhx + dhz*dhz) > 0.65f) continue;
-        float r = rnd();
-        int tile = r < 0.72f ? (int)(rnd() * 4.0f)
-                 : r < 0.88f ? 4 + (int)(rnd() * 2.0f)
-                 : 14 + (int)(rnd() * 2.0f);
-        TreeInstance g;
-        g.tile = (float)tile;
-        g.scale = 0.09f + rnd() * 0.10f;
-        g.yaw = rnd() * 6.2831853f;
-        g.pos = {x, h - sink * g.scale, z};
-        trees.push_back(g);
-        grassMade++;
-    }
     grid.init(PALDISKI_HALF, 24, -12.0f, 45.0f);
     for (int i = 0; i < (int)trees.size(); i++)
         grid.insert(trees[i].pos.x, trees[i].pos.z, i);
     glBindBuffer(GL_ARRAY_BUFFER, instVBO);
     glBufferData(GL_ARRAY_BUFFER, trees.size() * 6 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
     instCap = (GLint)trees.size();
-    printf("foliage: %d trees + %d grass clumps (%zu total instances)\n",
-           maxTrees, grassMade, trees.size());
+    printf("foliage: %zu tree/shrub instances\n", trees.size());
 }
 
 void Foliage::clear() { trees.clear(); grid.clear(); }
@@ -551,20 +488,6 @@ void Foliage::draw(const Renderer& r, const glm::mat4& view, const glm::mat4& pr
         glDisable(GL_BLEND);
     }
 
-    // Grass is a second instanced batch using the dedicated dense-patch atlas,
-    // uploaded last so it overwrites the shared instance buffer after the blobs.
-    int grassVisible = cullUpload(proj * view, &eye, 2);
-    if (grassVisible > 0) {
-        shader.use();
-        glBindVertexArray(vao);
-        glDisable(GL_CULL_FACE);
-        shader.setFloat(locCutoff, 0.32f);
-        shader.setFloat(locRootBlend, 1.0f);   // grass roots merge fully with ground
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, grassTex ? grassTex : parts[0].tex);
-        glDrawElementsInstanced(GL_TRIANGLES, parts[0].indexCount, GL_UNSIGNED_INT,
-                                (void*)(size_t)parts[0].indexOffset, grassVisible);
-    }
     glEnable(GL_CULL_FACE);   // restore world default
     glBindVertexArray(0);
 }

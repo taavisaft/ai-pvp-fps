@@ -7,8 +7,8 @@
 struct Renderer;  // borrows lighting palette + shadow map; full type in grass.cpp
 
 // Instanced 3D grass: crossed alpha-cutout quad clumps scattered in a ring around
-// the camera. Placement is a deterministic hash grid — every ~0.9 m cell within
-// GRASS_RADIUS rolls its own clump (position jitter, yaw, scale) from pure hashes,
+// the camera. Placement is a deterministic hash grid — every ~0.64 m cell within
+// GRASS_RADIUS rolls one or two small clumps (position jitter, yaw, scale) from hashes,
 // so nothing is stored or synced; the instance buffer just rebuilds whenever the
 // camera crosses a rebuild cell. Beyond the ring the ground's fragment-shader grass
 // texture takes over (the shader dither-fades the handoff). Client-only cosmetic:
@@ -18,10 +18,10 @@ struct Renderer;  // borrows lighting palette + shadow map; full type in grass.c
 struct Grass {
     Shader shader;
     GLuint vao = 0, vbo = 0, ebo = 0, instVBO = 0;
-    GLuint atlasTex = 0;                 // close-grass atlas (4x4 asset or baked fallback)
-    bool   atlasIsAsset = false;         // true: 4x4 asset tiles; false: 4x1 baked
+    GLuint atlasTex = 0;                 // baked 4x1 thin-blade atlas
+    bool   atlasIsAsset = false;         // retained for shader's optional 4x4 layout
     GLint  locAtlas4x4 = -1;             // extra uniform beyond Shader's cache
-    GLsizei indexCount = 0;              // clump mesh (2 crossed quads)
+    GLsizei indexCount = 0;              // clump mesh (4 intersecting quads)
     GLint   instCap = 0;                 // GPU instance-buffer capacity (floats)
     std::vector<float> inst;             // rebuild scratch, 8 floats per clump
     int   count     = 0;                 // live instances

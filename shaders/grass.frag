@@ -4,6 +4,7 @@ in vec3  vNormal;
 in vec2  vUV;
 in float vRootT;
 in float vTintSeed;
+in float vBladeClass;
 in vec4  lightSpacePos;
 
 uniform vec3 eyePos;
@@ -27,8 +28,8 @@ uniform float time;
 out vec4 fragColor;
 
 // Ring where 3D clumps hand over to the flat fragment-grass ground texture.
-const float FADE_START = 34.0;
-const float FADE_END   = 44.0;
+const float FADE_START = 43.0;
+const float FADE_END   = 51.0;
 
 float sunVisibility(vec3 n, vec3 L) {
     if (useShadow == 0) return 1.0;
@@ -89,9 +90,16 @@ void main() {
 
     // Per-clump tint drift so the field isn't one flat green, and root blend: the
     // card base fades toward the ground albedo so clumps grow out of the soil
-    // instead of sitting on it (vUV.y fract = within-tile v; 1 = root baseline).
-    vec3 c = tex.rgb * (0.88 + 0.24 * vTintSeed);
-    c = mix(c, vec3(0.50, 0.47, 0.30), smoothstep(0.88, 1.0, vRootT) * 0.45);
+    // instead of sitting on it (vRootT: 0 = root baseline, 1 = blade tip).
+    vec3 greenGrade = mix(vec3(0.86, 0.93, 0.72),
+                          vec3(1.00, 0.86, 0.65), vTintSeed);
+    vec3 c = tex.rgb * greenGrade * (0.92 + 0.18 * vTintSeed);
+    float dryPatch = smoothstep(0.84, 0.99, vTintSeed);
+    c = mix(c, vec3(0.46, 0.40, 0.19), dryPatch * 0.30);
+    if (vBladeClass > 1.5) c = mix(c, vec3(0.48, 0.41, 0.20), 0.38);
+    // Dark root occlusion makes overlapping tufts read as a thick under-storey.
+    c *= mix(0.76, 1.0, smoothstep(0.02, 0.42, vRootT));
+    c = mix(c, vec3(0.36, 0.34, 0.20), (1.0 - smoothstep(0.0, 0.13, vRootT)) * 0.30);
 
     // Lit with the TERRAIN normal, not the quad normal — every blade shades like
     // the ground beneath it, so clumps melt into the field instead of sparkling.

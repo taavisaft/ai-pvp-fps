@@ -88,12 +88,12 @@ vec3 grassColor(vec2 p, float t) {
                       vnoise(p * 0.25 - t * 0.28)) * 0.18;
     float clump = fbm((p + wind) * 0.6);     // broad light/dark patches
     float blade = vnoise((p + wind) * 9.0);  // fine blade texture
-    vec3 dark = vec3(0.11, 0.25, 0.08);
-    vec3 lite = vec3(0.34, 0.53, 0.20);
+    vec3 dark = vec3(0.075, 0.155, 0.050);
+    vec3 lite = vec3(0.25, 0.39, 0.13);
     vec3 c = mix(dark, lite, clamp(clump * 0.85 + blade * 0.30, 0.0, 1.0));
-    c += (blade - 0.5) * 0.06;               // micro contrast
+    c += (blade - 0.5) * 0.045;              // micro contrast
     float dry = smoothstep(0.72, 0.88, fbm(p * 0.4 + 10.0));
-    c = mix(c, vec3(0.46, 0.43, 0.20), dry * 0.35);  // dry tufts
+    c = mix(c, vec3(0.39, 0.35, 0.16), dry * 0.32);  // dry tufts
     return c;
 }
 

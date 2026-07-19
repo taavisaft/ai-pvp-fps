@@ -14,8 +14,9 @@ uniform int   atlas4x4;    // 1 = close-grass asset (4x4 tiles), 0 = baked 4x1 s
 out vec3  worldPos;
 out vec3  vNormal;     // terrain normal — grass shades like the ground under it
 out vec2  vUV;         // final atlas UV (tile chosen here)
-out float vRootT;      // within-tile v: 1 = root baseline, 0 = blade tip
+out float vRootT;      // within-tile v: 0 = root baseline, 1 = blade tip
 out float vTintSeed;
+out float vBladeClass; // 0 = low meadow, 1 = taller seed heads, 2 = dry accent
 out vec4  lightSpacePos;
 
 float ghash(vec2 p) {
@@ -29,11 +30,15 @@ void main() {
     float c = cos(yaw), s = sin(yaw);
     mat3 rot = mat3(c, 0.0, -s,   0.0, 1.0, 0.0,   s, 0.0, c);
 
-    vec3 lp = aPos * scale;
+    float kind = ghash(iPos.xz + 19.17);
+    vBladeClass = kind < 0.76 ? 0.0 : (kind < 0.96 ? 1.0 : 2.0);
+    float width  = scale * (0.96 + 0.18 * ghash(iPos.zx + 2.4));
+    float height = scale * (vBladeClass < 0.5 ? 0.78 : (vBladeClass < 1.5 ? 1.12 : 0.92));
+    vec3 lp = vec3(aPos.x * width, aPos.y * height, aPos.z * width);
     // Wind: bend grows quadratically toward the blade tip (base stays planted).
     // Same clock as the trees' sway so field and canopy gust together, plus a
     // faster ripple so close grass feels alive.
-    float bend = lp.y * lp.y / max(scale, 0.001);
+    float bend = lp.y * lp.y / max(height, 0.001);
     float gust = sin(time * 1.3 + iPos.x * 0.5 + iPos.z * 0.5)
                + 0.5 * sin(time * 3.1 + iPos.x * 1.7 - iPos.z * 1.1);
     lp.x += gust * 0.06 * bend;
@@ -42,17 +47,18 @@ void main() {
     vec3 wp = iPos + rot * lp;
     worldPos      = wp;
     vNormal       = iNormal;
-    // Tile pick, hashed from position. Asset atlas: rows 0-1 (short olive meadow +
-    // tall mixed) carry the dense ring; baked fallback has 4 columns in one row.
+    // Tile pick, hashed from position. stb_image uploads its top source scanline as
+    // GL row zero, so the atlas is vertically inverted in texture space. The mesh UV
+    // runs root=1 to tip=0 to compensate; source rows 0/1 are the meadow variants.
     if (atlas4x4 == 1) {
-        float t   = floor(ghash(iPos.xz) * 8.0);          // tiles 0..7
-        vec2 tile = vec2(mod(t, 4.0), floor(t / 4.0));
-        vUV = (aUV + tile) * 0.25;
+        float col = floor(ghash(iPos.zx + 5.73) * 4.0);
+        float row = vBladeClass < 0.5 ? 0.0 : (vBladeClass < 1.5 ? 1.0 : 2.0);
+        vUV = (aUV + vec2(col, row)) * 0.25;
     } else {
         float t = floor(ghash(iPos.xz) * 4.0);
         vUV = vec2((aUV.x + t) * 0.25, aUV.y);
     }
-    vRootT        = aUV.y;
+    vRootT        = 1.0 - aUV.y;
     vTintSeed     = ghash(iPos.zx + 7.31);
     lightSpacePos = lightSpace * vec4(wp, 1.0);
     gl_Position   = proj * view * vec4(wp, 1.0);
