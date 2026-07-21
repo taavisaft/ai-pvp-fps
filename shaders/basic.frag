@@ -40,8 +40,10 @@ uniform int useShadow;        // 1 = sample shadow map, 0 = fully lit
 uniform int       splat;      // 1 = blend grass/dirt/rock by slope+height
 uniform sampler2D rockMap;    // texture unit 2
 uniform sampler2D dirtMap;    // texture unit 3
+uniform sampler2D forestMap;  // texture unit 4: needles, moss and very low growth
 uniform float     rockTile;   // world meters per rock repeat
 uniform float     dirtTile;   // world meters per dirt repeat
+uniform float     forestTile; // world meters per forest-floor repeat
 
 out vec4 fragColor;
 
@@ -141,6 +143,16 @@ vec3 triplanar(vec3 p, float tile) {
     return antiTile(diffuseMap, p, tile, axisBlend(p));
 }
 
+// Mirrors pineForestBiome() in terrain.h so grass-card rejection and the textured
+// forest floor meet at the same soft biome boundary.
+float pineBiome(vec2 p) {
+    vec2 ds = (p - vec2(150.0, -105.0)) / vec2(108.0, 132.0);
+    vec2 dn = (p - vec2(170.0,  135.0)) / vec2(82.0, 88.0);
+    float south = 1.0 - smoothstep(0.66, 1.0, length(ds));
+    float north = 1.0 - smoothstep(0.66, 1.0, length(dn));
+    return max(south, north);
+}
+
 // Blend grass/dirt/rock across the heightfield by surface slope (steep -> rock),
 // with a height bias (peaks rockier) and fbm-jittered band edges so the material
 // transitions look organic instead of contour-line clean. Erangel/Miramar look.
@@ -149,7 +161,6 @@ vec3 splatTerrain(vec3 p, vec3 an) {
                                : antiTile(diffuseMap, p, tileSize, an) * tint;
     vec3 dirtC  = antiTile(dirtMap, p, dirtTile, an);
     vec3 rockC  = antiTile(rockMap, p, rockTile, an);
-
     // Slope: steep faces -> rock. The heightfield is gentle (~few deg), so amplify
     // the slope before thresholding, plus a height term for whatever peaks exist.
     float slope  = 1.0 - clamp(normalize(vNormal).y, 0.0, 1.0);  // 0 flat .. 1 vertical
@@ -167,6 +178,15 @@ vec3 splatTerrain(vec3 p, vec3 an) {
     float dw = (1.0 - rw) * dirtField;            // dirt fields / paths
     float sum = gw + dw + rw + 1e-4;
     vec3 col = (grassC * gw + dirtC * dw + rockC * rw) / sum;
+    float pine = pineBiome(p.xz) * (1.0 - rw);
+    if (pine > 0.001) {
+        // Terrain is predominantly upward-facing, so two XZ samples replace another
+        // triplanar set. This branch means non-pine environments pay no texture cost.
+        vec3 forestA = texture(forestMap, p.xz / forestTile).rgb;
+        vec3 forestB = texture(forestMap, p.xz / (forestTile * 3.17)).rgb;
+        vec3 forestC = mix(forestA, forestB, 0.46) * vec3(0.72, 0.80, 0.66);
+        col = mix(col, forestC, pine);
+    }
 
     // Beach: below ~1.2 m the ground fades to wet sand (tinted dirt), continuing
     // under the waterline so the shallows read as seabed through the water plane.

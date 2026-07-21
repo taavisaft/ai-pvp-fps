@@ -38,6 +38,20 @@ inline float terrValueNoise(float x, float z) {
     return ab + (cd - ab) * tz;   // [0,1)
 }
 
+// Broad inland zones occupied by mature, open-canopy pine forest. This analytical
+// mask is cheap enough for both terrain shading and nearby grass rejection.
+// 0 = meadow/mixed woodland, 1 = needle-and-moss pine floor.
+inline float pineForestBiome(float x, float z) {
+    auto ellipse = [](float px, float pz, float cx, float cz, float rx, float rz) {
+        float dx = (px - cx) / rx, dz = (pz - cz) / rz;
+        float d = sqrtf(dx * dx + dz * dz);
+        return 1.0f - terrSmooth(terrClamp01((d - 0.66f) / 0.34f));
+    };
+    float south = ellipse(x, z, 150.0f, -105.0f, 108.0f, 132.0f);
+    float north = ellipse(x, z, 170.0f,  135.0f,  82.0f,  88.0f);
+    return fmaxf(south, north);
+}
+
 // --- flattened building pads (filled deterministically by generatePaldiski) -----
 // Terrain blends toward each pad's height inside its radius so buildings sit on
 // level ground. Few pads, so the per-sample loop is cheap enough for physics.

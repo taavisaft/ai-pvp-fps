@@ -24,6 +24,7 @@ struct Material {
 struct MaterialLib {
     Material mats[MAT_COUNT]{};
     bool     groundHasImage = false;   // true if textures/ground.* loaded (vs procedural grass)
+    GLuint   forestGroundTex = 0;      // needle/moss floor used by the pine biome
 
     bool init();                       // image textures if present, else procedural
     void bind(MaterialId id) const;    // texture unit 0

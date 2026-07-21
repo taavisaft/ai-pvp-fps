@@ -74,3 +74,23 @@ add_custom_command(TARGET game POST_BUILD
 add_custom_command(TARGET game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/sounds $<TARGET_FILE_DIR:game>/sounds)
+
+# Selected source resources used by the optimized forest biomes. Copy only the small
+# runtime textures, not the multi-format source model archive.
+add_custom_command(TARGET game POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        $<TARGET_FILE_DIR:game>/resources/terrain
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        $<TARGET_FILE_DIR:game>/resources/grass
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_SOURCE_DIR}/_RESOURCES/terrain/textures_forest_ground_1/forrest_ground_01_diff_1k.jpg
+        $<TARGET_FILE_DIR:game>/resources/terrain/forest_ground.jpg
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_SOURCE_DIR}/_RESOURCES/grass/grass_medium_01_1k/textures/grass_medium_01_diff_1k.jpg
+        $<TARGET_FILE_DIR:game>/resources/grass/grass_medium_01_diff.jpg
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_SOURCE_DIR}/_RESOURCES/grass/grass_medium_01_1k/textures/grass_medium_01_alpha_1k.png
+        $<TARGET_FILE_DIR:game>/resources/grass/grass_medium_01_alpha.png
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/_RESOURCES/trees/Random
+        $<TARGET_FILE_DIR:game>/resources/trees)

@@ -1,5 +1,6 @@
 #include "material.h"
 #include "texture.h"
+#include <SDL.h>
 #include <cstdio>
 #include <string>
 
@@ -65,6 +66,22 @@ bool MaterialLib::init() {
             return false;
         }
     }
+
+    // Pine forest floor: photographic needles, moss and tiny plants replace blade
+    // geometry in this biome. Prefer the packaged copy beside the executable.
+    char forestPath[768];
+    const char* exeBase = SDL_GetBasePath();
+    snprintf(forestPath, sizeof(forestPath), "%stextures/environment/forest_ground_1k.jpg",
+             exeBase ? exeBase : "");
+    forestGroundTex = loadTexture(forestPath);
+    if (!forestGroundTex)
+        forestGroundTex = loadTexture("textures/environment/forest_ground_1k.jpg");
+    if (!forestGroundTex) {
+        fprintf(stderr, "material: pine forest floor missing, using ground fallback\n");
+        forestGroundTex = mats[MAT_GROUND].tex;
+    } else {
+        printf("material: loaded pine forest floor\n");
+    }
     return true;
 }
 
@@ -76,6 +93,9 @@ void MaterialLib::bind(MaterialId id) const {
 }
 
 void MaterialLib::destroy() {
+    if (forestGroundTex && forestGroundTex != mats[MAT_GROUND].tex)
+        destroyTexture(forestGroundTex);
+    forestGroundTex = 0;
     for (int i = 0; i < MAT_COUNT; i++) {
         destroyTexture(mats[i].tex);
         mats[i].tex = 0;

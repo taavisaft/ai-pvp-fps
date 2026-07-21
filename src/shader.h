@@ -40,8 +40,10 @@ struct Shader {
     GLint  locSplat    = -1;   // 1 = blend grass/dirt/rock by slope+height
     GLint  locRockMap  = -1;   // sampler, texture unit 2
     GLint  locDirtMap  = -1;   // sampler, texture unit 3
+    GLint  locForestMap= -1;   // sampler, texture unit 4
     GLint  locRockTile = -1;   // world meters per rock repeat
     GLint  locDirtTile = -1;   // world meters per dirt repeat
+    GLint  locForestTile=-1;   // world meters per forest-floor repeat
 
     bool load(const char* vertPath, const char* fragPath);
     void use() const;

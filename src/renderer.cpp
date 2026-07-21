@@ -181,6 +181,7 @@ void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const gl
     shader.setInt(shader.locSplat, 0);
     shader.setInt(shader.locRockMap, 2);
     shader.setInt(shader.locDirtMap, 3);
+    shader.setInt(shader.locForestMap, 4);
     // Shadow map (built this frame in the shadow pass) on texture unit 1.
     shader.setMat4(shader.locLightSpace, lightSpace);
     shader.setInt(shader.locShadowMap, 1);
@@ -436,9 +437,12 @@ void Renderer::drawTerrain() {
     glBindTexture(GL_TEXTURE_2D, materials.mats[MAT_ROCK].tex);
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D, materials.mats[MAT_DIRT].tex);
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, materials.forestGroundTex);
     glActiveTexture(GL_TEXTURE0);
     active->setFloat(active->locRockTile, materials.mats[MAT_ROCK].tile);
     active->setFloat(active->locDirtTile, materials.mats[MAT_DIRT].tile);
+    active->setFloat(active->locForestTile, 3.2f);
     active->setInt(active->locSplat, 1);
     active->setMat4(active->locModel, glm::mat4(1.0f));
     active->setVec3(active->locColor, glm::vec3(1.0f));
@@ -526,14 +530,14 @@ void Renderer::drawTownWorld(const Frustum& fr, const glm::vec3& eye) {
 
 void Renderer::drawFoliage(const glm::mat4& view, const glm::mat4& proj,
                            const glm::vec3& eye, float time) {
-    if (foliage.empty()) foliage.generate(gMapId == MAP_LOBBY ? 12 : 6000);
+    if (foliage.empty()) foliage.generate(gMapId == MAP_LOBBY ? 12 : 2600);
     foliage.draw(*this, view, proj, eye, time);
     shader.use();   // restore world program for subsequent draws (view model, HUD)
 }
 
 void Renderer::drawFoliageDepth(float time) {
-    if (foliage.empty()) foliage.generate(gMapId == MAP_LOBBY ? 12 : 6000);
-    foliage.drawDepth(lightSpace, time);
+    if (foliage.empty()) foliage.generate(gMapId == MAP_LOBBY ? 12 : 2600);
+    foliage.drawDepth(lightSpace, shadowFocus, time);
     depthShader.use();   // restore the world depth program for the rest of the pass
 }
 
