@@ -6,10 +6,6 @@
 #include "mesh.h"
 #include "font.h"
 #include "material.h"
-#include "foliage.h"
-#include "building.h"
-#include "props.h"
-#include "grass.h"
 #include "frustum.h"
 
 struct Box;  // map.h; for the satellite map-texture bake
@@ -20,8 +16,8 @@ struct Renderer {
     int           width     = 1280;
     int           height    = 720;
     bool          wireframe = false;
-    float         frameTime = 0.0f;   // seconds; grass wind shimmer (and a future
-                                      // 3D-blade instanced pass) read the same clock
+    float         frameTime = 0.0f;   // seconds; shared clock for wind/shimmer effects
+                                      // (the future vegetation rewrite reads this too)
 
     Shader shader;
     Shader skyShader;    // fullscreen gradient sky + sun disk
@@ -64,18 +60,7 @@ struct Renderer {
     Mesh   quad2d;   // unit quad for HUD rects
     Font   font;     // bitmap text, HUD pass only
     MaterialLib materials;
-    Foliage foliage; // instanced trees
-    Props   props;   // instanced street props
-    Grass   grass;   // instanced 3D grass ring around the camera
 
-    // Town facade buildings: one textured wall mesh + concrete roof cap per building,
-    // built once from gTownBuildings on the first frame.
-    struct TownDraw { Mesh wall, decals; glm::vec3 center, capCenter, capScale;
-                      glm::vec3 cullCenter, cullHalf; };  // whole-building AABB for cull
-    std::vector<TownDraw> townDraws;
-    GLuint facadeTex = 0;
-    GLuint decalTex  = 0;
-    bool   townBuilt = false;
     int    worldBuiltFor = -1;   // MapId the lazy caches (town/trees/props) were built for
 
     bool  init(const char* title, int w, int h);
@@ -102,22 +87,6 @@ struct Renderer {
     // Translucent sea plane at SEA_LEVEL, spanning past the map edge so the water
     // meets the fog. Draw late in the lit pass (after opaque world), never in shadow.
     void  drawWater();
-    // Town facade buildings: lazy-builds meshes on first call, draws walls (UV facade)
-    // + roof caps via the active program, so it works in both the shadow and lit pass.
-    void  drawTownWorld(const Frustum& fr, const glm::vec3& eye);
-    void  buildTownMeshes();
-    // Instanced tree field; scatters lazily on first field-map frame, culls per frame.
-    void  drawFoliage(const glm::mat4& view, const glm::mat4& proj,
-                      const glm::vec3& eye, float time);
-    // Trees as shadow casters — call inside the shadow pass (uses lightSpace).
-    void  drawFoliageDepth(float time);
-    // Instanced city props; scatters lazily on first city frame, culls per frame.
-    void  drawProps(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye,
-                    float time);
-    void  drawPropsDepth();   // props as shadow casters (call inside the shadow pass)
-    // 3D grass ring; draw after the opaque world, before water (no shadow casting).
-    void  drawGrass(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye,
-                    float time);
     // HUD pass: depth off, blending on, coordinates in NDC [-1,1]
     void  beginHUD();
     void  drawRect(const glm::vec2& center, const glm::vec2& size,

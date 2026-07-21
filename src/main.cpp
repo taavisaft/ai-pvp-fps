@@ -190,7 +190,6 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
         }
     } else {
         r.drawTerrain();
-        r.drawTownWorld(fr, eye);  // facade near, concrete box far (collision is the box)
     }
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (i == localID && !showLocal) continue;   // draw self in third-person test view
@@ -227,8 +226,6 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     r.beginShadowPass(cam.eye);
     Frustum sunFr = Frustum::fromVP(r.lightSpace);
     drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, thirdPerson, ragdolls, sunFr, cam.eye);
-    r.drawFoliageDepth(r.frameTime);   // trees cast shadows
-    r.drawPropsDepth();                // city props cast shadows
     r.endShadowPass();
 
     // Pass 2: lit main view, sampling the shadow map built above.
@@ -236,9 +233,6 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     r.drawSky(cam.view(), cam.proj(r.aspect()));
     Frustum camFr = Frustum::fromVP(cam.proj(r.aspect()) * cam.view());
     drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, thirdPerson, ragdolls, camFr, cam.eye);
-    r.drawFoliage(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);  // instanced trees
-    r.drawProps(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);    // instanced props
-    r.drawGrass(cam.view(), cam.proj(r.aspect()), cam.eye, r.frameTime);  // clump ring
     r.drawWater();   // translucent Baltic, after all opaque world geometry
 
     if (gMapId == MAP_LOBBY) {

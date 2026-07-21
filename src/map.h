@@ -38,18 +38,6 @@ inline int       gTownBoxCount = 0;
 inline glm::vec3 gMapSpawns[64];
 inline int       gMapSpawnCount = 0;
 
-// Per-building metadata (client builds a textured facade mesh from this; the server
-// ignores it and just uses the matching solid collision box). One box == one building.
-// center.y is the pad height the building's base sits at.
-struct TownBuilding {
-    glm::vec3 center;        // footprint center, y = pad/base height
-    float     w, d, h;       // full width (X), depth (Z), height (Y)
-    int       baysX, baysZ;  // facade window columns per axis (texture tiles)
-    int       floors;        // facade window rows (texture tiles vertically)
-};
-inline TownBuilding gTownBuildings[64];
-inline int          gTownBuildingCount = 0;
-
 inline uint32_t mapHash(int x, int z, uint32_t salt) {
     uint32_t h = (uint32_t)(x * 73856093) ^ (uint32_t)(z * 19349663) ^ (salt * 83492791u);
     h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
@@ -66,57 +54,17 @@ inline void townPush(const Box& b, uint8_t surf) {
     gTownBoxCount++;
 }
 
-// Build the Paldiski shore town: a row of Plattenbau slabs hugging the coast on
-// flattened terrain pads, plus spawn points on safe ground. Deterministic — the
-// same world on server and every client.
+// Paldiski is bare terrain for now — the town/props were reset alongside the
+// vegetation to rebuild the world terrain-first (structures return later, on the
+// finished ground). Only spawn points are generated: a deterministic scatter on
+// safe land above the waterline.
 inline void generatePaldiski() {
-    gTownBoxCount      = 0;
-    gTownBuildingCount = 0;
-    gMapSpawnCount     = 0;
-    gTerrainPadCount   = 0;
-
-    const float FLOOR_M = 3.0f;   // meters per storey (facade window row)
-    const float BAY_M   = 3.4f;   // meters per window column
-
-    // Six slabs marching down the coast, each ~40 m apart on Z, set back from the
-    // waterline. Pad height comes from the raw terrain, clamped above the beach.
-    for (int i = 0; i < 6; i++) {
-        float bz = -100.0f + i * 42.0f + (mapRand(i, 3, 21) - 0.5f) * 14.0f;
-        float bx = paldiskiShoreX(bz) + 52.0f + mapRand(i, 5, 22) * 18.0f;
-        float padH = fmaxf(paldiskiBase(bx, bz), 2.5f);
-
-        float w = 24.0f + mapRand(i, 1, 23) * 10.0f;    // 24..34 m long (X)
-        float d = 10.0f + mapRand(i, 2, 24) * 2.5f;     // 10..12.5 m deep (Z)
-        int   floors = 4 + (int)(mapHash(i, 4, 25) % 2); // 4..5 storeys
-        float h = floors * FLOOR_M;
-
-        // Radius: footprint half-diagonal + corner props must fit inside the flat
-        // plateau (r minus the 12 m falloff skirt — see paldiskiElevation).
-        float halfDiag = sqrtf(w * w + d * d) * 0.5f;
-        if (gTerrainPadCount < MAX_TERRAIN_PADS)
-            gTerrainPads[gTerrainPadCount++] = {bx, bz, halfDiag + 3.0f + 12.0f, padH};
-
-        townPush({{bx, padH + h * 0.5f, bz}, {w * 0.5f, h * 0.5f, d * 0.5f}}, SURF_CONCRETE);
-        if (gTownBuildingCount < 64) {
-            TownBuilding b;
-            b.center = {bx, padH, bz};
-            b.w = w; b.d = d; b.h = h;
-            b.baysX  = (int)fmaxf(2.0f, roundf(w / BAY_M));
-            b.baysZ  = (int)fmaxf(2.0f, roundf(d / BAY_M));
-            b.floors = floors;
-            gTownBuildings[gTownBuildingCount++] = b;
-        }
-    }
-
-    // Spawns: the yard in front of each building (toward the sea) + an inland arc
-    // in the hills, all on ground safely above the waterline.
-    for (int i = 0; i < gTownBuildingCount; i++) {
-        const TownBuilding& b = gTownBuildings[i];
-        gMapSpawns[gMapSpawnCount++] = {b.center.x - b.w * 0.5f - 8.0f, 0.0f, b.center.z};
-    }
-    for (int i = 0; i < 10 && gMapSpawnCount < 64; i++) {
-        float sz = -180.0f + i * 40.0f;
-        float sx = 60.0f + mapRand(i, 9, 26) * 120.0f;
+    gTownBoxCount    = 0;
+    gMapSpawnCount   = 0;
+    gTerrainPadCount = 0;
+    for (int i = 0; i < 16 && gMapSpawnCount < 64; i++) {
+        float sz = -180.0f + (i % 10) * 40.0f;
+        float sx = 20.0f + mapRand(i, 9, 26) * 160.0f;
         if (paldiskiElevation(sx, sz) < 1.0f) sx += 60.0f;   // nudge off any low spot
         gMapSpawns[gMapSpawnCount++] = {sx, 0.0f, sz};
     }
@@ -132,7 +80,6 @@ inline constexpr float LOBBY_BULLSEYE_Y  = 1.7f;   // aim-cross height (standing
 
 inline void generateLobby() {
     gTownBoxCount      = 0;
-    gTownBuildingCount = 0;   // no facade buildings in the lobby
     gMapSpawnCount     = 0;
     gTerrainPadCount   = 0;
     // target wall

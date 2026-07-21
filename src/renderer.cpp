@@ -84,9 +84,6 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!createQuad2D(quad2d)) return false;
     if (!font.init()) return false;
     if (!materials.init()) return false;
-    if (!foliage.init()) return false;
-    if (!props.init()) return false;
-    if (!grass.init()) return false;
 
     // Shadow map: a depth-only texture rendered from the sun each frame.
     glGenFramebuffers(1, &shadowFBO);
@@ -386,10 +383,6 @@ void Renderer::invalidateWorldOnMapChange() {
     worldBuiltFor = (int)gMapId;
     terrain.destroy();
     createTerrainMesh(terrain, gArenaHalf, terrainHeight);
-    townBuilt = false;        // town meshes rebuild from the new gTownBuildings
-    foliage.clear();          // scatters regenerate lazily (paldiski only)
-    props.clear();
-    grass.clear();            // ring rebuilds on the next draw
 }
 
 void Renderer::drawGround() {
@@ -454,113 +447,6 @@ void Renderer::drawTerrain() {
     active->setInt(active->locSplat, 0);
 }
 
-void Renderer::buildTownMeshes() {
-    for (auto& d : townDraws) { d.wall.destroy(); d.decals.destroy(); }
-    townDraws.clear();
-    if (!facadeTex) facadeTex = makeFacadeTexture();
-    if (!decalTex) decalTex = loadTextureRGBA("textures/environment/baltic_decal_atlas_1024.png");
-    for (int i = 0; i < gTownBuildingCount; i++) {
-        const TownBuilding& b = gTownBuildings[i];
-        TownDraw d;
-        if (!buildFacadeMesh(d.wall, b)) continue;
-        buildBuildingDecalMesh(d.decals, b, i);
-        d.center    = b.center;   // y = pad height; the facade mesh base is y=0
-        // Concrete parapet cap: a thin slab overhanging the walls at roof height.
-        d.capCenter = {b.center.x, b.center.y + b.h + 0.15f, b.center.z};
-        d.capScale  = {b.w + 0.5f, 0.3f, b.d + 0.5f};
-        // Whole-building AABB (incl. cap) for per-frame frustum culling.
-        d.cullCenter = {b.center.x, b.center.y + b.h * 0.5f, b.center.z};
-        d.cullHalf   = {b.w * 0.5f + 0.25f, b.h * 0.5f + 0.3f, b.d * 0.5f + 0.25f};
-        townDraws.push_back(std::move(d));
-    }
-    townBuilt = true;
-}
-
-void Renderer::drawTownWorld(const Frustum& fr, const glm::vec3& eye) {
-    if (!townBuilt) buildTownMeshes();
-    // LOD: beyond this distance a building drops its UV facade (texture + tangent
-    // normal map) and renders as a plain concrete box — same silhouette, far cheaper
-    // fragment work. Fog softens the swap so the transition is hard to spot.
-    constexpr float FACADE_LOD_DIST = 120.0f;
-    glActiveTexture(GL_TEXTURE0);
-    for (const auto& d : townDraws) {
-        if (!fr.aabbVisible(d.cullCenter, d.cullHalf)) continue;
-        float dist = glm::length(d.cullCenter - eye);
-        if (dist > FACADE_LOD_DIST) {
-            // Far LOD: solid concrete box (walls), still topped by the roof cap below.
-            drawCube(d.cullCenter, d.cullHalf * 2.0f, MAT_CONCRETE);
-            drawCube(d.capCenter, d.capScale, MAT_CONCRETE);
-            continue;
-        }
-        // Facade walls: UV-sampled texture (basic program; the facade uniforms are -1
-        // on the depth program, so this also draws plain depth in the shadow pass).
-        glm::mat4 model = glm::translate(glm::mat4(1.0f), d.center);
-        glBindTexture(GL_TEXTURE_2D, facadeTex);
-        active->setInt(active->locDiffuse, 0);
-        active->setInt(active->locUseFacade, 1);
-        active->setInt(active->locUseTex, 0);
-        active->setInt(active->locHasNormal, 1);
-        active->setFloat(active->locSpec, 0.0f);
-        active->setVec3(active->locTint, glm::vec3(1.0f));
-        active->setVec3(active->locColor, glm::vec3(1.0f));
-        active->setMat4(active->locModel, model);
-        d.wall.draw();
-        active->setInt(active->locUseFacade, 0);
-        active->setInt(active->locHasNormal, 0);
-        // Short-range cosmetic overlay only. It is omitted from the depth/shadow
-        // program and distant buildings, keeping the cost bounded.
-        if (active == &shader && decalTex && dist < 70.0f) {
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            glDepthMask(GL_FALSE);
-            glBindTexture(GL_TEXTURE_2D, decalTex);
-            active->setInt(active->locUseFacade, 1);
-            active->setInt(active->locHasNormal, 1);
-            active->setFloat(active->locAlpha, 1.0f);
-            d.decals.draw();
-            active->setInt(active->locUseFacade, 0);
-            active->setInt(active->locHasNormal, 0);
-            glDepthMask(GL_TRUE);
-            glDisable(GL_BLEND);
-        }
-        // Roof cap (plain concrete cube).
-        drawCube(d.capCenter, d.capScale, MAT_CONCRETE);
-    }
-}
-
-void Renderer::drawFoliage(const glm::mat4& view, const glm::mat4& proj,
-                           const glm::vec3& eye, float time) {
-    if (foliage.empty()) foliage.generate(gMapId == MAP_LOBBY ? 12 : 2600);
-    foliage.draw(*this, view, proj, eye, time);
-    shader.use();   // restore world program for subsequent draws (view model, HUD)
-}
-
-void Renderer::drawFoliageDepth(float time) {
-    if (foliage.empty()) foliage.generate(gMapId == MAP_LOBBY ? 12 : 2600);
-    foliage.drawDepth(lightSpace, shadowFocus, time);
-    depthShader.use();   // restore the world depth program for the rest of the pass
-}
-
-void Renderer::drawProps(const glm::mat4& view, const glm::mat4& proj,
-                         const glm::vec3& eye, float time) {
-    if (props.empty()) props.generate();
-    props.draw(*this, view, proj, eye, time);
-    shader.use();   // restore world program for subsequent draws (view model, HUD)
-}
-
-void Renderer::drawPropsDepth() {
-    if (props.empty()) props.generate();   // shadow pass runs first; scatter here
-    props.drawDepth(lightSpace, shadowFocus);
-    depthShader.use();   // restore the world depth program for the rest of the pass
-}
-
-void Renderer::drawGrass(const glm::mat4& view, const glm::mat4& proj,
-                         const glm::vec3& eye, float time) {
-    // Dense clump ring on both maps (lobby lawn keeps its firing lane mowed).
-    grass.draw(*this, view, proj, eye, time);
-    shader.use();   // restore world program for subsequent draws (view model, HUD)
-}
-
 void Renderer::endFrame() {
     SDL_GL_SwapWindow(window);
 }
@@ -571,9 +457,6 @@ void Renderer::toggleWireframe() {
 }
 
 void Renderer::shutdown() {
-    foliage.destroy();
-    props.destroy();
-    grass.destroy();
     materials.destroy();
     font.destroy();
     quad2d.destroy();
@@ -585,10 +468,6 @@ void Renderer::shutdown() {
     depthShader.destroy();
     texShader.destroy();
     for (int i = 0; i < MAP_COUNT; i++) if (mapTex[i]) glDeleteTextures(1, &mapTex[i]);
-    for (auto& d : townDraws) d.wall.destroy();
-    townDraws.clear();
-    if (facadeTex) glDeleteTextures(1, &facadeTex);
-    if (decalTex) glDeleteTextures(1, &decalTex);
     if (shadowTex) glDeleteTextures(1, &shadowTex);
     if (shadowFBO) glDeleteFramebuffers(1, &shadowFBO);
     if (glContext) SDL_GL_DeleteContext(glContext);
