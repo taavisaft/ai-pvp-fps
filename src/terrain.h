@@ -95,12 +95,14 @@ inline float paldiskiBase(float x, float z) {
     // far water and seabed never sit inside the depth buffer's distant error band
 
     // Rolling taiga hills inland: broad 300-500 m swells + medium roll + fine bumps.
+    // Kept as one explicit multiplier so we can test tall terrain in isolation.
+    constexpr float RELIEF = 2.25f;
     float inland = terrSmooth(terrClamp01((d - 60.0f) / 160.0f));
-    float hills  = (terrValueNoise(x * 0.004f,  z * 0.004f)  - 0.5f) * 46.0f
+    float hills  = (terrValueNoise(x * 0.004f,  z * 0.004f)  - 0.5f) * 46.0f * RELIEF
                  + (terrValueNoise(x * 0.016f,  z * 0.016f)  - 0.5f) * 10.0f;
     // Terrace the swells: slopes break into small cliff bands, flats stay smooth.
     hills = terrTerrace(hills, 13.0f, 0.55f);
-    h += inland * fmaxf(hills, -4.0f);
+    h += inland * fmaxf(hills, -4.0f * RELIEF);
     h += inland * (terrValueNoise(x * 0.07f, z * 0.07f) - 0.5f) * 1.8f;
 
     // Mountain ramp: starts near the east play edge, peaks far outside the clamp.

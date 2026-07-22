@@ -24,10 +24,26 @@ enum ImpactDir : uint8_t { IMP_PX = 0, IMP_NX, IMP_PY, IMP_NY, IMP_PZ, IMP_NZ };
 constexpr int NET_MAX_BULLETS = 64;
 constexpr int NET_MAX_PLAYERS = 16;   // must equal MAX_PLAYERS
 
+// Bump when packet layout or deterministic world/terrain generation changes.
+// Client prediction and server authority must sample the exact same heightfield;
+// accepting a stale server otherwise yanks the camera below the local terrain.
+constexpr uint16_t NET_PROTOCOL_VERSION = 3;
+constexpr uint32_t NET_WORLD_REVISION   = 0x20260723u;
+
 #pragma pack(push, 1)
 
-struct HelloPacket  { PacketType type; };   // PKT_HELLO
-struct AcceptPacket { PacketType type; uint8_t playerID; uint8_t mapId; };  // id 0..15, mapId = MapId
+struct HelloPacket {
+    PacketType type;
+    uint16_t protocolVersion;
+    uint32_t worldRevision;
+};
+struct AcceptPacket {
+    PacketType type;
+    uint8_t playerID;       // 0..15; 255 = incompatible client/server
+    uint8_t mapId;
+    uint16_t protocolVersion;
+    uint32_t worldRevision;
+};
 
 struct InputPacket {
     PacketType type;    // PKT_INPUT

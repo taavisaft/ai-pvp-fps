@@ -194,6 +194,19 @@ static void handlePackets(int fd) {
             if (clients[i].used && netSameAddr(clients[i].addr, from)) id = i;
 
         if (type == PKT_HELLO) {
+            HelloPacket hello{};
+            bool compatible = n >= (int)sizeof(hello);
+            if (compatible) {
+                memcpy(&hello, buf, sizeof(hello));
+                compatible = hello.protocolVersion == NET_PROTOCOL_VERSION &&
+                             hello.worldRevision == NET_WORLD_REVISION;
+            }
+            if (!compatible) {
+                AcceptPacket reject{PKT_ACCEPT, 255, (uint8_t)gMapId,
+                                    NET_PROTOCOL_VERSION, NET_WORLD_REVISION};
+                netSend(fd, &reject, sizeof(reject), from);
+                continue;
+            }
             if (id < 0) {
                 for (int i = 0; i < MAX_PLAYERS && id < 0; i++)
                     if (!clients[i].used) id = i;
@@ -207,7 +220,8 @@ static void handlePackets(int fd) {
                 for (int i = 0; i < MAX_PLAYERS; i++) online += clients[i].used;
                 printf("server: player %d joined (%d online)\n", id, online);
             }
-            AcceptPacket a{PKT_ACCEPT, (uint8_t)id, (uint8_t)gMapId};
+            AcceptPacket a{PKT_ACCEPT, (uint8_t)id, (uint8_t)gMapId,
+                           NET_PROTOCOL_VERSION, NET_WORLD_REVISION};
             netSend(fd, &a, sizeof(a), from);
         } else if (type == PKT_INPUT && id >= 0 && n >= (int)sizeof(InputPacket)) {
             InputPacket p;

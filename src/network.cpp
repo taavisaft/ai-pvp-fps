@@ -116,17 +116,29 @@ bool ClientNet::processPacket(const char* buf, int n, const sockaddr_in& from) {
         }
     }
     if (!sameAddr) return false;
-    silence = 0.0f;
 
-    if (type == PKT_ACCEPT && n >= (int)sizeof(AcceptPacket)) {
+    if (type == PKT_ACCEPT && n < (int)sizeof(AcceptPacket)) {
+        fprintf(stderr, "net: outdated server handshake; restart/update the server\n");
+        disconnect();
+        return true;
+    } else if (type == PKT_ACCEPT && n >= (int)sizeof(AcceptPacket)) {
         AcceptPacket a;
         memcpy(&a, buf, sizeof(a));
+        if (a.playerID == 255 || a.protocolVersion != NET_PROTOCOL_VERSION ||
+            a.worldRevision != NET_WORLD_REVISION) {
+            fprintf(stderr, "net: incompatible server (protocol %u, world %08x); restart/update it\n",
+                    (unsigned)a.protocolVersion, (unsigned)a.worldRevision);
+            disconnect();
+            return true;
+        }
+        silence = 0.0f;
         playerID   = a.playerID;
         serverMap  = a.mapId;
         connected  = true;
         connecting = false;
         printf("net: connected as player %d (map %d)\n", playerID, serverMap);
     } else if (type == PKT_STATE && n >= statePacketSize(0)) {
+        silence = 0.0f;
         StatePacket s{};
         int copy = n <= (int)sizeof(StatePacket) ? n : (int)sizeof(StatePacket);
         memcpy(&s, buf, copy);  // truncated packet; bulletCount guards the tail
@@ -144,6 +156,7 @@ bool ClientNet::processPacket(const char* buf, int n, const sockaddr_in& from) {
             hasState = true;
         }
     } else if (type == PKT_IMPACT && n >= impactPacketSize(0)) {
+        silence = 0.0f;
         ImpactPacket p{};
         int copy = n <= (int)sizeof(ImpactPacket) ? n : (int)sizeof(ImpactPacket);
         memcpy(&p, buf, copy);
@@ -152,6 +165,7 @@ bool ClientNet::processPacket(const char* buf, int n, const sockaddr_in& from) {
         for (int k = 0; k < cnt && impactQCount < IMPACT_Q; k++)
             impactQ[impactQCount++] = p.impacts[k];
     } else if (type == PKT_BYE) {
+        silence = 0.0f;
         printf("net: server closed connection\n");
         disconnect();
         return true;
@@ -166,7 +180,7 @@ void ClientNet::update(float dt) {
     if (connecting && !connected) {
         helloTimer += dt;
         if (helloTimer >= 0.5f) {
-            HelloPacket h{PKT_HELLO};
+            HelloPacket h{PKT_HELLO, NET_PROTOCOL_VERSION, NET_WORLD_REVISION};
             sendRaw(&h, sizeof(h));
             helloTimer = 0.0f;
         }
