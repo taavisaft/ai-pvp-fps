@@ -38,18 +38,12 @@ inline float terrValueNoise(float x, float z) {
     return ab + (cd - ab) * tz;   // [0,1)
 }
 
-// Broad inland zones occupied by mature, open-canopy pine forest. This analytical
-// mask is cheap enough for both terrain shading and nearby grass rejection.
-// 0 = meadow/mixed woodland, 1 = needle-and-moss pine floor.
+// Broad taiga forest mask: large noise patches of dense conifer stand vs open
+// bog-meadow (the reference's alternating plain). 0 = open, 1 = dense forest floor.
 inline float pineForestBiome(float x, float z) {
-    auto ellipse = [](float px, float pz, float cx, float cz, float rx, float rz) {
-        float dx = (px - cx) / rx, dz = (pz - cz) / rz;
-        float d = sqrtf(dx * dx + dz * dz);
-        return 1.0f - terrSmooth(terrClamp01((d - 0.66f) / 0.34f));
-    };
-    float south = ellipse(x, z, 150.0f, -105.0f, 108.0f, 132.0f);
-    float north = ellipse(x, z, 170.0f,  135.0f,  82.0f,  88.0f);
-    return fmaxf(south, north);
+    float f = terrValueNoise(x * 0.0016f + 91.0f, z * 0.0016f + 47.0f) * 0.7f
+            + terrValueNoise(x * 0.006f, z * 0.006f) * 0.3f;
+    return terrSmooth(terrClamp01((f - 0.46f) / 0.16f));
 }
 
 // --- flattened building pads (filled deterministically by generatePaldiski) -----
@@ -60,32 +54,86 @@ struct TerrainPad { float x, z, r, h; };
 inline TerrainPad gTerrainPads[MAX_TERRAIN_PADS];
 inline int        gTerrainPadCount = 0;
 
-// World X of the waterline's underwater base at a given Z (the beach crosses y=0 a
-// few meters east of this). Shared so the town generator can hug the coast.
+// World X of the waterline's underwater base at a given Z (the shore crosses y=0 a
+// little east of this). Big lazy curves — a lake/sea edge, not a ragged beach.
 inline float paldiskiShoreX(float z) {
-    return -90.0f + (terrValueNoise(z * 0.015f + 31.0f, 13.7f) - 0.5f) * 70.0f;
+    return -680.0f + (terrValueNoise(z * 0.0035f + 31.0f, 13.7f) - 0.5f) * 260.0f
+                   + (terrValueNoise(z * 0.012f + 7.0f,  91.2f) - 0.5f) * 60.0f;
 }
 
-// Raw Paldiski elevation, before pad flattening.
+// Smooth terracing: subtracts a sine ripple from the height so slopes break into
+// banded steps (small cliff bands like a cut river gorge), flats stay untouched.
+inline float terrTerrace(float v, float period, float k) {
+    return v - sinf(v * 6.2831853f / period) * (period / 6.2831853f) * k;
+}
+
+// Distance from (x,z) to the polyline p[0..n-1] — river spline carving.
+inline float terrPolyDist(float x, float z, const float (*p)[2], int n) {
+    float best = 1e9f;
+    for (int i = 0; i + 1 < n; i++) {
+        float ax = p[i][0], az = p[i][1], bx = p[i + 1][0], bz = p[i + 1][1];
+        float abx = bx - ax, abz = bz - az;
+        float t = ((x - ax) * abx + (z - az) * abz) / (abx * abx + abz * abz);
+        t = terrClamp01(t);
+        float dx = x - (ax + abx * t), dz = z - (az + abz * t);
+        float d = sqrtf(dx * dx + dz * dz);
+        if (d < best) best = d;
+    }
+    return best;
+}
+
+// Raw taiga elevation, before pad flattening. Layout (2x2 km play area, ±1024):
+// water WEST behind a lazy shoreline, rolling taiga hills with terraced (cliffy)
+// banks, two rivers cut west toward the water — gorges through the hills, flooded
+// inlets near the coast — and a mountain range ramping up beyond the EAST edge
+// (playable foothills inside, snowy vista peaks outside the clamp).
 inline float paldiskiBase(float x, float z) {
     float d = x - paldiskiShoreX(z);            // <0 seaward, >0 landward (m)
-    float tSea  = terrClamp01(-d / 70.0f);      // 0 at shore -> 1 out at sea
-    float tLand = terrClamp01(d / 60.0f);       // beach/bank rise band
-    float h = -1.0f - tSea * 7.0f + terrSmooth(tLand) * 7.0f;   // -8 m ... +6 m
+    float tSea  = terrClamp01(-d / 240.0f);     // long shallow shelf out to sea
+    float tLand = terrClamp01(d / 90.0f);       // shore bank rise
+    float h = -1.5f - tSea * 20.0f + terrSmooth(tLand) * 4.0f;   // deep enough that
+    // far water and seabed never sit inside the depth buffer's distant error band
 
-    // Pakri flavor: the northern stretch of coast rises as a steeper, higher bank.
-    float cliff = terrSmooth(terrClamp01((-z - 60.0f) / 60.0f));
-    h += cliff * terrSmooth(terrClamp01(d / 25.0f)) * 6.0f;
+    // Rolling taiga hills inland: broad 300-500 m swells + medium roll + fine bumps.
+    float inland = terrSmooth(terrClamp01((d - 60.0f) / 160.0f));
+    float hills  = (terrValueNoise(x * 0.004f,  z * 0.004f)  - 0.5f) * 46.0f
+                 + (terrValueNoise(x * 0.016f,  z * 0.016f)  - 0.5f) * 10.0f;
+    // Terrace the swells: slopes break into small cliff bands, flats stay smooth.
+    hills = terrTerrace(hills, 13.0f, 0.55f);
+    h += inland * fmaxf(hills, -4.0f);
+    h += inland * (terrValueNoise(x * 0.07f, z * 0.07f) - 0.5f) * 1.8f;
 
-    // Rolling hills grow inland (east); clamped upward so no inland lakes form.
-    float inland = terrSmooth(terrClamp01((d - 80.0f) / 140.0f));
-    float hills  = (terrValueNoise(x * 0.012f, z * 0.012f) - 0.5f) * 22.0f
-                 + (terrValueNoise(x * 0.05f,  z * 0.05f)  - 0.5f) * 4.0f;
-    h += inland * fmaxf(hills, 0.0f);
+    // Mountain ramp: starts near the east play edge, peaks far outside the clamp.
+    // Ridged noise gives sharp crests; the vista mesh shows the range, the last
+    // foothill slopes are still walkable inside +/-1024.
+    float mx = terrClamp01((x - 650.0f) / 2000.0f);
+    if (mx > 0.0f) {
+        float r1 = 1.0f - fabsf(2.0f * terrValueNoise(x * 0.0016f, z * 0.0016f) - 1.0f);
+        float r2 = 1.0f - fabsf(2.0f * terrValueNoise(x * 0.006f + 40.0f, z * 0.006f) - 1.0f);
+        h += powf(terrSmooth(mx), 1.6f) * (420.0f + r1 * 520.0f + r2 * 90.0f);
+    }
 
-    // Fine bumps on land only (the sea floor stays smooth).
-    if (d > 0.0f)
-        h += (terrValueNoise(x * 0.18f, z * 0.18f) - 0.5f) * 0.6f * terrSmooth(tLand);
+    // Rivers: two channels draining west. Near the carve line the ground is forced
+    // toward -2 m (below water -> flooded river); through high ground that force
+    // cuts a deep gorge with the terraced walls doing the cliff work.
+    static const float R1[][2] = {{980, -350}, {520, -390}, {150, -290}, {-260, -390}, {-780, -430}};
+    static const float R2[][2] = {{980,  320}, {470,  250}, {90,   390}, {-380,  290}, {-780,  250}};
+    // Land floor: away from the shore the ground never dips below ~+1.7 m on its
+    // own — no accidental inland seas. Only the river carve below may cut deeper.
+    float landFloor = -1.5f + terrSmooth(terrClamp01(d / 140.0f)) * 3.2f;
+    h = fmaxf(h, landFloor);
+
+    float rd = fminf(terrPolyDist(x, z, R1, 5), terrPolyDist(x, z, R2, 5));
+    float channel = terrSmooth(terrClamp01(1.0f - rd / 38.0f));   // water channel
+    float valley  = terrSmooth(terrClamp01(1.0f - rd / 150.0f));  // wider valley dip
+    // Flood force fades upstream (east): near the coast the channel sinks below
+    // water level (a navigable river), toward the foothills it only carves a dry
+    // gorge — a mountain stream bed — so the range's foot never becomes a swamp.
+    float flood = 1.0f - terrClamp01((x - 150.0f) / 500.0f);
+    h -= valley * (2.5f + 3.5f * flood);
+    h = h + (fminf(h, -2.2f) - h) * channel * 0.9f * flood;
+    h -= channel * 5.0f * (1.0f - flood);
+    if (flood < 0.6f) h = fmaxf(h, 0.6f);   // upstream beds stay dry land
     return h;
 }
 

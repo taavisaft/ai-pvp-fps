@@ -182,14 +182,14 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
                               const Frustum& fr, const glm::vec3& eye) {
     if (gMapId == MAP_LOBBY) {
         // Flat pad + plain material boxes (target wall, test cover).
-        r.drawTerrain();
+        r.drawTerrain(fr, eye);
         for (int i = 0; i < gMapBoxCount; i++) {
             const Box& b = gMapBoxes[i];
             if (!fr.aabbVisible(b.center, b.half)) continue;
             r.drawCube(b.center, b.half * 2.0f, mapBoxMaterial(i));
         }
     } else {
-        r.drawTerrain();
+        r.drawTerrain(fr, eye);
     }
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (i == localID && !showLocal) continue;   // draw self in third-person test view
@@ -373,9 +373,17 @@ int main(int argc, char** argv) {
         cam.yaw = glm::degrees(atan2f(dummyPos.z - spawn0.z, dummyPos.x - spawn0.x));
     };
     setupOffline();
-    // FPS_YAW/FPS_PITCH=<deg> override the start view (debug screenshots).
+    // FPS_YAW/FPS_PITCH=<deg>, FPS_POS=<x,z> override the start view (debug shots).
     if (const char* yv = getenv("FPS_YAW"))   cam.yaw   = (float)atof(yv);
     if (const char* pv = getenv("FPS_PITCH")) cam.pitch = (float)atof(pv);
+    if (const char* xv = getenv("FPS_POS")) {
+        float px = 0, pz = 0;
+        if (sscanf(xv, "%f,%f", &px, &pz) == 2) {
+            spawn0 = {px, terrainHeight(px, pz), pz};
+            offline.players[0].pos = spawn0;
+            predicted.pos = spawn0;
+        }
+    }
     if (const char* pv = getenv("FPS_PITCH")) cam.pitch = (float)atof(pv);
     FrameInput input;
 

@@ -125,3 +125,66 @@ bool createTerrainMesh(Mesh& m, float half, float (*elev)(float, float)) {
         }
     return m.create(v.data(), v.size(), idx.data(), idx.size(), /*withNormals=*/true);
 }
+
+bool createTerrainPatch(Mesh& m, float x0, float z0, float sizeX, float sizeZ,
+                        float step, float skirt, float (*elev)(float, float),
+                        float* outMinY, float* outMaxY) {
+    const int NX = (int)(sizeX / step) + 1;   // verts per side (x)
+    const int NZ = (int)(sizeZ / step) + 1;   // verts per side (z)
+    // Sample the height grid ONCE with a one-cell border, then derive normals from
+    // neighbours — 1 elev() call per grid point instead of 5 (chunk builds happen
+    // lazily at runtime, so build cost is frame-hitch budget).
+    std::vector<float> hg((size_t)(NZ + 2) * (NX + 2));
+    for (int zi = -1; zi <= NZ; zi++)
+        for (int xi = -1; xi <= NX; xi++)
+            hg[(size_t)(zi + 1) * (NX + 2) + (xi + 1)] =
+                elev(x0 + xi * step, z0 + zi * step);
+    auto H = [&](int xi, int zi) { return hg[(size_t)(zi + 1) * (NX + 2) + (xi + 1)]; };
+
+    float minY = 1e9f, maxY = -1e9f;
+    std::vector<float> v;
+    v.reserve((size_t)NX * NZ * 6 + (size_t)(NX + NZ) * 2 * 6);
+    for (int zi = 0; zi < NZ; zi++)
+        for (int xi = 0; xi < NX; xi++) {
+            float x = x0 + xi * step, z = z0 + zi * step;
+            float h = H(xi, zi);
+            float dhdx = (H(xi + 1, zi) - H(xi - 1, zi)) / (2 * step);
+            float dhdz = (H(xi, zi + 1) - H(xi, zi - 1)) / (2 * step);
+            glm::vec3 n = glm::normalize(glm::vec3(-dhdx, 1.0f, -dhdz));
+            v.insert(v.end(), {x, h, z, n.x, n.y, n.z});
+            if (h < minY) minY = h;
+            if (h > maxY) maxY = h;
+        }
+    std::vector<unsigned> idx;
+    idx.reserve((size_t)(NX - 1) * (NZ - 1) * 6);
+    for (int zi = 0; zi < NZ - 1; zi++)
+        for (int xi = 0; xi < NX - 1; xi++) {
+            unsigned a = zi * NX + xi, b = a + 1, c = a + NX, d = c + 1;
+            idx.insert(idx.end(), {a, c, d, d, b, a});
+        }
+    // Skirt: duplicate each boundary vertex sunk by `skirt`, stitched with quads
+    // along all four edges. Hides sub-`skirt` cracks at LOD boundaries.
+    if (skirt > 0.0f) {
+        auto addSkirtRun = [&](int count, unsigned (*indexAt)(int, int, int), bool flip) {
+            unsigned prevTop = 0, prevBot = 0;
+            for (int i = 0; i < count; i++) {
+                unsigned top = indexAt(i, NX, NZ);
+                unsigned bot = (unsigned)(v.size() / 6);
+                v.insert(v.end(), {v[top * 6 + 0], v[top * 6 + 1] - skirt, v[top * 6 + 2],
+                                   v[top * 6 + 3], v[top * 6 + 4], v[top * 6 + 5]});
+                if (i > 0) {
+                    if (flip) idx.insert(idx.end(), {prevTop, prevBot, bot, bot, top, prevTop});
+                    else      idx.insert(idx.end(), {prevTop, top, bot, bot, prevBot, prevTop});
+                }
+                prevTop = top; prevBot = bot;
+            }
+        };
+        addSkirtRun(NX, [](int i, int nx, int nz) { return (unsigned)i; }, false);
+        addSkirtRun(NX, [](int i, int nx, int nz) { return (unsigned)((nz - 1) * nx + i); }, true);
+        addSkirtRun(NZ, [](int i, int nx, int nz) { return (unsigned)(i * nx); }, true);
+        addSkirtRun(NZ, [](int i, int nx, int nz) { return (unsigned)(i * nx + nx - 1); }, false);
+    }
+    if (outMinY) *outMinY = minY;
+    if (outMaxY) *outMaxY = maxY;
+    return m.create(v.data(), v.size(), idx.data(), idx.size(), /*withNormals=*/true);
+}

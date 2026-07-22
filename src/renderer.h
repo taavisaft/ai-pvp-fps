@@ -7,6 +7,7 @@
 #include "font.h"
 #include "material.h"
 #include "frustum.h"
+#include "terrain_render.h"
 
 struct Box;  // map.h; for the satellite map-texture bake
 
@@ -44,7 +45,7 @@ struct Renderer {
     glm::vec3 skyZenith     = {0.30f, 0.50f, 0.78f};
     glm::vec3 skyHorizon    = {0.74f, 0.82f, 0.90f};
     glm::vec3 groundAmbient = {0.26f, 0.27f, 0.24f};
-    float fogDist      = 350.0f;  // distance-fog reach (m)
+    float fogDist      = 4500.0f;  // distance-fog reach (m)
     float fogHeightAmt = 0.35f;   // low-altitude haze boost (valleys fill first)
     float cloudAmount  = 0.20f;   // drifting cloud-shadow strength 0..1
     float exposure     = 0.82f;   // pre-tonemap exposure
@@ -56,7 +57,8 @@ struct Renderer {
     void setAtmosphere(int preset);   // sets every palette field above
     Mesh   cube;     // unit cube, scaled per draw
     Mesh   ground;   // 100x100 quad at y=0 (water plane, scaled per draw)
-    Mesh   terrain;  // Paldiski heightfield (built after setMap)
+    Mesh   terrain;        // small lobby heightfield (rebuilt on map switch)
+    TerrainChunks taigaTerrain;  // chunked LOD 2 km ground + mountain vista
     Mesh   quad2d;   // unit quad for HUD rects
     Font   font;     // bitmap text, HUD pass only
     MaterialLib materials;
@@ -79,7 +81,8 @@ struct Renderer {
     // not depth-written; lit-pass only — never call during the shadow pass.
     void  drawCubeModelTranslucent(const glm::mat4& model, const glm::vec3& color,
                                    float alpha);
-    void  drawTerrain();   // Paldiski heightfield ground (lobby: flat quad instead)
+    // Ground: chunked LOD taiga (+ vista in the lit pass) or the lobby mesh.
+    void  drawTerrain(const Frustum& fr, const glm::vec3& eye);
     void  drawGround();    // flat 2*gArenaHalf quad at y=0 (lobby pad)
     // Drop lazily-built world caches (town meshes, tree/prop scatters) when the
     // active map changed — call once per frame before the world passes.

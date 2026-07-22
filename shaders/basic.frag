@@ -167,7 +167,7 @@ vec3 splatTerrain(vec3 p, vec3 an) {
     float jitter = (fbm(p.xz * 0.06) - 0.5) * 0.10;
     float s  = clamp(slope * 6.0 + jitter, 0.0, 1.0);
     float rw = smoothstep(0.30, 0.55, s);
-    rw = max(rw, smoothstep(16.0, 24.0, p.y));    // exposed rock only on the highest hills
+    rw = max(rw, smoothstep(70.0, 130.0, p.y));   // bare rock on the mountain slopes
 
     // Large-scale "biome" mask (~250 m features): bare dirt fields vs lush grass,
     // so the ground reads as varied terrain even where it is near-flat.
@@ -196,6 +196,13 @@ vec3 splatTerrain(vec3 p, vec3 an) {
     // Macro variation: large-scale brightness drift (~30 m) so the ground doesn't
     // read as one uniform repeating carpet into the distance.
     col *= 0.82 + 0.36 * fbm(p.xz * 0.03);
+
+    // Snowcaps on the vista mountains: altitude band with a noise-ragged snowline,
+    // thinning on steep faces so dark rock ribs streak through (the Altai look).
+    float snowLine = 210.0 + (fbm(p.xz * 0.01) - 0.5) * 70.0;
+    float snow = smoothstep(snowLine, snowLine + 60.0, p.y);
+    snow *= 0.35 + 0.65 * smoothstep(0.35, 0.75, normalize(vNormal).y);
+    col = mix(col, vec3(0.93, 0.95, 0.99), snow);
     return col;
 }
 

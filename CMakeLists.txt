@@ -26,6 +26,7 @@ set(CLIENT_SOURCES
     src/mesh.cpp
     src/texture.cpp
     src/material.cpp
+    src/terrain_render.cpp
     src/renderer.cpp
     src/hud.cpp
     src/camera.cpp

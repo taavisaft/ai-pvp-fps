@@ -87,5 +87,8 @@ glm::mat4 Camera::view() const {
 }
 
 glm::mat4 Camera::proj(float aspect) const {
-    return glm::perspective(glm::radians(fov), aspect, 0.1f, 900.0f);
+    // Near 0.15 (not 0.1): the far plane sits at 6 km for the vista range, and a
+    // 24-bit depth buffer's distant precision scales with the near plane — 0.15
+    // keeps far geometry from z-shimmering while staying under the viewmodel.
+    return glm::perspective(glm::radians(fov), aspect, 0.15f, 6000.0f);
 }

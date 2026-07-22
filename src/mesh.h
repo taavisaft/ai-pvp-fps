@@ -22,3 +22,9 @@ bool createGroundQuad(Mesh& m);    // 100x100 at y=0 centered at origin
 bool createQuad2D(Mesh& m);        // 1x1 in XY plane at z=0, facing +z (HUD)
 // Heightfield grid spanning +/-half, sampled from `elev` (field or lobby ground).
 bool createTerrainMesh(Mesh& m, float half, float (*elev)(float, float));
+// Heightfield patch: [x0,x0+size] x [z0,z0+size] at `step` meters per cell, with a
+// downward edge skirt (hides cracks between neighbouring patches of different LOD).
+// outMinY/outMaxY (optional) receive the patch's height bounds for frustum culling.
+bool createTerrainPatch(Mesh& m, float x0, float z0, float sizeX, float sizeZ,
+                        float step, float skirt, float (*elev)(float, float),
+                        float* outMinY = nullptr, float* outMaxY = nullptr);

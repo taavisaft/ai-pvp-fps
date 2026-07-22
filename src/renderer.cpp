@@ -80,7 +80,9 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!createGroundQuad(ground)) return false;
     // Heightfield mesh: setMap must have run first (pads + terrain mode set) so the
     // mesh matches the ground the server simulates.
-    if (!createTerrainMesh(terrain, PALDISKI_HALF, terrainHeight)) return false;
+    // The 2 km taiga ground is chunk-built lazily (taigaTerrain); this single mesh
+    // only serves the small lobby heightfield, rebuilt on map switch below.
+    if (!createTerrainMesh(terrain, LOBBY_HALF, terrainHeight)) return false;
     if (!createQuad2D(quad2d)) return false;
     if (!font.init()) return false;
     if (!materials.init()) return false;
@@ -126,7 +128,7 @@ void Renderer::setAtmosphere(int preset) {
         skyZenith     = {0.44f, 0.48f, 0.53f};
         skyHorizon    = {0.63f, 0.66f, 0.69f};
         groundAmbient = {0.33f, 0.34f, 0.35f};
-        fogDist = 220.0f; fogHeightAmt = 1.30f; cloudAmount = 0.55f;
+        fogDist = 1300.0f; fogHeightAmt = 1.30f; cloudAmount = 0.55f;
         exposure = 1.05f; saturation = 0.80f;
         break;
     case ATMO_GOLDEN:     // golden hour: low warm sun, long shadows, amber horizon
@@ -135,7 +137,7 @@ void Renderer::setAtmosphere(int preset) {
         skyZenith     = {0.34f, 0.44f, 0.66f};
         skyHorizon    = {0.94f, 0.78f, 0.58f};
         groundAmbient = {0.30f, 0.26f, 0.22f};
-        fogDist = 300.0f; fogHeightAmt = 0.60f; cloudAmount = 0.25f;
+        fogDist = 2800.0f; fogHeightAmt = 0.60f; cloudAmount = 0.25f;
         exposure = 1.10f; saturation = 1.06f;
         break;
     default:              // ATMO_CLEAR: PUBG bright midday (original palette)
@@ -144,7 +146,7 @@ void Renderer::setAtmosphere(int preset) {
         skyZenith     = {0.30f, 0.50f, 0.78f};
         skyHorizon    = {0.74f, 0.82f, 0.90f};
         groundAmbient = {0.26f, 0.27f, 0.24f};
-        fogDist = 350.0f; fogHeightAmt = 0.35f; cloudAmount = 0.20f;
+        fogDist = 4500.0f; fogHeightAmt = 0.35f; cloudAmount = 0.20f;
         exposure = 0.82f; saturation = 1.12f;
         break;
     }
@@ -381,8 +383,12 @@ void Renderer::drawCubeModelTranslucent(const glm::mat4& model, const glm::vec3&
 void Renderer::invalidateWorldOnMapChange() {
     if (worldBuiltFor == (int)gMapId) return;
     worldBuiltFor = (int)gMapId;
-    terrain.destroy();
-    createTerrainMesh(terrain, gArenaHalf, terrainHeight);
+    if (gMapId == MAP_LOBBY) {          // small static lobby heightfield
+        terrain.destroy();
+        createTerrainMesh(terrain, gArenaHalf, terrainHeight);
+    } else {
+        taigaTerrain.destroy();         // chunks rebuild lazily from the new map
+    }
 }
 
 void Renderer::drawGround() {
@@ -423,7 +429,7 @@ void Renderer::drawWater() {
     shader.setFloat(shader.locSpec, 0.0f);
 }
 
-void Renderer::drawTerrain() {
+void Renderer::drawTerrain(const Frustum& fr, const glm::vec3& eye) {
     bindMaterial(*active, materials, MAT_GROUND);   // grass layer on unit 0
     // Rock + dirt layers for the slope/height splat on units 2 and 3.
     glActiveTexture(GL_TEXTURE2);
@@ -441,7 +447,13 @@ void Renderer::drawTerrain() {
     active->setVec3(active->locColor, glm::vec3(1.0f));
     active->setInt(active->locGrass, materials.groundHasImage ? 0 : 1);
     active->setInt(active->locHasNormal, 1);   // smooth analytic heightfield normals
-    terrain.draw();
+    if (gTerrainMode == TERRAIN_PALDISKI) {
+        // Chunked LOD ground + the mountain vista ring (vista only in the lit pass:
+        // the sun frustum never reaches it, and its shadows would be wrong anyway).
+        taigaTerrain.draw(fr, eye, /*withVista=*/active == &shader);
+    } else {
+        terrain.draw();   // lobby: one small static mesh
+    }
     active->setInt(active->locHasNormal, 0);
     active->setInt(active->locGrass, 0);
     active->setInt(active->locSplat, 0);
@@ -461,6 +473,7 @@ void Renderer::shutdown() {
     font.destroy();
     quad2d.destroy();
     terrain.destroy();
+    taigaTerrain.destroy();
     ground.destroy();
     cube.destroy();
     shader.destroy();

@@ -25,7 +25,7 @@ struct Box {
 enum MapId { MAP_PALDISKI = 0, MAP_LOBBY, MAP_COUNT_ };
 constexpr int MAP_COUNT = MAP_COUNT_;   // sizes client arrays (incl. the lobby)
 
-inline constexpr float PALDISKI_HALF = 250.0f;   // 500 m across, clamp at +/-250
+inline constexpr float PALDISKI_HALF = 1024.0f;  // 2x2 km play area, clamp at +/-1024
 inline constexpr float SEA_LEVEL     = 0.0f;     // water plane height
 inline constexpr int   MAX_MAP_BOXES = 1024;
 
@@ -62,10 +62,13 @@ inline void generatePaldiski() {
     gTownBoxCount    = 0;
     gMapSpawnCount   = 0;
     gTerrainPadCount = 0;
-    for (int i = 0; i < 16 && gMapSpawnCount < 64; i++) {
-        float sz = -180.0f + (i % 10) * 40.0f;
-        float sx = 20.0f + mapRand(i, 9, 26) * 160.0f;
-        if (paldiskiElevation(sx, sz) < 1.0f) sx += 60.0f;   // nudge off any low spot
+    for (int i = 0; i < 24 && gMapSpawnCount < 64; i++) {
+        // Scatter across the taiga between shore and foothills; skip water/rivers.
+        float sz = -850.0f + (i % 12) * 150.0f + (mapRand(i, 4, 27) - 0.5f) * 90.0f;
+        float sx = -450.0f + mapRand(i, 9, 26) * 1050.0f;
+        for (int tries = 0; tries < 4 && paldiskiElevation(sx, sz) < 1.0f; tries++)
+            sx += 90.0f;   // walk east until on dry land
+        if (paldiskiElevation(sx, sz) < 1.0f) continue;
         gMapSpawns[gMapSpawnCount++] = {sx, 0.0f, sz};
     }
 }
