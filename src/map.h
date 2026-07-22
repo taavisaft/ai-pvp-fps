@@ -62,6 +62,12 @@ inline void generatePaldiski() {
     gTownBoxCount    = 0;
     gMapSpawnCount   = 0;
     gTerrainPadCount = 0;
+
+    // Primary test/player-0 spawn: a broad hilltop (~41 m) with a gentle local
+    // slope and long views toward the central valleys. Keeping it first makes both
+    // FPS_MAP=paldiski practice and the first online join start on high ground.
+    gMapSpawns[gMapSpawnCount++] = {-301.0f, 0.0f, 527.0f};
+
     for (int i = 0; i < 24 && gMapSpawnCount < 64; i++) {
         // Scatter across the taiga between shore and foothills; skip water/rivers.
         float sz = -850.0f + (i % 12) * 150.0f + (mapRand(i, 4, 27) - 0.5f) * 90.0f;
