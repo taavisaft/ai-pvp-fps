@@ -33,10 +33,9 @@ bool MaterialLib::init() {
             mats[e.id].tint = {1.0f, 1.0f, 1.0f};        // image has its own color
             if (e.id == MAT_GROUND) {
                 groundHasImage = true;
-                // Cool the brown forest-floor photo into the mossy underlayer visible
-                // between blades. Exposed soil still reads through, but the field no
-                // longer looks like grass cards scattered over beige sand.
-                mats[e.id].tint = {0.72f, 0.88f, 0.60f};
+                // The patchy-grass albedo is already color balanced; keep it neutral
+                // so its dry blades, clover and soil variation survive unchanged.
+                mats[e.id].tint = {1.0f, 1.0f, 1.0f};
             }
             printf("material: loaded image for %s\n", e.name);
         } else {

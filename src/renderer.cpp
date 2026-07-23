@@ -86,6 +86,7 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!createQuad2D(quad2d)) return false;
     if (!font.init()) return false;
     if (!materials.init()) return false;
+    if (!grass.init(base)) return false;
 
     // Shadow map: a depth-only texture rendered from the sun each frame.
     glGenFramebuffers(1, &shadowFBO);
@@ -154,6 +155,7 @@ void Renderer::setAtmosphere(int preset) {
 
 void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye) {
     active = &shader;
+    grass.setCamera(view, proj);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     shader.use();
     shader.setMat4(shader.locView, view);
@@ -459,6 +461,13 @@ void Renderer::drawTerrain(const Frustum& fr, const glm::vec3& eye) {
     active->setInt(active->locSplat, 0);
 }
 
+void Renderer::drawGrass(const glm::vec3& eye) {
+    if (gMapId != MAP_PALDISKI || active != &shader) return;
+    grass.draw(eye, frameTime, sunDir, skyZenith, skyHorizon, groundAmbient,
+               sunColor, fogDist, exposure, saturation);
+    shader.use();
+}
+
 void Renderer::endFrame() {
     SDL_GL_SwapWindow(window);
 }
@@ -474,6 +483,7 @@ void Renderer::shutdown() {
     quad2d.destroy();
     terrain.destroy();
     taigaTerrain.destroy();
+    grass.destroy();
     ground.destroy();
     cube.destroy();
     shader.destroy();

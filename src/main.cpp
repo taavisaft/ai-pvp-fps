@@ -190,6 +190,7 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
         }
     } else {
         r.drawTerrain(fr, eye);
+        r.drawGrass(eye);
     }
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (i == localID && !showLocal) continue;   // draw self in third-person test view

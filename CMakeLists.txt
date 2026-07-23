@@ -27,6 +27,7 @@ set(CLIENT_SOURCES
     src/texture.cpp
     src/material.cpp
     src/terrain_render.cpp
+    src/grass.cpp
     src/renderer.cpp
     src/hud.cpp
     src/camera.cpp
@@ -71,4 +72,3 @@ add_custom_command(TARGET game POST_BUILD
 add_custom_command(TARGET game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/sounds $<TARGET_FILE_DIR:game>/sounds)
-
