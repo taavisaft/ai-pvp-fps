@@ -50,9 +50,12 @@ future maps just add a name. Several servers can share one host on distinct port
 with `FPS_PORT` (default `7777`); the client lobby scans `7777`–`7784` on the host
 you enter.
 
-Starting `./build/game` with no IP drops you into the **lobby** — a small flat test
+Starting `./build/game` with no IP drops you into the **lobby** — a small test
 range (target wall with a bullseye, practice cover, a respawning dummy) where you can
-warm up and test things before joining a match. It's client-only and not a real map.
+warm up and test things before joining a match. Behind the firing line rises a
+terraced hill (~16 m, flat ledges at set heights) and past the wall's north end a
+smooth knoll — climb one to practice downhill shots, or shoot up the knoll's face to
+read each weapon's bullet drop at range. It's client-only and not a real map.
 Press **C** to type a host address, then **Enter** to scan it for running games: a
 server browser lists every game found with its map name, player count, and ping. Use
 **Up/Down** to pick one and **Enter** to join (**Esc** cancels); losing the connection

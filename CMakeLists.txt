@@ -27,7 +27,6 @@ set(CLIENT_SOURCES
     src/texture.cpp
     src/material.cpp
     src/terrain_render.cpp
-    src/grass.cpp
     src/renderer.cpp
     src/hud.cpp
     src/camera.cpp
@@ -63,12 +62,8 @@ add_custom_command(TARGET game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/textures $<TARGET_FILE_DIR:game>/textures)
 
-# Copy 3D models (gun, trees) next to the binary
-add_custom_command(TARGET game POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/models $<TARGET_FILE_DIR:game>/models)
-
 # Copy sound assets next to the binary (optional; synth fallback if absent)
 add_custom_command(TARGET game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/sounds $<TARGET_FILE_DIR:game>/sounds)
+

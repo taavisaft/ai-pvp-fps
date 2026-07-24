@@ -8,7 +8,6 @@
 #include "material.h"
 #include "frustum.h"
 #include "terrain_render.h"
-#include "grass.h"
 
 struct Box;  // map.h; for the satellite map-texture bake
 
@@ -60,7 +59,6 @@ struct Renderer {
     Mesh   ground;   // 100x100 quad at y=0 (water plane, scaled per draw)
     Mesh   terrain;        // small lobby heightfield (rebuilt on map switch)
     TerrainChunks taigaTerrain;  // chunked LOD 2 km ground + mountain vista
-    GrassRenderer grass;
     Mesh   quad2d;   // unit quad for HUD rects
     Font   font;     // bitmap text, HUD pass only
     MaterialLib materials;
@@ -85,7 +83,6 @@ struct Renderer {
                                    float alpha);
     // Ground: chunked LOD taiga (+ vista in the lit pass) or the lobby mesh.
     void  drawTerrain(const Frustum& fr, const glm::vec3& eye);
-    void  drawGrass(const glm::vec3& eye);
     void  drawGround();    // flat 2*gArenaHalf quad at y=0 (lobby pad)
     // Drop lazily-built world caches (town meshes, tree/prop scatters) when the
     // active map changed — call once per frame before the world passes.
