@@ -86,6 +86,8 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!createQuad2D(quad2d)) return false;
     if (!font.init()) return false;
     if (!materials.init()) return false;
+    if (!veg.init(base)) return false;
+    glViewport(0, 0, fbW, fbH);   // the impostor bake in veg.init resized it
 
     // Shadow map: a depth-only texture rendered from the sun each frame.
     glGenFramebuffers(1, &shadowFBO);
@@ -154,6 +156,8 @@ void Renderer::setAtmosphere(int preset) {
 
 void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye) {
     active = &shader;
+    curView = view;
+    curProj = proj;
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     shader.use();
     shader.setMat4(shader.locView, view);
@@ -383,11 +387,26 @@ void Renderer::drawCubeModelTranslucent(const glm::mat4& model, const glm::vec3&
 void Renderer::invalidateWorldOnMapChange() {
     if (worldBuiltFor == (int)gMapId) return;
     worldBuiltFor = (int)gMapId;
+    veg.invalidate();                   // placements re-scatter for the new map
     if (gMapId == MAP_LOBBY) {          // small static lobby heightfield
         terrain.destroy();
         createTerrainMesh(terrain, gArenaHalf, terrainHeight);
     } else {
         taigaTerrain.destroy();         // chunks rebuild lazily from the new map
+    }
+}
+
+void Renderer::drawVegetation(const Frustum& fr, const glm::vec3& eye) {
+    if (gMapId != MAP_PALDISKI || gTerrainMode != TERRAIN_PALDISKI) return;
+    if (active == &depthShader) {
+        // Sun pass (culling already off): near LOD0 trees cast shadows.
+        veg.drawShadow(fr, shadowFocus, frameTime, lightSpace);
+        depthShader.use();
+    } else {
+        glDisable(GL_CULL_FACE);   // blades and cone skirts are two-sided
+        veg.drawLit(*this, fr, eye);
+        glEnable(GL_CULL_FACE);
+        shader.use();
     }
 }
 
@@ -469,6 +488,7 @@ void Renderer::toggleWireframe() {
 }
 
 void Renderer::shutdown() {
+    veg.destroy();
     materials.destroy();
     font.destroy();
     quad2d.destroy();

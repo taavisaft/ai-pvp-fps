@@ -133,24 +133,46 @@ vec3 axisBlend(vec3 p) {
 // Anti-tiling: blend the same texture at two incommensurate scales. The combined
 // pattern repeats only at the LCM of the two periods (far off-screen), so the obvious
 // grid/diamond repeat dissolves. ~2x the samples — fine for ground.
+// Far ground: the two scales interfere into a moire that crawls with every camera
+// step (mips can't help — the interference is between the two lookups, not inside
+// one). gFar (0 near .. 1 far, set in main) fades the detail out to a band-limited
+// macro sample so distant terrain holds still.
+float gFar = 0.0;
 vec3 antiTile(sampler2D s, vec3 p, float tile, vec3 an) {
     vec3 a = triplanarTex(s, p, tile,        an);
     vec3 b = triplanarTex(s, p, tile * 3.17, an);
-    return mix(a, b, 0.5);
+    vec3 fine = mix(a, b, 0.5);
+    if (gFar <= 0.0) return fine;
+    vec3 macro = textureLod(s, p.xz / (tile * 23.0), 4.0).rgb;
+    return mix(fine, macro, gFar);
 }
 
 vec3 triplanar(vec3 p, float tile) {
     return antiTile(diffuseMap, p, tile, axisBlend(p));
 }
 
-// Mirrors pineForestBiome() in terrain.h so grass-card rejection and the textured
-// forest floor meet at the same soft biome boundary.
+// Exact GLSL port of pineForestBiome() in terrain.h (same integer hash), so the
+// textured forest floor sits precisely under the scattered spruce stands.
+float terrHash(int x, int z) {
+    uint n = uint(x * 374761393 + z * 668265263);
+    n = (n ^ (n >> 13)) * 1274126177u;
+    n ^= (n >> 16);
+    return float(n & 0x7fffffffu) / 2147483647.0;
+}
+float terrVNoise(vec2 p) {
+    vec2 f = floor(p);
+    int xi = int(f.x), zi = int(f.y);
+    vec2 t = p - f;
+    t = t * t * (3.0 - 2.0 * t);
+    float a = terrHash(xi, zi),     b = terrHash(xi + 1, zi);
+    float c = terrHash(xi, zi + 1), d = terrHash(xi + 1, zi + 1);
+    return mix(mix(a, b, t.x), mix(c, d, t.x), t.y);
+}
 float pineBiome(vec2 p) {
-    vec2 ds = (p - vec2(150.0, -105.0)) / vec2(108.0, 132.0);
-    vec2 dn = (p - vec2(170.0,  135.0)) / vec2(82.0, 88.0);
-    float south = 1.0 - smoothstep(0.66, 1.0, length(ds));
-    float north = 1.0 - smoothstep(0.66, 1.0, length(dn));
-    return max(south, north);
+    float f = terrVNoise(p * 0.0016 + vec2(91.0, 47.0)) * 0.7
+            + terrVNoise(p * 0.006) * 0.3;
+    float t = clamp((f - 0.45) / 0.13, 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
 }
 
 // Blend grass/dirt/rock across the heightfield by surface slope (steep -> rock),
@@ -167,7 +189,8 @@ vec3 splatTerrain(vec3 p, vec3 an) {
     float jitter = (fbm(p.xz * 0.06) - 0.5) * 0.10;
     float s  = clamp(slope * 6.0 + jitter, 0.0, 1.0);
     float rw = smoothstep(0.30, 0.55, s);
-    rw = max(rw, smoothstep(70.0, 130.0, p.y));   // bare rock on the mountain slopes
+    rw = max(rw, smoothstep(115.0, 175.0, p.y));  // bare rock on the mountain slopes
+    // (band sits above the ~85 m playable ridge tops so they stay grassy)
 
     // Large-scale "biome" mask (~250 m features): bare dirt fields vs lush grass,
     // so the ground reads as varied terrain even where it is near-flat.
@@ -184,7 +207,10 @@ vec3 splatTerrain(vec3 p, vec3 an) {
         // triplanar set. This branch means non-pine environments pay no texture cost.
         vec3 forestA = texture(forestMap, p.xz / forestTile).rgb;
         vec3 forestB = texture(forestMap, p.xz / (forestTile * 3.17)).rgb;
-        vec3 forestC = mix(forestA, forestB, 0.46) * vec3(0.72, 0.80, 0.66);
+        vec3 forestF = mix(forestA, forestB, 0.46);
+        if (gFar > 0.0)   // same far de-moire as antiTile
+            forestF = mix(forestF, textureLod(forestMap, p.xz / (forestTile * 23.0), 4.0).rgb, gFar);
+        vec3 forestC = forestF * vec3(0.72, 0.80, 0.66);
         col = mix(col, forestC, pine);
     }
 
@@ -207,6 +233,7 @@ vec3 splatTerrain(vec3 p, vec3 an) {
 }
 
 void main() {
+    gFar = (lit == 1) ? smoothstep(150.0, 550.0, length(worldPos - eyePos)) : 0.0;
     vec3 c = color;
     if (lit == 1 && useFacade == 1) {
         vec4 texel = texture(diffuseMap, vUV);

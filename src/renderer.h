@@ -8,6 +8,7 @@
 #include "material.h"
 #include "frustum.h"
 #include "terrain_render.h"
+#include "vegetation.h"
 
 struct Box;  // map.h; for the satellite map-texture bake
 
@@ -30,6 +31,11 @@ struct Renderer {
     // Lazily-built per-map satellite textures (indexed by MapId).
     GLuint mapTex[MAP_COUNT]      = {};
     bool   mapTexTried[MAP_COUNT] = {};
+
+    // Camera matrices of the current lit pass (set by beginFrame; the vegetation
+    // programs need them since they don't share the basic program's uniforms).
+    glm::mat4 curView = glm::mat4(1.0f);
+    glm::mat4 curProj = glm::mat4(1.0f);
 
     // Shadow map: single ortho sun frustum following the camera (near-field shadows).
     GLuint    shadowFBO   = 0;
@@ -59,6 +65,7 @@ struct Renderer {
     Mesh   ground;   // 100x100 quad at y=0 (water plane, scaled per draw)
     Mesh   terrain;        // small lobby heightfield (rebuilt on map switch)
     TerrainChunks taigaTerrain;  // chunked LOD 2 km ground + mountain vista
+    Vegetation    veg;           // instanced grass + LOD spruce forest (taiga only)
     Mesh   quad2d;   // unit quad for HUD rects
     Font   font;     // bitmap text, HUD pass only
     MaterialLib materials;
@@ -83,6 +90,9 @@ struct Renderer {
                                    float alpha);
     // Ground: chunked LOD taiga (+ vista in the lit pass) or the lobby mesh.
     void  drawTerrain(const Frustum& fr, const glm::vec3& eye);
+    // Grass + trees for the taiga map, in whichever world pass is active (lit or
+    // sun-depth). No-op on maps without vegetation. Call right after drawTerrain.
+    void  drawVegetation(const Frustum& fr, const glm::vec3& eye);
     void  drawGround();    // flat 2*gArenaHalf quad at y=0 (lobby pad)
     // Drop lazily-built world caches (town meshes, tree/prop scatters) when the
     // active map changed — call once per frame before the world passes.

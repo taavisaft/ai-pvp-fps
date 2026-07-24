@@ -191,6 +191,7 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
     } else {
         r.drawTerrain(fr, eye);
     }
+    r.drawVegetation(fr, eye);   // taiga grass + trees (no-op on the lobby)
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (i == localID && !showLocal) continue;   // draw self in third-person test view
         if (!(gs.usedMask & (1u << i))) continue;

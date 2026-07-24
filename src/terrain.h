@@ -43,7 +43,7 @@ inline float terrValueNoise(float x, float z) {
 inline float pineForestBiome(float x, float z) {
     float f = terrValueNoise(x * 0.0016f + 91.0f, z * 0.0016f + 47.0f) * 0.7f
             + terrValueNoise(x * 0.006f, z * 0.006f) * 0.3f;
-    return terrSmooth(terrClamp01((f - 0.46f) / 0.16f));
+    return terrSmooth(terrClamp01((f - 0.45f) / 0.13f));
 }
 
 // --- flattened building pads (filled deterministically by generatePaldiski) -----
@@ -124,6 +124,12 @@ inline float paldiskiBase(float x, float z) {
     // own — no accidental inland seas. Only the river carve below may cut deeper.
     float landFloor = -1.5f + terrSmooth(terrClamp01(d / 140.0f)) * 3.2f;
     h = fmaxf(h, landFloor);
+    // Walking-scale knolls (~110 m wavelength), applied AFTER the land floor so
+    // the wide valley flats undulate underfoot instead of reading as parade
+    // grounds. Asymmetric amplitude — bumps rise +4.5 m but dips stop at -1.5 m,
+    // keeping the +1.7 m floors above sea level (no accidental pools).
+    float kn = terrValueNoise(x * 0.009f + 21.0f, z * 0.009f + 8.0f) - 0.5f;
+    h += inland * kn * (kn > 0.0f ? 12.0f : 3.0f);
 
     float rd = fminf(terrPolyDist(x, z, R1, 5), terrPolyDist(x, z, R2, 5));
     float channel = terrSmooth(terrClamp01(1.0f - rd / 38.0f));   // water channel
