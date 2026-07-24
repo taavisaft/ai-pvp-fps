@@ -111,6 +111,27 @@ bool Vegetation::init(const char* base) {
 void Vegetation::buildTrees() {
     placed = true;
     trees.clear();
+    if (gMapId == MAP_LOBBY) {
+        // Lobby counterpart of the taiga forest (every feature ships here in
+        // miniature): a loose spruce ring outside the pad, firing lane kept clear.
+        for (int i = 0; i < 40; i++) {
+            float a  = (i / 40.0f + (mapRand(i, 1, 61) - 0.5f) * 0.02f) * 6.2831853f;
+            float rr = 34.0f + mapRand(i, 2, 62) * 22.0f;
+            float x = cosf(a) * rr, z = sinf(a) * rr;
+            if (x > 8.0f && fabsf(z) < 16.0f) continue;   // range lane to the wall
+            Tree t;
+            t.pos   = {x, terrainHeight(x, z) - 0.15f, z};
+            t.scale = mapRand(i, 3, 63) < 0.4f ? 2.5f + mapRand(i, 4, 64) * 2.0f
+                                               : 6.5f + mapRand(i, 4, 64) * 4.0f;
+            t.yaw   = mapRand(i, 5, 65) * 6.2831853f;
+            t.tint  = 0.82f + mapRand(i, 6, 66) * 0.36f;
+            trees.push_back(t);
+        }
+        grid.init(LOBBY_HALF, 16, 0.0f, 40.0f);
+        for (int i = 0; i < (int)trees.size(); i++)
+            grid.insert(trees[i].pos.x, trees[i].pos.z, i);
+        return;
+    }
     const float STEP = 5.0f;
     const int n = (int)(2.0f * PALDISKI_HALF / STEP);
     for (int iz = 0; iz < n; iz++)
@@ -120,7 +141,7 @@ void Vegetation::buildTrees() {
             // Squared term packs the patch cores tight (~5 m spacing) while the
             // linear tail keeps thin stands and lone stragglers on the meadows.
             float b = pineForestBiome(x, z);
-            float dens = b * b * 2.0f + b * 0.25f + 0.018f;
+            float dens = b * b * 2.2f + b * 0.30f + 0.045f;
             if (mapRand(ix, iz, 43) > dens) continue;
             float h = terrainHeight(x, z);
             if (h < 1.6f || h > 95.0f) continue;
@@ -128,8 +149,14 @@ void Vegetation::buildTrees() {
             float gz = (terrainHeight(x, z + 2.0f) - terrainHeight(x, z - 2.0f)) * 0.25f;
             if (gx * gx + gz * gz > 0.30f) continue;
             Tree t;
-            t.pos   = {x, h - 0.15f, z};
-            t.scale = 6.5f + mapRand(ix, iz, 44) * 4.5f;   // = height in meters
+            t.pos = {x, h - 0.15f, z};
+            // Stand cores are mature forest; edges and open bog skew young — the
+            // reference meadows are dotted with 2-4 m saplings, not full spruces.
+            float r     = mapRand(ix, iz, 44);
+            float young = 2.2f + r * 2.6f;               // 2.2-4.8 m sapling
+            float grown = 6.5f + r * 5.0f;               // 6.5-11.5 m stand tree
+            float pYoung = b < 0.35f ? 0.78f : 0.18f;    // meadow vs core mix
+            t.scale = mapRand(ix, iz, 47) < pYoung ? young : grown;
             t.yaw   = mapRand(ix, iz, 45) * 6.2831853f;
             t.tint  = 0.82f + mapRand(ix, iz, 46) * 0.36f;
             trees.push_back(t);
@@ -229,6 +256,7 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     // Grass: camera-centered tile ring; stale slots rebuilt within a budget (a
     // fresh slot's blades are still height-zero at the range edge, so a one-frame
     // delay is invisible).
+    if (GRASS_ENABLED) {
     vegSh.setFloat(locWind, 0.045f);
     vegSh.setFloat(locRange, GRASS_RANGE);
     glUniform2f(locFadeIn, 0.0f, 0.0f);
@@ -264,6 +292,7 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
             glDrawElementsInstanced(GL_TRIANGLES, bladeIdx, GL_UNSIGNED_INT, nullptr,
                                     t.count);
         }
+    }
     glBindVertexArray(0);
 
     // Far trees: baked billboard per tree, out to the map edge — every tree is

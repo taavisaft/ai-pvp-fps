@@ -29,6 +29,9 @@ struct Renderer;
 // screen-door dither (see veg.frag) — every tree is visible at every distance
 // and never pops. LOD0 trees also render into the sun shadow map.
 struct Vegetation {
+    // 3D grass is parked (user judged the blade look not worth it yet) — the tile
+    // machinery stays; flip this to bring it back once the tree pass looks right.
+    static constexpr bool  GRASS_ENABLED = false;
     static constexpr float GRASS_TILE   = 16.0f;
     static constexpr int   GRASS_RING   = 6;                    // tiles each side
     static constexpr int   GRASS_SLOTS  = 2 * GRASS_RING + 1;   // 13x13 slot pool

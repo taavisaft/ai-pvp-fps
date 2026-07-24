@@ -90,12 +90,13 @@ vec3 grassColor(vec2 p, float t) {
                       vnoise(p * 0.25 - t * 0.28)) * 0.18;
     float clump = fbm((p + wind) * 0.6);     // broad light/dark patches
     float blade = vnoise((p + wind) * 9.0);  // fine blade texture
-    vec3 dark = vec3(0.075, 0.155, 0.050);
-    vec3 lite = vec3(0.25, 0.39, 0.13);
+    // Olive-leaning bog palette (the reference taiga meadow), not lawn green.
+    vec3 dark = vec3(0.075, 0.145, 0.050);
+    vec3 lite = vec3(0.225, 0.315, 0.105);
     vec3 c = mix(dark, lite, clamp(clump * 0.85 + blade * 0.30, 0.0, 1.0));
     c += (blade - 0.5) * 0.045;              // micro contrast
-    float dry = smoothstep(0.72, 0.88, fbm(p * 0.4 + 10.0));
-    c = mix(c, vec3(0.39, 0.35, 0.16), dry * 0.32);  // dry tufts
+    float dry = smoothstep(0.55, 0.85, fbm(p * 0.4 + 10.0));
+    c = mix(c, vec3(0.36, 0.32, 0.14), dry * 0.45);  // dry straw patches
     return c;
 }
 
@@ -171,8 +172,13 @@ float terrVNoise(vec2 p) {
 float pineBiome(vec2 p) {
     float f = terrVNoise(p * 0.0016 + vec2(91.0, 47.0)) * 0.7
             + terrVNoise(p * 0.006) * 0.3;
-    float t = clamp((f - 0.45) / 0.13, 0.0, 1.0);
-    return t * t * (3.0 - 2.0 * t);
+    float t = clamp((f - 0.40) / 0.13, 0.0, 1.0);
+    float base = t * t * (3.0 - 2.0 * t);
+    // Keep in sync with pineForestBiome() in terrain.h (medium clump layer).
+    float c = terrVNoise(p * 0.008 + vec2(13.0, 77.0));
+    float u = clamp((c - 0.58) / 0.09, 0.0, 1.0);
+    float clump = u * u * (3.0 - 2.0 * u);
+    return max(base, clump * 0.85);
 }
 
 // Blend grass/dirt/rock across the heightfield by surface slope (steep -> rock),
@@ -194,13 +200,16 @@ vec3 splatTerrain(vec3 p, vec3 an) {
 
     // Large-scale "biome" mask (~250 m features): bare dirt fields vs lush grass,
     // so the ground reads as varied terrain even where it is near-flat.
+    // Kept rare and partial: the reference bog meadows are olive grass nearly
+    // everywhere — dirt shows as worn patches, not sand flats.
     float region    = fbm(p.xz * 0.004);
-    float dirtField = smoothstep(0.42, 0.60, region);
+    float dirtField = smoothstep(0.52, 0.70, region) * 0.35;
 
     float gw = (1.0 - rw) * (1.0 - dirtField);    // grass
     float dw = (1.0 - rw) * dirtField;            // dirt fields / paths
     float sum = gw + dw + rw + 1e-4;
-    vec3 col = (grassC * gw + dirtC * dw + rockC * rw) / sum;
+    // Dirt pulled toward olive so worn patches sit inside the bog's green, not on it.
+    vec3 col = (grassC * gw + dirtC * vec3(0.86, 0.90, 0.66) * dw + rockC * rw) / sum;
     float pine = pineBiome(p.xz) * (1.0 - rw);
     if (pine > 0.001) {
         // Terrain is predominantly upward-facing, so two XZ samples replace another
@@ -216,8 +225,13 @@ vec3 splatTerrain(vec3 p, vec3 an) {
 
     // Beach: below ~1.2 m the ground fades to wet sand (tinted dirt), continuing
     // under the waterline so the shallows read as seabed through the water plane.
-    float sand = 1.0 - smoothstep(0.5, 1.3, p.y);
-    col = mix(col, dirtC * vec3(1.15, 1.08, 0.88), sand);
+    // Narrow band, muddy-olive tint: inland river bogs sit near sea level too, and
+    // they must read as wet meadow, not desert (the pale tan flooded every valley).
+    float sand = 1.0 - smoothstep(0.25, 0.95, p.y);
+    // Coast-only: the shoreline lives far west (x < ~-350). Inland low ground is
+    // river bog and stays green — without this gate every valley floor went tan.
+    sand *= 1.0 - smoothstep(-600.0, -350.0, p.x);
+    col = mix(col, dirtC * vec3(0.98, 0.96, 0.72), sand);
 
     // Macro variation: large-scale brightness drift (~30 m) so the ground doesn't
     // read as one uniform repeating carpet into the distance.

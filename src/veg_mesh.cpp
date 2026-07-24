@@ -83,7 +83,7 @@ void vegBuildBlade(std::vector<float>& v, std::vector<unsigned>& idx) {
 // color jitter breaks the cone silhouette. low=true builds the mid-range LOD.
 void vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low) {
     const int   seg    = low ? 7 : 12;
-    const int   skirts = low ? 4 : 7;
+    const int   skirts = low ? 6 : 11;
     const glm::vec3 bark(0.230f, 0.160f, 0.100f);
     const glm::vec3 needleDark(0.052f, 0.100f, 0.050f);
     const glm::vec3 needleLite(0.110f, 0.200f, 0.085f);
@@ -113,17 +113,20 @@ void vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low)
         // canopy (and firing lanes exist between the trunks, DayZ-style).
         float t  = (float)k / (skirts - 1);
         float yb = 0.24f + 0.58f * t;
-        float r  = (0.33f - 0.25f * t) + 0.03f;
+        // Whole-ring scale jitter + deep per-vertex jitter: the tiers overlap and
+        // the outline breaks up — a ragged conifer cone, not a stacked pagoda.
+        float rk = 1.0f + (ghash((float)k, 23.0f) - 0.5f) * 0.22f;
+        float r  = ((0.35f - 0.27f * t) + 0.03f) * rk;
         unsigned outer[16], inner[16];
         for (int i = 0; i < seg; i++) {
             float a  = ((float)i / seg + k * 0.37f) * 6.2831853f;
             glm::vec3 d(cosf(a), 0.0f, sinf(a));
-            float jr = 1.0f + (ghash((float)(i + k * 31), 7.0f) - 0.5f) * (low ? 0.1f : 0.34f);
+            float jr = 1.0f + (ghash((float)(i + k * 31), 7.0f) - 0.5f) * (low ? 0.22f : 0.44f);
             glm::vec3 n  = glm::normalize(d * 0.6f + glm::vec3(0, 0.8f, 0));
             float shade  = 0.75f + 0.5f * ghash((float)i, (float)(k + 11));
-            outer[i] = pushV(v, d * (r * jr) + glm::vec3(0, yb - 0.045f, 0), n,
+            outer[i] = pushV(v, d * (r * jr) + glm::vec3(0, yb - 0.055f, 0), n,
                              needleLite * shade, low ? 0.08f : 0.13f);
-            inner[i] = pushV(v, d * (r * 0.18f) + glm::vec3(0, yb + 0.10f, 0),
+            inner[i] = pushV(v, d * (r * 0.18f) + glm::vec3(0, yb + 0.085f, 0),
                              glm::vec3(0, 1, 0), needleDark, 0.03f);
         }
         for (int i = 0; i < seg; i++) {

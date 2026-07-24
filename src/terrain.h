@@ -43,7 +43,12 @@ inline float terrValueNoise(float x, float z) {
 inline float pineForestBiome(float x, float z) {
     float f = terrValueNoise(x * 0.0016f + 91.0f, z * 0.0016f + 47.0f) * 0.7f
             + terrValueNoise(x * 0.006f, z * 0.006f) * 0.3f;
-    return terrSmooth(terrClamp01((f - 0.45f) / 0.13f));
+    float base = terrSmooth(terrClamp01((f - 0.40f) / 0.13f));
+    // Medium clumps (~150 m) scattered everywhere: break the km-wide meadow voids
+    // into bounded bogs — the reference always has a treeline a few hundred m out.
+    float c = terrValueNoise(x * 0.008f + 13.0f, z * 0.008f + 77.0f);
+    float clump = terrSmooth(terrClamp01((c - 0.58f) / 0.09f));
+    return fmaxf(base, clump * 0.85f);
 }
 
 // --- flattened building pads (filled deterministically by generatePaldiski) -----
