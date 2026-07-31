@@ -5,6 +5,7 @@
 in vec3  worldPos;
 in vec3  vNormal;
 in vec3  vColor;
+in vec2  vUV;
 in vec4  lightSpacePos;
 in float vCutNear;
 in float vCutFar;
@@ -25,6 +26,7 @@ uniform float exposure;
 uniform float saturation;
 
 uniform sampler2D shadowMap;
+uniform sampler2D branchTex;   // needle-spray photo, alpha cutout
 uniform int       useShadow;
 
 out vec4 fragColor;
@@ -79,8 +81,17 @@ vec3 grade(vec3 c) {
 }
 
 void main() {
+    // Branch cards: photo albedo, cut out by alpha. Trunk/blades (uv sentinel
+    // -1) shade from the vertex color alone. vColor is the card's shade jitter.
+    vec3 albedo = vColor;
+    if (vUV.x >= 0.0) {
+        vec4 t = texture(branchTex, vUV);
+        if (t.a < 0.42) discard;
+        albedo *= t.rgb;
+    }
+
     if (bake == 1) {   // impostor capture: raw albedo, lit later by the billboard
-        fragColor = vec4(vColor, 1.0);
+        fragColor = vec4(albedo, 1.0);
         return;
     }
 
@@ -95,7 +106,7 @@ void main() {
     vec3 sun     = sunColor * max(dot(n, L), 0.0)
                  * sunVisibility(n, L) * cloudShadow(worldPos.xz, time);
     vec3 ambient = mix(groundAmbient, skyZenith, n.y * 0.5 + 0.5);
-    vec3 lit3    = vColor * (sun + ambient);
+    vec3 lit3    = albedo * (sun + ambient);
 
     float dens = 1.0 + fogHeightAmt * exp(-max(worldPos.y, 0.0) / 12.0);
     float fog  = clamp(length(worldPos - eyePos) * dens / fogDist, 0.0, 1.0);

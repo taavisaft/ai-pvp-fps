@@ -34,12 +34,19 @@ float vegFbm(float x, float y) {
 }
 
 // ---- geometry builders --------------------------------------------------------
-// Vertex layout: pos(3) normal(3) color(3) flex(1) — see vegMakeVAO.
+// Vertex layout: pos(3) normal(3) color(3) flex(1) uv(2) — see vegMakeVAO.
+// uv = (-1,-1) marks an untextured vertex (trunk, grass blades): the shader then
+// shades from the vertex color alone instead of sampling the branch atlas.
+static unsigned pushVT(std::vector<float>& v, glm::vec3 p, glm::vec3 n, glm::vec3 c,
+                       float flex, glm::vec2 uv) {
+    unsigned i = (unsigned)(v.size() / 12);
+    v.insert(v.end(), {p.x, p.y, p.z, n.x, n.y, n.z, c.x, c.y, c.z, flex, uv.x, uv.y});
+    return i;
+}
+
 static unsigned pushV(std::vector<float>& v, glm::vec3 p, glm::vec3 n, glm::vec3 c,
                       float flex) {
-    unsigned i = (unsigned)(v.size() / 10);
-    v.insert(v.end(), {p.x, p.y, p.z, n.x, n.y, n.z, c.x, c.y, c.z, flex});
-    return i;
+    return pushVT(v, p, n, c, flex, {-1.0f, -1.0f});
 }
 
 // One grass instance = a tuft of three tapered blades fanned around the root
@@ -78,26 +85,33 @@ void vegBuildBlade(std::vector<float>& v, std::vector<unsigned>& idx) {
     }
 }
 
-// Procedural spruce, unit height 1 (instance scale = tree height in meters).
-// Drooping ring "skirts" of needles around a tapered trunk; per-vertex radius and
-// color jitter breaks the cone silhouette. low=true builds the mid-range LOD.
+// Textured spruce, unit height 1 (instance scale = tree height in meters).
+// DayZ-style construction: a tapered bark trunk plus branch "cards" — flat quads
+// carrying a photo of a real needle spray (textures/spruce_branch.png, alpha
+// cutout). Each branch is an X-pair: two quads crossing along the branch spine,
+// rolled +-35 deg, so a branch shows area from every view direction (one flat
+// quad vanishes edge-on). Cards sit in whorls like a real spruce; crown diameter
+// ~0.35 x height.
+// `low` is currently ignored: the card tree is ~4x cheaper than the old solid
+// cone was, and any geometric difference between LOD0 and LOD1 shows up in the
+// dither cross-fade band as a half-dissolved ghost tree (cards are sparse — a
+// dropped card has nothing to fade against). One mesh, zero ghosting; split the
+// LODs again only if vertex cost ever shows up in a profile.
 void vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low) {
-    const int   seg    = low ? 7 : 12;
-    const int   skirts = low ? 6 : 11;
-    const glm::vec3 bark(0.230f, 0.160f, 0.100f);
-    const glm::vec3 needleDark(0.052f, 0.100f, 0.050f);
-    const glm::vec3 needleLite(0.110f, 0.200f, 0.085f);
+    (void)low;
+    const glm::vec3 bark(0.320f, 0.235f, 0.165f);
+    const glm::vec3 up(0, 1, 0);
 
-    // Trunk: tapered open prism up to the first skirt.
+    // Trunk: tapered open prism, full height (visible between the card whorls).
     {
-        const int   ts = low ? 4 : 6;
+        const int ts = 6;
         unsigned b[8], t[8];
         for (int i = 0; i < ts; i++) {
             float a = (float)i / ts * 6.2831853f;
             glm::vec3 d(cosf(a), 0.0f, sinf(a));
             glm::vec3 c = bark * (0.85f + 0.3f * ghash((float)i, 3.0f));
-            b[i] = pushV(v, d * 0.022f,                  d, c, 0.0f);
-            t[i] = pushV(v, d * 0.013f + glm::vec3(0, 0.42f, 0), d, c, 0.0f);
+            b[i] = pushV(v, d * 0.020f,                          d, c, 0.0f);
+            t[i] = pushV(v, d * 0.004f + glm::vec3(0, 0.86f, 0), d, c, 0.0f);
         }
         for (int i = 0; i < ts; i++) {
             int j = (i + 1) % ts;
@@ -105,61 +119,71 @@ void vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low)
         }
     }
 
-    // Skirts: outer drooped ring -> inner ring near the trunk, two triangles per
-    // segment. Radius jitter per outer vertex gives the ragged needle edge.
-    for (int k = 0; k < skirts; k++) {
-        // Lowest skirt at 0.24 * height: a 7-9 m spruce keeps its needles above
-        // eye level, so walking through a stand doesn't fill the screen with
-        // canopy (and firing lanes exist between the trunks, DayZ-style).
-        float t  = (float)k / (skirts - 1);
-        float yb = 0.24f + 0.58f * t;
-        // Whole-ring scale jitter + deep per-vertex jitter: the tiers overlap and
-        // the outline breaks up — a ragged conifer cone, not a stacked pagoda.
-        float rk = 1.0f + (ghash((float)k, 23.0f) - 0.5f) * 0.22f;
-        float r  = ((0.35f - 0.27f * t) + 0.03f) * rk;
-        unsigned outer[16], inner[16];
-        for (int i = 0; i < seg; i++) {
-            float a  = ((float)i / seg + k * 0.37f) * 6.2831853f;
-            glm::vec3 d(cosf(a), 0.0f, sinf(a));
-            float jr = 1.0f + (ghash((float)(i + k * 31), 7.0f) - 0.5f) * (low ? 0.22f : 0.44f);
-            glm::vec3 n  = glm::normalize(d * 0.6f + glm::vec3(0, 0.8f, 0));
-            float shade  = 0.75f + 0.5f * ghash((float)i, (float)(k + 11));
-            outer[i] = pushV(v, d * (r * jr) + glm::vec3(0, yb - 0.055f, 0), n,
-                             needleLite * shade, low ? 0.08f : 0.13f);
-            inner[i] = pushV(v, d * (r * 0.18f) + glm::vec3(0, yb + 0.085f, 0),
-                             glm::vec3(0, 1, 0), needleDark, 0.03f);
+    // One branch = X-pair of quads along a drooping spine. The spray photo maps
+    // with its stem base (v=0) at the trunk, tip pointing outward.
+    auto card = [&](glm::vec3 root, glm::vec3 axis, glm::vec3 tang, float len,
+                    float halfW, glm::vec3 n, float shade, float flexTip) {
+        glm::vec3 tint = glm::vec3(shade);
+        for (int q = 0; q < 2; q++) {
+            float roll = (q == 0 ? 0.6109f : -0.6109f);   // +-35 deg
+            glm::vec3 side = tang * cosf(roll)
+                           + glm::normalize(glm::cross(axis, tang)) * sinf(roll);
+            side *= halfW;
+            glm::vec3 tip = root + axis * len;
+            unsigned i0 = pushVT(v, root - side, n, tint, 0.04f, {0, 0});
+            unsigned i1 = pushVT(v, root + side, n, tint, 0.04f, {1, 0});
+            unsigned i2 = pushVT(v, tip  - side, n, tint, flexTip, {0, 1});
+            unsigned i3 = pushVT(v, tip  + side, n, tint, flexTip, {1, 1});
+            idx.insert(idx.end(), {i0, i1, i3, i0, i3, i2});
         }
-        for (int i = 0; i < seg; i++) {
-            int j = (i + 1) % seg;
-            idx.insert(idx.end(), {outer[i], outer[j], inner[j],
-                                   outer[i], inner[j], inner[i]});
+    };
+
+    // Whorls. Lowest at 0.24 * height: a 7-9 m spruce keeps its needles above
+    // eye level, so walking through a stand doesn't fill the screen with canopy
+    // (and firing lanes exist between the trunks, DayZ-style).
+    const int whorls   = 10;
+    const int branches = 3;
+    for (int k = 0; k < whorls; k++) {
+        float t = (float)k / (whorls - 1);
+        float y = 0.24f + 0.66f * t + (ghash((float)k, 51.0f) - 0.5f) * 0.03f;
+        // Crown taper: branch length shrinks toward the top; per-branch jitter
+        // breaks the perfect cone outline.
+        float len   = (0.215f - 0.135f * t);
+        float droop = 0.42f - 0.28f * t;   // radians below horizontal, more at base
+        for (int b2 = 0; b2 < branches; b2++) {
+            float yaw = k * 2.3999f + b2 * (6.2831853f / branches)
+                      + (ghash((float)(k * 7 + b2), 13.0f) - 0.5f) * 1.1f;
+            glm::vec3 dir(cosf(yaw), 0.0f, sinf(yaw));
+            glm::vec3 tang = glm::normalize(glm::cross(up, dir));
+            glm::vec3 axis = glm::normalize(dir * cosf(droop) - up * sinf(droop));
+            float jl = len * (0.85f + 0.35f * ghash((float)(k * 31 + b2), 7.0f));
+            // Cone-shell fake normal (radial + up): flat quads with true normals
+            // would each light as one flat sheet — this shades the crown as one
+            // smooth cone instead, same trick the old skirt mesh used.
+            glm::vec3 n = glm::normalize(dir * 0.55f + up * 0.85f);
+            float shade = 1.30f + 0.60f * ghash((float)(k + b2 * 17), 29.0f);
+            card(dir * 0.012f + glm::vec3(0, y, 0), axis, tang, jl,
+                 jl * 0.40f, n, shade, 0.16f);
         }
     }
 
-    // Top spike.
+    // Leader: upright X-cross at the top, the spray photo standing as the spike.
     {
-        unsigned apex = pushV(v, {0, 1.0f, 0}, {0, 1, 0}, needleDark, 0.18f);
-        unsigned ring[16];
-        for (int i = 0; i < seg; i++) {
-            float a = (float)i / seg * 6.2831853f;
-            glm::vec3 d(cosf(a), 0.0f, sinf(a));
-            ring[i] = pushV(v, d * 0.085f + glm::vec3(0, 0.80f, 0),
-                            glm::normalize(d + glm::vec3(0, 0.7f, 0)),
-                            needleLite * 0.9f, 0.10f);
-        }
-        for (int i = 0; i < seg; i++)
-            idx.insert(idx.end(), {ring[i], ring[(i + 1) % seg], apex});
+        float h = 0.24f;
+        glm::vec3 root(0, 1.0f - h * 0.88f, 0);
+        glm::vec3 n = glm::normalize(glm::vec3(0.3f, 0.9f, 0.1f));
+        card(root, up, {1, 0, 0}, h, h * 0.34f, n, 1.15f, 0.20f);
     }
 }
 
-// VAO wiring shared by every mesh-vegetation draw: 10-float vertices plus an
+// VAO wiring shared by every mesh-vegetation draw: 12-float vertices plus an
 // 8-float-per-instance stream (two vec4 attribs, divisor 1).
 GLuint vegMakeVAO(GLuint vbo, GLuint ebo, GLuint inst) {
     GLuint vao = 0;
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    GLsizei stride = 10 * sizeof(float);
+    GLsizei stride = 12 * sizeof(float);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
     glEnableVertexAttribArray(1);
@@ -168,6 +192,8 @@ GLuint vegMakeVAO(GLuint vbo, GLuint ebo, GLuint inst) {
     glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (void*)(6 * sizeof(float)));
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, stride, (void*)(9 * sizeof(float)));
+    glEnableVertexAttribArray(6);
+    glVertexAttribPointer(6, 2, GL_FLOAT, GL_FALSE, stride, (void*)(10 * sizeof(float)));
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBindBuffer(GL_ARRAY_BUFFER, inst);
     glEnableVertexAttribArray(4);
@@ -229,6 +255,9 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH) {
         glUniform2f(veg.locFadeOut, 0.0f, 0.0f);
         veg.vegSh.setFloat(veg.vegSh.locTime, 0.0f);
         veg.vegSh.setVec3(veg.vegSh.locEye, glm::vec3(100.0f));
+        glActiveTexture(GL_TEXTURE6);
+        glBindTexture(GL_TEXTURE_2D, veg.branchTex);
+        glActiveTexture(GL_TEXTURE0);
 
         const float inst[8] = {0, 0, 0, 1, 0, 0, 1, 0};
         glBindBuffer(GL_ARRAY_BUFFER, veg.streamL0);

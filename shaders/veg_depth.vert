@@ -5,6 +5,9 @@ layout(location = 0) in vec3  aPos;
 layout(location = 3) in float aFlex;
 layout(location = 4) in vec4  iA;
 layout(location = 5) in vec4  iB;
+layout(location = 6) in vec2  aUV;
+
+out vec2 vUV;
 
 uniform mat4  lightSpace;
 uniform float time;
@@ -17,5 +20,6 @@ void main() {
             + 0.5 * sin(time * 3.7 + iB.y * 9.0);
     vec3 wp = iA.xyz + p;
     wp.xz += w * windAmp * aFlex * iA.w;
+    vUV = aUV;
     gl_Position = lightSpace * vec4(wp, 1.0);
 }

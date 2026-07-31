@@ -10,8 +10,10 @@
 struct Renderer;
 
 // Instanced vegetation for the taiga map: grass blades near the camera and a
-// spruce forest at three LODs. Everything is generated (no assets) and placed
-// deterministically from the shared terrain noise, client-side only.
+// spruce forest at three LODs. Geometry is generated; the spruce branches carry
+// one photo texture (textures/spruce_branch.png, CC0 needle spray, alpha
+// cutout). Placement is deterministic from the shared terrain noise,
+// client-side only.
 //
 // Grass: real blade geometry lives in camera-centered 16 m tiles out to ~90 m.
 // Each blade sinks smoothly into the ground approaching that range (per-blade
@@ -66,7 +68,8 @@ struct Vegetation {
     GLuint  streamL0 = 0, streamL1 = 0, streamImp = 0, streamShadow = 0;
     GLuint  vaoL0 = 0, vaoL1 = 0, vaoImp = 0, vaoShadow = 0;
     GLuint  impTex = 0;                           // baked spruce atlas
-    glm::vec2 impSize = {0.84f, 1.10f};           // world size of the bake, scale 1
+    GLuint  branchTex = 0;                        // needle-spray photo, alpha cutout
+    glm::vec2 impSize = {0.52f, 1.10f};           // world size of the bake, scale 1
 
     std::vector<Tree> trees;
     SpatialGrid       grid;

@@ -8,6 +8,7 @@ layout(location = 2) in vec3  aColor;
 layout(location = 3) in float aFlex;
 layout(location = 4) in vec4  iA;
 layout(location = 5) in vec4  iB;
+layout(location = 6) in vec2  aUV;   // (-1,-1) = untextured vertex
 
 uniform mat4  view;
 uniform mat4  proj;
@@ -25,6 +26,7 @@ uniform vec2  fadeOut;    // this LOD dithers OUT across this band (0,0 = never)
 out vec3  worldPos;
 out vec3  vNormal;
 out vec3  vColor;
+out vec2  vUV;
 out vec4  lightSpacePos;
 out float vCutNear;
 out float vCutFar;
@@ -60,6 +62,7 @@ void main() {
     // per-instance brightness jitter that breaks up the uniform green.
     vColor   = mix(aColor, vec3(0.33, 0.30, 0.14), iB.w) * iB.z;
     lightSpacePos = lightSpace * vec4(wp, 1.0);
+    vUV = aUV;
 
     vCutNear = (fadeIn.y  > fadeIn.x)  ? 1.0 - smoothstep(fadeIn.x,  fadeIn.y,  dist) : 0.0;
     vCutFar  = (fadeOut.y > fadeOut.x) ? 1.0 - smoothstep(fadeOut.x, fadeOut.y, dist) : 1.0;

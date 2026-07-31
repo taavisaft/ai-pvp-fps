@@ -1,5 +1,6 @@
 #include "vegetation.h"
 #include "renderer.h"
+#include "texture.h"
 #include "map.h"
 #include <cstdio>
 
@@ -50,7 +51,18 @@ static void drawStream(GLuint vao, GLuint stream, GLsizei idxCount,
 bool Vegetation::init(const char* base) {
     if (!loadPair(vegSh, base, "veg.vert", "veg.frag")) return false;
     if (!loadPair(impSh, base, "veg_imp.vert", "veg_imp.frag")) return false;
-    if (!loadPair(vegDepthSh, base, "veg_depth.vert", "depth.frag")) return false;
+    if (!loadPair(vegDepthSh, base, "veg_depth.vert", "veg_depth.frag")) return false;
+
+    // Needle-spray photo for the branch cards (alpha cutout). Deep mips average
+    // the cutout toward transparent and distant crowns thin out — clamp the chain.
+    char tp[600];
+    snprintf(tp, sizeof(tp), "%stextures/spruce_branch.png", base);
+    branchTex = loadTextureRGBA(tp);
+    if (!branchTex) branchTex = loadTextureRGBA("textures/spruce_branch.png");
+    if (!branchTex) { printf("[veg] missing textures/spruce_branch.png\n"); return false; }
+    glBindTexture(GL_TEXTURE_2D, branchTex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 5);
+    glBindTexture(GL_TEXTURE_2D, 0);
     locWind    = glGetUniformLocation(vegSh.program, "windAmp");
     locRange   = glGetUniformLocation(vegSh.program, "grassRange");
     locFadeIn  = glGetUniformLocation(vegSh.program, "fadeIn");
@@ -61,6 +73,10 @@ bool Vegetation::init(const char* base) {
     locImpFadeIn = glGetUniformLocation(impSh.program, "fadeIn");
     impSh.use();
     glUniform1i(glGetUniformLocation(impSh.program, "impTex"), 5);   // atlas unit
+    vegSh.use();
+    glUniform1i(glGetUniformLocation(vegSh.program, "branchTex"), 6);
+    vegDepthSh.use();
+    glUniform1i(glGetUniformLocation(vegDepthSh.program, "branchTex"), 6);
 
     std::vector<float> v;
     std::vector<unsigned> idx;
@@ -102,7 +118,7 @@ bool Vegetation::init(const char* base) {
     glVertexAttribDivisor(5, 1);
     glBindVertexArray(0);
 
-    return vegBakeImpostor(*this, 384, 512);   // caller restores the viewport
+    return vegBakeImpostor(*this, 256, 512);   // caller restores the viewport
 }
 
 // Deterministic spruce scatter: one candidate per ~7 m cell, kept by the pine
@@ -241,6 +257,9 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     vegSh.setFloat(vegSh.locCloud, r.cloudAmount);
     vegSh.setFloat(vegSh.locExposure, r.exposure);
     vegSh.setFloat(vegSh.locSaturation, r.saturation);
+    glActiveTexture(GL_TEXTURE6);
+    glBindTexture(GL_TEXTURE_2D, branchTex);
+    glActiveTexture(GL_TEXTURE0);
 
     // Tree LOD0: full mesh, dithers out across the first band.
     vegSh.setFloat(locWind, 0.05f);
@@ -341,6 +360,9 @@ void Vegetation::drawShadow(const Frustum& sunFr, const glm::vec3& focus, float 
     vegDepthSh.setMat4(vegDepthSh.locLightSpace, lightSpace);
     vegDepthSh.setFloat(vegDepthSh.locTime, time);
     glUniform1f(locWindD, 0.05f);
+    glActiveTexture(GL_TEXTURE6);
+    glBindTexture(GL_TEXTURE_2D, branchTex);
+    glActiveTexture(GL_TEXTURE0);
     drawStream(vaoShadow, streamShadow, l0Idx, bufShadow);
 }
 
@@ -369,6 +391,8 @@ void Vegetation::destroy() {
     streamL0 = streamL1 = streamImp = streamShadow = 0;
     if (impTex) glDeleteTextures(1, &impTex);
     impTex = 0;
+    if (branchTex) glDeleteTextures(1, &branchTex);
+    branchTex = 0;
     vegSh.destroy();
     impSh.destroy();
     vegDepthSh.destroy();
