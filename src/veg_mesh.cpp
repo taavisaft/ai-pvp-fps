@@ -176,6 +176,46 @@ void vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low)
     }
 }
 
+// Bush, unit height 1, width ~1.5 (instance scale = bush height in meters).
+// Same card idea as the spruce but no trunk: two tiers of photo-textured quads
+// (textures/bush_1.png) crossed around the root. Upright inner cross gives the
+// body, outward-leaning lower ring fills the base silhouette. Up-dominant fake
+// normals so undergrowth takes roughly the ground's lighting and sits in the
+// field instead of glowing against it (same reasoning as the grass blades).
+void vegBuildBush(std::vector<float>& v, std::vector<unsigned>& idx) {
+    const glm::vec3 up(0, 1, 0);
+    auto quad = [&](glm::vec3 root, glm::vec3 axis, glm::vec3 side, glm::vec3 n,
+                    float shade, float flexTip) {
+        glm::vec3 tint(shade);
+        glm::vec3 tip = root + axis;
+        unsigned i0 = pushVT(v, root - side, n, tint, 0.02f, {0, 0});
+        unsigned i1 = pushVT(v, root + side, n, tint, 0.02f, {1, 0});
+        unsigned i2 = pushVT(v, tip  - side, n, tint, flexTip, {0, 1});
+        unsigned i3 = pushVT(v, tip  + side, n, tint, flexTip, {1, 1});
+        idx.insert(idx.end(), {i0, i1, i3, i0, i3, i2});
+    };
+    // Inner tier: three near-vertical quads crossed at 60 deg.
+    for (int i = 0; i < 3; i++) {
+        float a = (float)i * 2.0944f + ghash((float)i, 91.0f) * 0.5f;
+        glm::vec3 d(cosf(a), 0.0f, sinf(a));
+        glm::vec3 lean = glm::normalize(up + d * (0.10f + 0.15f * ghash((float)i, 92.0f)));
+        glm::vec3 n = up;   // ground lighting, like the blades — never flips dark
+        quad({0, -0.02f, 0}, lean * 1.02f, d * 0.75f,
+             n, 0.95f + 0.35f * ghash((float)i, 93.0f), 0.30f);
+    }
+    // Outer tier: three shorter quads leaning outward, yaws offset between the
+    // inner ones — thickens the base so the bush reads as a mound, not a fan.
+    for (int i = 0; i < 3; i++) {
+        float a = (float)i * 2.0944f + 1.0472f + ghash((float)i, 94.0f) * 0.5f;
+        glm::vec3 d(cosf(a), 0.0f, sinf(a));
+        glm::vec3 lean = glm::normalize(up * 0.8f + d * 0.75f);
+        glm::vec3 n = up;
+        quad(d * 0.10f + glm::vec3(0, -0.02f, 0), lean * 0.70f,
+             glm::vec3(-d.z, 0, d.x) * 0.52f,
+             n, 0.85f + 0.35f * ghash((float)i, 95.0f), 0.34f);
+    }
+}
+
 // VAO wiring shared by every mesh-vegetation draw: 12-float vertices plus an
 // 8-float-per-instance stream (two vec4 attribs, divisor 1).
 GLuint vegMakeVAO(GLuint vbo, GLuint ebo, GLuint inst) {

@@ -1,1 +1,2 @@
 source: Yughues/Nobiax Branches pack 02 (#28), CC0, opengameart.org/content/branches-textures-pack-02
+bush_1: Yughues/Nobiax Branches pack 03 (#35), CC0, opengameart.org/content/branches-textures-pack-03

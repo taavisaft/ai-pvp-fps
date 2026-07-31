@@ -43,6 +43,10 @@ struct Vegetation {
     static constexpr float TREE_FADE0 = 58.0f,  TREE_L0_END = 72.0f;
     static constexpr float TREE_FADE1 = 280.0f, TREE_L1_END = 320.0f;
     static constexpr float TREE_SHADOW_RANGE = 85.0f;   // LOD0 casters around camera
+    // Bushes: one mesh, dithered fully out by BUSH_END (no impostor — undergrowth
+    // is concealment detail, not silhouette; past 150 m it wouldn't cover a pixel).
+    static constexpr float BUSH_FADE = 120.0f, BUSH_END = 150.0f;
+    static constexpr float BUSH_SHADOW_RANGE = 40.0f;
 
     struct Tree { glm::vec3 pos; float scale, yaw, tint; };
     struct GrassTile {
@@ -64,19 +68,26 @@ struct Vegetation {
     GLuint  bladeVbo = 0, bladeEbo = 0; GLsizei bladeIdx = 0;
     GLuint  l0Vbo = 0, l0Ebo = 0;       GLsizei l0Idx = 0;
     GLuint  l1Vbo = 0, l1Ebo = 0;       GLsizei l1Idx = 0;
+    GLuint  bushVbo = 0, bushEbo = 0;   GLsizei bushIdx = 0;
     GLuint  quadVbo = 0;                          // impostor corners+uv (4 verts)
     GLuint  streamL0 = 0, streamL1 = 0, streamImp = 0, streamShadow = 0;
+    GLuint  streamBush = 0, streamBushShadow = 0;
     GLuint  vaoL0 = 0, vaoL1 = 0, vaoImp = 0, vaoShadow = 0;
+    GLuint  vaoBush = 0, vaoBushShadow = 0;
     GLuint  impTex = 0;                           // baked spruce atlas
     GLuint  branchTex = 0;                        // needle-spray photo, alpha cutout
+    GLuint  bushTex = 0;                          // berry-bush photo, alpha cutout
     glm::vec2 impSize = {0.52f, 1.10f};           // world size of the bake, scale 1
 
     std::vector<Tree> trees;
+    std::vector<Tree> bushes;                     // same instance layout as trees
     SpatialGrid       grid;
+    SpatialGrid       bushGrid;
     bool              placed = false;
     GrassTile         tiles[GRASS_SLOTS][GRASS_SLOTS];
     // Instance staging, reused every frame (capacity settles, no steady-state allocs)
     std::vector<float> bufL0, bufL1, bufImp, bufShadow, bufTile;
+    std::vector<float> bufBush, bufBushShadow;
 
     bool init(const char* basePath);   // shaders + meshes + impostor bake (GL ready)
     void invalidate();                 // active map changed: drop placements/tiles
@@ -86,12 +97,14 @@ struct Vegetation {
     void destroy();
 
     void buildTrees();
+    void buildBushes();
     void rebuildTile(GrassTile& t, int tx, int tz);
 };
 
 // veg_mesh.cpp — build-time helpers.
 void   vegBuildBlade(std::vector<float>& v, std::vector<unsigned>& idx);
 void   vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low);
+void   vegBuildBush(std::vector<float>& v, std::vector<unsigned>& idx);
 GLuint vegMakeVAO(GLuint vbo, GLuint ebo, GLuint inst);   // 10-float verts + stream
 bool   vegBakeImpostor(Vegetation& veg, int texW, int texH);
 // GLSL-mirror of basic.frag's fbm (same float math) so CPU placement masks agree
