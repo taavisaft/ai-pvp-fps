@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
+#include <algorithm>
 #include <glm/gtc/matrix_transform.hpp>
 #include "platform.h"
 #include "renderer.h"
@@ -905,8 +906,26 @@ int main(int argc, char** argv) {
                           : hud.renderCpuMs + (renderMs - hud.renderCpuMs) * 0.1f;
 
         static int frameCount = 0;
+        ++frameCount;
         const char* shotPath = getenv("FPS_SHOT");
-        if (shotPath && ++frameCount == 60) { dumpFrame(renderer, shotPath); running = false; }
+        if (shotPath && frameCount == 60) { dumpFrame(renderer, shotPath); running = false; }
+        // Debug: FPS_BENCH=1 prints steady-state frame stats and quits. Skips the
+        // first 300 frames (shader compile, tree scatter, impostor bake pollute
+        // the HUD's smoothed readout), then samples 600 raw frame times.
+        if (getenv("FPS_BENCH")) {
+            static float benchMs[600];   // pre-allocated: no heap in the loop
+            static int   benchN = 0;
+            if (frameCount > 300 && benchN < 600)
+                benchMs[benchN++] = dt * 1000.0f;
+            if (benchN == 600) {
+                std::sort(benchMs, benchMs + 600);
+                float avg = 0.0f;
+                for (float m : benchMs) avg += m;
+                printf("[bench] frame ms avg %.2f  p50 %.2f  p95 %.2f  max %.2f\n",
+                       avg / 600.0f, benchMs[300], benchMs[570], benchMs[599]);
+                running = false;
+            }
+        }
     }
 
     closeConnectPrompt();

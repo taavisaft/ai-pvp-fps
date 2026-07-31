@@ -141,14 +141,14 @@ void vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low)
     // Whorls. Lowest at 0.24 * height: a 7-9 m spruce keeps its needles above
     // eye level, so walking through a stand doesn't fill the screen with canopy
     // (and firing lanes exist between the trunks, DayZ-style).
-    const int whorls   = 10;
-    const int branches = 3;
+    const int whorls   = 14;
+    const int branches = 4;
     for (int k = 0; k < whorls; k++) {
         float t = (float)k / (whorls - 1);
         float y = 0.24f + 0.66f * t + (ghash((float)k, 51.0f) - 0.5f) * 0.03f;
         // Crown taper: branch length shrinks toward the top; per-branch jitter
         // breaks the perfect cone outline.
-        float len   = (0.215f - 0.135f * t);
+        float len   = (0.195f - 0.120f * t);
         float droop = 0.42f - 0.28f * t;   // radians below horizontal, more at base
         for (int b2 = 0; b2 < branches; b2++) {
             float yaw = k * 2.3999f + b2 * (6.2831853f / branches)

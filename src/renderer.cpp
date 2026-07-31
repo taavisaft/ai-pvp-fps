@@ -398,6 +398,8 @@ void Renderer::invalidateWorldOnMapChange() {
 
 void Renderer::drawVegetation(const Frustum& fr, const glm::vec3& eye) {
     if (gTerrainMode == TERRAIN_OFF) return;   // lobby gets its miniature ring too
+    static bool noVeg = getenv("FPS_NOVEG") != nullptr;   // perf-isolation debug
+    if (noVeg) return;
     if (active == &depthShader) {
         // Sun pass (culling already off): near LOD0 trees cast shadows.
         veg.drawShadow(fr, shadowFocus, frameTime, lightSpace);
