@@ -14,6 +14,11 @@
 // The MapId enum / setMap() / mapFromName() registry stays in place so future maps
 // slot in: add an id, a generator, a name, and a setMap branch.
 
+// Defined in tree_scatter.cpp (shared): rebuild the deterministic tree scatter +
+// collision cylinders for the active map. Called at the end of setMap so server and
+// client agree without syncing. Declared (not included) to keep this header light.
+void buildTreeColliders();
+
 struct Box {
     glm::vec3 center;
     glm::vec3 half;
@@ -134,4 +139,5 @@ inline void setMap(MapId id) {
     }
     gMapBoxes    = gTownBoxes;
     gMapBoxCount = gTownBoxCount;
+    buildTreeColliders();   // deterministic tree scatter for server + client collision
 }

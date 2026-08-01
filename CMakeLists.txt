@@ -16,7 +16,8 @@ FetchContent_MakeAvailable(glm)
 
 set(SHARED_SOURCES
     src/physics.cpp
-    src/net_common.cpp)
+    src/net_common.cpp
+    src/tree_scatter.cpp)
 
 set(CLIENT_SOURCES
     src/main.cpp

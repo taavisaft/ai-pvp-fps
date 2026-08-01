@@ -42,6 +42,11 @@ struct Vegetation {
 
     static constexpr float TREE_FADE0 = 58.0f,  TREE_L0_END = 72.0f;
     static constexpr float TREE_FADE1 = 280.0f, TREE_L1_END = 320.0f;
+    // Impostor far cap: past ~1.35 km a spruce billboard is a fog-dimmed speck, and
+    // on a ridge the whole 2 km map's trees would otherwise queue as impostors every
+    // frame (CPU bucket + stream re-upload + tens of thousands of alpha quads). Cap
+    // and dither out over a band so nothing pops. Tunable — lower for more headroom.
+    static constexpr float TREE_IMP_FADE = 1350.0f, TREE_IMP_END = 1500.0f;
     static constexpr float TREE_SHADOW_RANGE = 85.0f;   // LOD0 casters around camera
     // Bushes: one mesh, dithered fully out by BUSH_END (no impostor — undergrowth
     // is concealment detail, not silhouette; past 150 m it wouldn't cover a pixel).
@@ -62,7 +67,7 @@ struct Vegetation {
     // Custom uniforms not covered by Shader's standard cache:
     GLint locWind = -1, locRange = -1, locFadeIn = -1, locFadeOut = -1, locBake = -1;
     GLint locWindD = -1;                       // vegDepthSh windAmp
-    GLint locImpSize = -1, locImpFadeIn = -1;  // impSh
+    GLint locImpSize = -1, locImpFadeIn = -1, locImpFadeOut = -1;  // impSh
 
     // Geometry: shared vertex/index buffers; one VAO per (mesh, instance stream).
     GLuint  bladeVbo = 0, bladeEbo = 0; GLsizei bladeIdx = 0;

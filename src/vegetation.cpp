@@ -2,6 +2,7 @@
 #include "renderer.h"
 #include "texture.h"
 #include "map.h"
+#include "tree_scatter.h"
 #include <cstdio>
 
 // GLSL smoothstep twin (terrSmooth(terrClamp01()) is the same cubic).
@@ -75,8 +76,9 @@ bool Vegetation::init(const char* base) {
     locFadeOut = glGetUniformLocation(vegSh.program, "fadeOut");
     locBake    = glGetUniformLocation(vegSh.program, "bake");
     locWindD   = glGetUniformLocation(vegDepthSh.program, "windAmp");
-    locImpSize   = glGetUniformLocation(impSh.program, "impSize");
-    locImpFadeIn = glGetUniformLocation(impSh.program, "fadeIn");
+    locImpSize    = glGetUniformLocation(impSh.program, "impSize");
+    locImpFadeIn  = glGetUniformLocation(impSh.program, "fadeIn");
+    locImpFadeOut = glGetUniformLocation(impSh.program, "fadeOut");
     impSh.use();
     glUniform1i(glGetUniformLocation(impSh.program, "impTex"), 5);   // atlas unit
     vegSh.use();
@@ -140,60 +142,20 @@ bool Vegetation::init(const char* base) {
 void Vegetation::buildTrees() {
     placed = true;
     trees.clear();
-    if (gMapId == MAP_LOBBY) {
-        // Lobby counterpart of the taiga forest (every feature ships here in
-        // miniature): a loose spruce ring outside the pad, firing lane kept clear.
-        for (int i = 0; i < 40; i++) {
-            float a  = (i / 40.0f + (mapRand(i, 1, 61) - 0.5f) * 0.02f) * 6.2831853f;
-            float rr = 34.0f + mapRand(i, 2, 62) * 22.0f;
-            float x = cosf(a) * rr, z = sinf(a) * rr;
-            if (x > 8.0f && fabsf(z) < 16.0f) continue;   // range lane to the wall
-            Tree t;
-            t.pos   = {x, terrainHeight(x, z) - 0.15f, z};
-            t.scale = mapRand(i, 3, 63) < 0.4f ? 2.5f + mapRand(i, 4, 64) * 2.0f
-                                               : 6.5f + mapRand(i, 4, 64) * 4.0f;
-            t.yaw   = mapRand(i, 5, 65) * 6.2831853f;
-            t.tint  = 0.82f + mapRand(i, 6, 66) * 0.36f;
-            trees.push_back(t);
-        }
-        grid.init(LOBBY_HALF, 16, 0.0f, 40.0f);
-        for (int i = 0; i < (int)trees.size(); i++)
-            grid.insert(trees[i].pos.x, trees[i].pos.z, i);
-        return;
-    }
-    const float STEP = 5.0f;
-    const int n = (int)(2.0f * PALDISKI_HALF / STEP);
-    for (int iz = 0; iz < n; iz++)
-        for (int ix = 0; ix < n; ix++) {
-            float x = -PALDISKI_HALF + (ix + 0.5f) * STEP + (mapRand(ix, iz, 41) - 0.5f) * 4.2f;
-            float z = -PALDISKI_HALF + (iz + 0.5f) * STEP + (mapRand(ix, iz, 42) - 0.5f) * 4.2f;
-            // Squared term packs the patch cores tight (~5 m spacing) while the
-            // linear tail keeps thin stands and lone stragglers on the meadows.
-            float b = pineForestBiome(x, z);
-            float dens = b * b * 2.2f + b * 0.30f + 0.045f;
-            if (mapRand(ix, iz, 43) > dens) continue;
-            float h = terrainHeight(x, z);
-            if (h < 1.6f || h > 95.0f) continue;
-            float gx = (terrainHeight(x + 2.0f, z) - terrainHeight(x - 2.0f, z)) * 0.25f;
-            float gz = (terrainHeight(x, z + 2.0f) - terrainHeight(x, z - 2.0f)) * 0.25f;
-            if (gx * gx + gz * gz > 0.30f) continue;
-            Tree t;
-            t.pos = {x, h - 0.15f, z};
-            // Stand cores are mature forest; edges and open bog skew young — the
-            // reference meadows are dotted with 2-4 m saplings, not full spruces.
-            float r     = mapRand(ix, iz, 44);
-            float young = 2.2f + r * 2.6f;               // 2.2-4.8 m sapling
-            float grown = 6.5f + r * 5.0f;               // 6.5-11.5 m stand tree
-            float pYoung = b < 0.35f ? 0.78f : 0.18f;    // meadow vs core mix
-            t.scale = mapRand(ix, iz, 47) < pYoung ? young : grown;
-            t.yaw   = mapRand(ix, iz, 45) * 6.2831853f;
-            t.tint  = 0.82f + mapRand(ix, iz, 46) * 0.36f;
-            trees.push_back(t);
-        }
-    grid.init(PALDISKI_HALF, 32, 0.0f, 110.0f);
+    // Placement now lives in tree_scatter.cpp (shared with the server, so collision
+    // matches). setMap() fills gTrees; consume it here for the rendered instances.
+    if (gTrees.empty()) buildTreeColliders();   // safety if drawn before a setMap
+    trees.reserve(gTrees.size());
+    for (const TreeInstance& g : gTrees)
+        trees.push_back({{g.x, g.y, g.z}, g.scale, g.yaw, g.tint});
+
+    float half  = (gMapId == MAP_LOBBY) ? LOBBY_HALF : PALDISKI_HALF;
+    int   cells = (gMapId == MAP_LOBBY) ? 16 : 32;
+    float yMax  = (gMapId == MAP_LOBBY) ? 40.0f : 110.0f;
+    grid.init(half, cells, 0.0f, yMax);
     for (int i = 0; i < (int)trees.size(); i++)
         grid.insert(trees[i].pos.x, trees[i].pos.z, i);
-    printf("[veg] scattered %d trees\n", (int)trees.size());
+    printf("[veg] %d trees (shared scatter)\n", (int)trees.size());
 }
 
 // Deterministic bush scatter, forest-edge biased: b*(1-b) peaks where the pine
@@ -294,13 +256,13 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     // Bucket visible trees by distance. Buckets OVERLAP across the fade bands —
     // both LODs of a transitioning tree draw, split per-pixel by the dither.
     bufL0.clear(); bufL1.clear(); bufImp.clear(); bufBush.clear();
-    grid.forEachVisible(fr, [&](int i) {
+    grid.forEachVisibleWithin(fr, eye, TREE_IMP_END, [&](int i) {
         const Tree& t = trees[i];
         glm::vec3 d = t.pos - eye;
         float dist = sqrtf(glm::dot(d, d));
         if (dist < TREE_L0_END) pushTree(bufL0, t);
         if (dist > TREE_FADE0 && dist < TREE_L1_END) pushTree(bufL1, t);
-        if (dist > TREE_FADE1) pushTree(bufImp, t);
+        if (dist > TREE_FADE1 && dist < TREE_IMP_END) pushTree(bufImp, t);
     });
     bushGrid.forEachVisible(fr, [&](int i) {
         const Tree& t = bushes[i];
@@ -413,6 +375,7 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
         impSh.setFloat(impSh.locSaturation, r.saturation);
         glUniform2f(locImpSize, impSize.x, impSize.y);
         glUniform2f(locImpFadeIn, TREE_FADE1, TREE_L1_END);
+        glUniform2f(locImpFadeOut, TREE_IMP_FADE, TREE_IMP_END);
         glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D, impTex);
         glActiveTexture(GL_TEXTURE0);

@@ -1,5 +1,6 @@
 #include "physics.h"
 #include "map.h"
+#include "tree_scatter.h"
 #include "playerpose.h"
 #include <cmath>
 #include <cstdlib>
@@ -189,6 +190,24 @@ static void collideXZ(Player& p) {
     if (p.pos.z < -gArenaHalf) p.pos.z = -gArenaHalf;
 }
 
+// Push the footprint out of tree trunks: radial cylinder resolve, same authority as
+// box collision (runs on server + client prediction). Trees are point+radius, so the
+// nearest surface is always radially outward — no least-overlap axis choice needed.
+static constexpr float TREE_QUERY_R = FOOT_R + 0.7f;  // covers the fattest trunk flare
+static void collideTrees(Player& p) {
+    gTreeColGrid.forEachNear(p.pos.x, p.pos.z, TREE_QUERY_R, [&](int i) {
+        const TreeCol& t = gTreeCols[i];
+        float dx = p.pos.x - t.x, dz = p.pos.z - t.z;
+        float rr = FOOT_R + t.r;
+        float d2 = dx * dx + dz * dz;
+        if (d2 >= rr * rr) return;
+        if (d2 < 1e-6f) { p.pos.x += rr; return; }   // dead-centre: shove out on X
+        float d = sqrtf(d2), push = rr - d;
+        p.pos.x += dx / d * push;
+        p.pos.z += dz / d * push;
+    });
+}
+
 void movePlayer(Player& p, const InputState& in, float dt) {
     glm::vec3 forward = glm::normalize(glm::vec3(
         cos(glm::radians(in.yaw)), 0, sin(glm::radians(in.yaw))));
@@ -231,6 +250,7 @@ void movePlayer(Player& p, const InputState& in, float dt) {
         p.velY  = 0.0f;
     }
     collideXZ(p);
+    collideTrees(p);
 
     // Wade limit: the sea (terrain below SEA_LEVEL) is walkable to waist depth, then
     // acts as a wall. Resolve per axis so the shoreline slides like box collision.

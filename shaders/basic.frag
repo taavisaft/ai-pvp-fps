@@ -85,16 +85,25 @@ float fbm(vec2 p) {
 // FUTURE: when 3D instanced blades land, keep this as the far-LOD/ground fallback
 // (near = blades, far = this). The greens, clump scale, blade freq and wind speed
 // below are the shared "grass look" — match the blade shader to them.
+// Procedural-detail band-limit: 0 up close, 1 in the mid distance (set in main from
+// camera distance). High-frequency analytic noise (grass blades, etc.) is not
+// mip-filtered, so past a few tens of metres it aliases into crawling sparkle —
+// fade such detail to its mean by gProc. Declared here: grassColor uses it.
+float gProc = 0.0;
 vec3 grassColor(vec2 p, float t) {
     vec2 wind  = vec2(vnoise(p * 0.25 + t * 0.35),
                       vnoise(p * 0.25 - t * 0.28)) * 0.18;
     float clump = fbm((p + wind) * 0.6);     // broad light/dark patches
     float blade = vnoise((p + wind) * 9.0);  // fine blade texture
+    // Collapse the fine blade detail to its mean (0.5) with distance: undersampled
+    // at range, it is the terrain's worst sparkle source. clump is low-frequency
+    // enough to keep. gProc is 0 near the camera so close grass stays crisp.
+    blade = mix(blade, 0.5, gProc);
     // Olive-leaning bog palette (the reference taiga meadow), not lawn green.
     vec3 dark = vec3(0.075, 0.145, 0.050);
     vec3 lite = vec3(0.225, 0.315, 0.105);
     vec3 c = mix(dark, lite, clamp(clump * 0.85 + blade * 0.30, 0.0, 1.0));
-    c += (blade - 0.5) * 0.045;              // micro contrast
+    c += (blade - 0.5) * 0.045;              // micro contrast (also fades via blade)
     float dry = smoothstep(0.55, 0.85, fbm(p * 0.4 + 10.0));
     c = mix(c, vec3(0.36, 0.32, 0.14), dry * 0.45);  // dry straw patches
     return c;
@@ -140,12 +149,30 @@ vec3 axisBlend(vec3 p) {
 // macro sample so distant terrain holds still.
 float gFar = 0.0;
 vec3 antiTile(sampler2D s, vec3 p, float tile, vec3 an) {
-    vec3 a = triplanarTex(s, p, tile,        an);
-    vec3 b = triplanarTex(s, p, tile * 3.17, an);
-    vec3 fine = mix(a, b, 0.5);
+    vec3 a = triplanarTex(s, p, tile, an);
+    // Second tap rotated ~37 deg AND at a wider, non-integer scale ratio. The
+    // rotation decorrelates the two grids so they no longer beat into a tight,
+    // camera-crawling moire; the lower blend weight shrinks whatever remains.
+    vec3 pr = vec3(p.x * 0.799 - p.z * 0.602, p.y, p.x * 0.602 + p.z * 0.799);
+    vec3 b = triplanarTex(s, pr, tile * 4.63, an);
+    vec3 fine = mix(a, b, 0.34);
     if (gFar <= 0.0) return fine;
     vec3 macro = textureLod(s, p.xz / (tile * 23.0), 4.0).rgb;
     return mix(fine, macro, gFar);
+}
+
+// Height-aware two-layer blend: instead of a linear albedo cross-fade (which reads
+// muddy — both layers half-visible through the seam), let the "taller" surface win
+// per-pixel over a narrow band, so rock pokes through grass at edges. Texture
+// luminance is a cheap stand-in for a real height map. t = weight toward c2.
+vec3 heightBlend(vec3 c1, vec3 c2, float t) {
+    float h1 = dot(c1, vec3(0.299, 0.587, 0.114)) + (1.0 - t);
+    float h2 = dot(c2, vec3(0.299, 0.587, 0.114)) + t;
+    const float depth = 0.28;
+    float ma = max(h1, h2) - depth;
+    float b1 = max(h1 - ma, 0.0);
+    float b2 = max(h2 - ma, 0.0);
+    return (c1 * b1 + c2 * b2) / max(b1 + b2, 1e-4);
 }
 
 vec3 triplanar(vec3 p, float tile) {
@@ -205,11 +232,13 @@ vec3 splatTerrain(vec3 p, vec3 an) {
     float region    = fbm(p.xz * 0.004);
     float dirtField = smoothstep(0.52, 0.70, region) * 0.35;
 
-    float gw = (1.0 - rw) * (1.0 - dirtField);    // grass
-    float dw = (1.0 - rw) * dirtField;            // dirt fields / paths
-    float sum = gw + dw + rw + 1e-4;
     // Dirt pulled toward olive so worn patches sit inside the bog's green, not on it.
-    vec3 col = (grassC * gw + dirtC * vec3(0.86, 0.90, 0.66) * dw + rockC * rw) / sum;
+    // Height-aware blends: grass<->dirt at ground level, then rock poking through the
+    // result. Crisper interlocking seams than the old linear albedo average, which
+    // left both layers half-transparent through every transition (the "muddy" read).
+    vec3 dirtCol = dirtC * vec3(0.86, 0.90, 0.66);
+    vec3 ground  = heightBlend(grassC, dirtCol, dirtField);
+    vec3 col     = heightBlend(ground, rockC, rw);
     float pine = pineBiome(p.xz) * (1.0 - rw);
     if (pine > 0.001) {
         // Terrain is predominantly upward-facing, so two XZ samples replace another
@@ -247,7 +276,9 @@ vec3 splatTerrain(vec3 p, vec3 an) {
 }
 
 void main() {
-    gFar = (lit == 1) ? smoothstep(150.0, 550.0, length(worldPos - eyePos)) : 0.0;
+    float camDist = length(worldPos - eyePos);
+    gFar  = (lit == 1) ? smoothstep(150.0, 550.0, camDist) : 0.0;
+    gProc = (lit == 1) ? smoothstep(30.0, 140.0, camDist) : 0.0;
     vec3 c = color;
     if (lit == 1 && useFacade == 1) {
         vec4 texel = texture(diffuseMap, vUV);

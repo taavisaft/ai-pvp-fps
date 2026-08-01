@@ -11,6 +11,7 @@ uniform mat4  proj;
 uniform vec3  eyePos;
 uniform vec2  impSize;   // world width/height of the baked box at scale 1
 uniform vec2  fadeIn;    // dither-in band (complements mesh LOD1's fade-out)
+uniform vec2  fadeOut;   // far dither-out band toward the impostor cap (x<y = active)
 
 out vec3  worldPos;
 out vec2  vUV;
@@ -28,6 +29,10 @@ void main() {
     vUV      = aUV;
     vTint    = iB.z;
     float dist = length(iA.xyz - eyePos);
-    vCutNear = (fadeIn.y > fadeIn.x) ? 1.0 - smoothstep(fadeIn.x, fadeIn.y, dist) : 0.0;
+    float cutNear = (fadeIn.y > fadeIn.x) ? 1.0 - smoothstep(fadeIn.x, fadeIn.y, dist) : 0.0;
+    float cutFar  = (fadeOut.y > fadeOut.x) ? smoothstep(fadeOut.x, fadeOut.y, dist) : 0.0;
+    // Threshold rises at both ends of the impostor's range; more fragments dither
+    // away as the tree nears the near hand-off or the far cap. Nothing pops.
+    vCutNear = max(cutNear, cutFar);
     gl_Position = proj * view * vec4(wp, 1.0);
 }
