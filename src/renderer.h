@@ -66,6 +66,7 @@ struct Renderer {
     Mesh   terrain;        // small lobby heightfield (rebuilt on map switch)
     TerrainChunks taigaTerrain;  // chunked LOD 2 km ground + mountain vista
     Vegetation    veg;           // instanced grass + LOD spruce forest (taiga only)
+    Mesh   stand;
     Mesh   quad2d;   // unit quad for HUD rects
     Font   font;     // bitmap text, HUD pass only
     MaterialLib materials;
@@ -84,6 +85,7 @@ struct Renderer {
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color);
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, MaterialId mat);
     void  drawCubeModel(const glm::mat4& model, const glm::vec3& color);  // oriented (gun)
+    void  drawMesh(const Mesh& m, const glm::vec3& pos, MaterialId mat);
     // Alpha-blended oriented cube for debug overlays (hitbox view). Depth-tested but
     // not depth-written; lit-pass only — never call during the shadow pass.
     void  drawCubeModelTranslucent(const glm::mat4& model, const glm::vec3& color,

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include "terrain.h"
+#include "stand_col.h"
 
 // Static map geometry, shared by server (collision) and client (collision + render).
 // One map exists today: PALDISKI, a 500x500 m Estonian coastal town — sea on the
@@ -91,6 +92,11 @@ inline void generatePaldiski() {
 inline constexpr float LOBBY_HALF        = 60.0f;
 inline constexpr float LOBBY_WALL_FACE   = 25.4f;  // target wall front plane (x)
 inline constexpr float LOBBY_BULLSEYE_Y  = 1.7f;   // aim-cross height (standing eyes)
+inline constexpr float LOBBY_STAND_X     = -6.0f;
+inline constexpr float LOBBY_STAND_Z     = -13.0f;
+
+inline int gStandBoxFirst = 0;
+inline int gStandBoxCount = 0;
 
 inline void generateLobby() {
     gTownBoxCount      = 0;
@@ -103,6 +109,14 @@ inline void generateLobby() {
     townPush({{ 6.0f, 0.8f,  8.0f}, {0.8f, 0.8f, 0.8f}}, SURF_WOOD);
     townPush({{ 9.0f, 0.8f,  8.0f}, {0.8f, 0.8f, 0.8f}}, SURF_WOOD);
     townPush({{-8.0f, 1.25f, 6.0f}, {3.0f, 1.25f, 1.25f}}, SURF_METAL);
+    float sy = terrainHeight(LOBBY_STAND_X, LOBBY_STAND_Z);
+    gStandBoxFirst = gTownBoxCount;
+    for (int i = 0; i < STAND_COL_COUNT; i++) {
+        const float* c = STAND_COL[i];
+        townPush({{LOBBY_STAND_X + c[0], sy + c[1], LOBBY_STAND_Z + c[2]},
+                  {c[3], c[4], c[5]}}, SURF_WOOD);
+    }
+    gStandBoxCount = gTownBoxCount - gStandBoxFirst;
     gMapSpawns[gMapSpawnCount++] = {12.0f, 0.0f, 0.0f};   // firing line, faces the wall
 }
 
@@ -129,13 +143,13 @@ inline void setMap(MapId id) {
     gMapId = id;
     // Future maps add their generator + clamp + terrain mode as branches here.
     if (id == MAP_LOBBY) {
-        generateLobby();
         gTerrainMode = TERRAIN_LOBBY;
         gArenaHalf   = LOBBY_HALF;
+        generateLobby();
     } else {
-        generatePaldiski();
         gTerrainMode = TERRAIN_PALDISKI;
         gArenaHalf   = PALDISKI_HALF;
+        generatePaldiski();
     }
     gMapBoxes    = gTownBoxes;
     gMapBoxCount = gTownBoxCount;

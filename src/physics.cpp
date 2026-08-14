@@ -178,6 +178,8 @@ static void collideXZ(Player& p) {
         const Box& b = gMapBoxes[i];
         float top = b.center.y + b.half.y;
         if (p.pos.y >= top - 0.05f) continue;  // on/above the box → no side push
+        float clearance = (p.crouched ? CROUCH_HEIGHT : STAND_HEIGHT) + 0.1f;
+        if (b.center.y - b.half.y > p.pos.y + clearance) continue;
         float dx = (b.half.x + FOOT_R) - fabsf(p.pos.x - b.center.x);
         float dz = (b.half.z + FOOT_R) - fabsf(p.pos.z - b.center.z);
         if (dx <= 0.0f || dz <= 0.0f) continue;

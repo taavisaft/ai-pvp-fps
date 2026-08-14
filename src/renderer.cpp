@@ -1,5 +1,6 @@
 #include "renderer.h"
 #include "map.h"
+#include "stand_mesh.h"
 #include "texture.h"
 #include <cstdio>
 #include <glm/gtc/matrix_transform.hpp>
@@ -78,6 +79,8 @@ bool Renderer::init(const char* title, int w, int h) {
 
     if (!createUnitCube(cube)) return false;
     if (!createGroundQuad(ground)) return false;
+    if (!stand.create(STAND_VERTS, sizeof(STAND_VERTS) / sizeof(float),
+                      STAND_IDX, STAND_IDX_COUNT)) return false;
     // Heightfield mesh: setMap must have run first (pads + terrain mode set) so the
     // mesh matches the ground the server simulates.
     // The 2 km taiga ground is chunk-built lazily (taigaTerrain); this single mesh
@@ -361,6 +364,13 @@ void Renderer::drawCube(const glm::vec3& center, const glm::vec3& scale, Materia
     cube.draw();
 }
 
+void Renderer::drawMesh(const Mesh& m, const glm::vec3& pos, MaterialId mat) {
+    bindMaterial(*active, materials, mat);
+    active->setMat4(active->locModel, glm::translate(glm::mat4(1.0f), pos));
+    active->setVec3(active->locColor, glm::vec3(1.0f));
+    m.draw();
+}
+
 void Renderer::drawCubeModel(const glm::mat4& model, const glm::vec3& color) {
     bindFlatColor(*active);
     active->setMat4(active->locModel, model);
@@ -501,6 +511,7 @@ void Renderer::shutdown() {
     terrain.destroy();
     taigaTerrain.destroy();
     ground.destroy();
+    stand.destroy();
     cube.destroy();
     shader.destroy();
     skyShader.destroy();

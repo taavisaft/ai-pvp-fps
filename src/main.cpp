@@ -14,6 +14,7 @@
 #include "physics.h"
 #include "network.h"
 #include "map.h"
+#include "stand_mesh.h"
 #include "hud.h"
 #include "audio.h"
 #include "material.h"
@@ -32,7 +33,8 @@ static const glm::vec3 COLOR_BULLET_ENEMY = {1.00f, 0.40f, 0.10f};
 // struck (ground, cover, walls). Stamped from the local sim offline and from the
 // server's PKT_IMPACT online, so every world detail shows hits, not just the range wall.
 struct Decal { glm::vec3 pos; glm::vec3 normal; };
-static const glm::vec3 COLOR_DECAL = {1.0f, 0.85f, 0.20f};   // matches the old range-wall marks
+static const glm::vec3 COLOR_DECAL_HOLE = {0.05f, 0.04f, 0.03f};
+static const glm::vec3 COLOR_DECAL_HALO = {0.52f, 0.40f, 0.24f};
 // Axis-aligned normals, indexed by the protocol's ImpactDir code (IMP_PX..IMP_NZ).
 static const glm::vec3 IMPACT_DIRS[6] = {
     {1,0,0}, {-1,0,0}, {0,1,0}, {0,-1,0}, {0,0,1}, {0,0,-1},
@@ -131,12 +133,25 @@ static void drawDecal(Renderer& r, const Decal& d) {
     // Columns ordered (bz, n, bx) so the basis is right-handed (det +1): with the
     // left-handed order the outward broad face winds backwards and back-face culling
     // drops it, leaving only the thin rim visible. n is the short (thickness) axis.
+    float h = fabsf(sinf(d.pos.x * 12.9898f + d.pos.y * 37.719f + d.pos.z * 78.233f)
+                    * 43758.5453f);
+    h -= floorf(h);
+    float a    = h * 6.2831853f;
+    glm::vec3 rx = bx * cosf(a) + bz * sinf(a);
+    glm::vec3 rz = bz * cosf(a) - bx * sinf(a);
+    float halo = 0.020f + h * 0.014f;
     glm::mat4 m(1.0f);
-    m[0] = glm::vec4(bz * 0.14f, 0.0f);
-    m[1] = glm::vec4(n  * 0.02f, 0.0f);
-    m[2] = glm::vec4(bx * 0.14f, 0.0f);
-    m[3] = glm::vec4(d.pos + n * 0.02f, 1.0f);    // sit proud of the surface (no z-fight)
-    r.drawCubeModel(m, COLOR_DECAL);
+    m[0] = glm::vec4(rz * halo, 0.0f);
+    m[1] = glm::vec4(n  * 0.003f, 0.0f);
+    m[2] = glm::vec4(rx * (halo * (0.7f + h * 0.5f)), 0.0f);
+    m[3] = glm::vec4(d.pos + n * 0.004f, 1.0f);   // sit proud of the surface (no z-fight)
+    r.drawCubeModel(m, COLOR_DECAL_HALO);
+    float hole = 0.009f;
+    m[0] = glm::vec4(rz * hole, 0.0f);
+    m[1] = glm::vec4(n  * 0.003f, 0.0f);
+    m[2] = glm::vec4(rx * hole, 0.0f);
+    m[3] = glm::vec4(d.pos + n * 0.007f, 1.0f);
+    r.drawCubeModel(m, COLOR_DECAL_HOLE);
 }
 
 // Renders a player from the shared pose builder (playerpose.h): FK spine, IK arms
@@ -185,10 +200,20 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
         // Flat pad + plain material boxes (target wall, test cover).
         r.drawTerrain(fr, eye);
         for (int i = 0; i < gMapBoxCount; i++) {
+            if (i >= gStandBoxFirst && i < gStandBoxFirst + gStandBoxCount) continue;
             const Box& b = gMapBoxes[i];
             if (!fr.aabbVisible(b.center, b.half)) continue;
             r.drawCube(b.center, b.half * 2.0f, mapBoxMaterial(i));
         }
+        glm::vec3 sp = {LOBBY_STAND_X, terrainHeight(LOBBY_STAND_X, LOBBY_STAND_Z),
+                        LOBBY_STAND_Z};
+        glm::vec3 sc = sp + glm::vec3(STAND_MIN[0] + STAND_MAX[0],
+                                      STAND_MIN[1] + STAND_MAX[1],
+                                      STAND_MIN[2] + STAND_MAX[2]) * 0.5f;
+        glm::vec3 sh = glm::vec3(STAND_MAX[0] - STAND_MIN[0],
+                                 STAND_MAX[1] - STAND_MIN[1],
+                                 STAND_MAX[2] - STAND_MIN[2]) * 0.5f;
+        if (fr.aabbVisible(sc, sh)) r.drawMesh(r.stand, sp, MAT_WOOD);
     } else {
         r.drawTerrain(fr, eye);
     }
