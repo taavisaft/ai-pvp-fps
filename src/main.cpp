@@ -157,10 +157,10 @@ static void drawDecal(Renderer& r, const Decal& d) {
 // Renders a player from the shared pose builder (playerpose.h): FK spine, IK arms
 // onto the weapon grips, the weapon, IK legs — the very same oriented boxes the server
 // hit-tests, just colored by part here. Aim pitch tilts the head + gun, lean rolls the
-// upper body, crouch squashes vertically, feet plant on the terrain with a
+// upper body, crouch lowers the hips and bends the knees, feet plant on terrain with a
 // speed-scaled walk stride.
 static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, float pitch,
-                               float lean, uint8_t weaponId, bool crouched, float ads,
+                               float lean, uint8_t weaponId, float crouch, float ads,
                                float phase, float amp, const glm::vec3& bodyCol) {
     const glm::vec3 limb     = bodyCol * 0.85f;
     const glm::vec3 skin     = {0.90f, 0.78f, 0.62f};
@@ -169,7 +169,7 @@ static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, flo
     const glm::vec3 gunDark  = {0.20f, 0.20f, 0.23f};
 
     PoseBox boxes[MAX_POSE_BOXES];
-    int n = buildPlayerPose(pos, yaw, pitch, lean, weaponId, crouched, ads, phase, amp,
+    int n = buildPlayerPose(pos, yaw, pitch, lean, weaponId, crouch, ads, phase, amp,
                             boxes);
     for (int i = 0; i < n; i++) {
         glm::vec3 c;
@@ -200,7 +200,7 @@ static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, flo
 // cosmetic ground blobs / aim cross, which are added in the main pass only).
 static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
                               const float* walkPhase, const float* walkAmp,
-                              const float* adsAnim, bool showLocal,
+                              const float* crouchAnim, const float* adsAnim, bool showLocal,
                               const Ragdoll* ragdolls,
                               const Frustum& fr, const glm::vec3& eye) {
     if (gMapId == MAP_LOBBY) {
@@ -233,7 +233,7 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
             continue;
         }
         const Player& pl = gs.players[i];
-        drawPlayerSkeleton(r, pl.pos, pl.yaw, pl.pitch, pl.lean, pl.weaponId, pl.crouched,
+        drawPlayerSkeleton(r, pl.pos, pl.yaw, pl.pitch, pl.lean, pl.weaponId, crouchAnim[i],
                            adsAnim[i], walkPhase[i], walkAmp[i], COLOR_ENEMY);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
@@ -250,7 +250,8 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
                         const Decal* decals, int decalCount,
                         const ConnectPrompt& connectPrompt, const Lobby& lobby,
                         const float* walkPhase, const float* walkAmp,
-                        const float* adsAnim, bool showHitboxes, bool fullMap, bool showHud,
+                        const float* crouchAnim, const float* adsAnim,
+                        bool showHitboxes, bool fullMap, bool showHud,
                         bool thirdPerson, const Ragdoll* ragdolls) {
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
 
@@ -259,14 +260,16 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     // Pass 1: scene depth from the sun, focused on the camera (near-field shadows).
     r.beginShadowPass(cam.eye);
     Frustum sunFr = Frustum::fromVP(r.lightSpace);
-    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, thirdPerson, ragdolls, sunFr, cam.eye);
+    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, crouchAnim, adsAnim,
+                      thirdPerson, ragdolls, sunFr, cam.eye);
     r.endShadowPass();
 
     // Pass 2: lit main view, sampling the shadow map built above.
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
     r.drawSky(cam.view(), cam.proj(r.aspect()));
     Frustum camFr = Frustum::fromVP(cam.proj(r.aspect()) * cam.view());
-    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, adsAnim, thirdPerson, ragdolls, camFr, cam.eye);
+    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, crouchAnim, adsAnim,
+                      thirdPerson, ragdolls, camFr, cam.eye);
     r.drawWater();   // translucent Baltic, after all opaque world geometry
 
     if (gMapId == MAP_LOBBY) {
@@ -464,6 +467,7 @@ int main(int argc, char** argv) {
     // with horizontal speed derived from the interpolated render positions.
     float     walkPhase[MAX_PLAYERS] = {0};
     float     walkAmp[MAX_PLAYERS]   = {0};   // smoothed 0..1 move amount
+    float     crouchAnim[MAX_PLAYERS] = {0};  // smoothed 0..1 visible stance
     float     adsAnim[MAX_PLAYERS]   = {0};   // smoothed 0..1 aim-down-sights pose
     float     walkSpeed[MAX_PLAYERS] = {0};   // smoothed horizontal speed (m/s)
     glm::vec3 prevPlayerPos[MAX_PLAYERS];
@@ -769,7 +773,17 @@ int main(int argc, char** argv) {
         }
         net.impactQCount = 0;
 
-        float eyeH = shown->players[localID].crouched ? CROUCH_EYE : EYE_HEIGHT;
+        // Stance is authoritative immediately, but human bodies do not change height
+        // in one frame. Ease both the first-person eye and every rendered skeleton.
+        float crouchK = dt * CROUCH_LERP_SPEED;
+        if (crouchK > 1.0f) crouchK = 1.0f;
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            bool visible = (shown->usedMask & (1u << i)) && shown->players[i].alive;
+            if (!visible) { crouchAnim[i] = 0.0f; continue; }
+            float target = shown->players[i].crouched ? 1.0f : 0.0f;
+            crouchAnim[i] += (target - crouchAnim[i]) * crouchK;
+        }
+        float eyeH = glm::mix(EYE_HEIGHT, CROUCH_EYE, crouchAnim[localID]);
         cam.eye = shown->players[localID].pos + glm::vec3(0, eyeH, 0);
 
         const Player& own = shown->players[localID];
@@ -950,7 +964,7 @@ int main(int argc, char** argv) {
         Uint64 renderStart = SDL_GetPerformanceCounter();
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
                     decals, decalCount, connectPrompt, lobby, walkPhase, walkAmp,
-                    adsAnim, showHitboxes, fullMap, showHud, thirdPerson, ragdolls);
+                    crouchAnim, adsAnim, showHitboxes, fullMap, showHud, thirdPerson, ragdolls);
         float renderMs = (float)(SDL_GetPerformanceCounter() - renderStart) * 1000.0f /
                          (float)SDL_GetPerformanceFrequency();
         hud.renderCpuMs = hud.renderCpuMs <= 0.0f ? renderMs

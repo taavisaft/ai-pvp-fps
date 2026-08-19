@@ -24,7 +24,10 @@ constexpr int   UDP_PORT       = 7777;
 constexpr int   LOBBY_SCAN_PORTS = 8;    // lobby probes UDP_PORT .. UDP_PORT+7
 
 constexpr float EYE_HEIGHT     = 1.7f;
-constexpr float CROUCH_EYE     = 1.0f;   // camera height while crouched
+constexpr float CROUCH_EYE     = 1.1f;   // unchanged head lowered by bent legs
+// Crouch remains immediate for authoritative movement/hit detection, while the
+// client eases the camera and visible body toward the new stance at this rate.
+constexpr float CROUCH_LERP_SPEED = 6.0f;
 
 // Lean (Q/E): the upper body pivots around a hip point, so the head arcs out
 // sideways (and dips slightly) and the view rolls — not a flat sideways slide.

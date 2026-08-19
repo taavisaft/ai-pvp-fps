@@ -14,10 +14,10 @@
 // damage multiplier). Hitboxes therefore ARE the rendered outline and cannot drift.
 // GL-free on purpose: the headless server includes this.
 //
-// The only client-only inputs are the walk cycle (phase/amp) and the ADS raise anim
-// (ads is a 0..1 blend); the server passes phase=amp=0 (rest stride) and ads as 0/1,
-// so a running target's swinging legs differ slightly from the swept boxes — that is
-// the entire remaining approximation.
+// The client may pass fractional crouch/ADS values for visual transitions; the server
+// passes authoritative 0/1 values for hit regions. Walk phase/amp are also client-only,
+// so those brief transitions and a running target's swinging legs are the remaining
+// visual approximations around the authoritative pose.
 
 enum PoseBoxPart : uint8_t {
     POSE_PELVIS, POSE_TORSO, POSE_NECK, POSE_HEAD, POSE_NOSE,
@@ -70,7 +70,7 @@ inline void poseSegment(glm::vec3 A, glm::vec3 B, float w, uint8_t part,
 }
 
 inline int buildPlayerPose(const glm::vec3& pos, float yaw, float pitch, float lean,
-                           uint8_t weaponId, bool crouched, float ads,
+                           uint8_t weaponId, float crouch, float ads,
                            float phase, float amp, PoseBox out[MAX_POSE_BOXES]) {
     static Skeleton skel = makeBoxMan();
     int n = 0;
@@ -82,11 +82,14 @@ inline int buildPlayerPose(const glm::vec3& pos, float yaw, float pitch, float l
     skel.bones[BONE_TORSO].localRot = glm::angleAxis(la, glm::vec3(0, 0, 1));
     skel.bones[BONE_NECK].localRot  = glm::angleAxis(glm::radians(-pitch) * 0.5f, glm::vec3(1, 0, 0));
 
-    float s = crouched ? (CROUCH_HEIGHT / STAND_HEIGHT) : 1.0f;   // vertical squash about feet
+    float crouchT = glm::clamp(crouch, 0.0f, 1.0f);
+    // Keep every body part at its real size. Crouching lowers the pelvis by the
+    // stance-height difference; the leg IK below keeps both feet planted and folds
+    // the knees naturally instead of vertically shrinking the whole skeleton.
+    float pelvisY = 0.95f - (STAND_HEIGHT - CROUCH_HEIGHT) * crouchT;
     glm::mat4 root = glm::translate(glm::mat4(1.0f), pos)
                    * glm::rotate(glm::mat4(1.0f), 1.5707963f - glm::radians(yaw), glm::vec3(0, 1, 0))
-                   * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, s, 1.0f))
-                   * glm::translate(glm::mat4(1.0f), glm::vec3(0, 0.95f, 0));
+                   * glm::translate(glm::mat4(1.0f), glm::vec3(0, pelvisY, 0));
     skel.computeWorld(root);
 
     // Spine + head + nose from FK (the 8 limb bones are IK'd instead).
@@ -134,15 +137,15 @@ inline int buildPlayerPose(const glm::vec3& pos, float yaw, float pitch, float l
 
     // --- Legs: feet planted on the terrain, stepping over the stride and lifting in
     // an arc; knees bend toward facing. Hip anchors come from the thigh-bone joints.
-    // Total 0.86 = standing thigh-joint height above the feet (pelvis at s*0.95, thigh
-    // joint at -0.09), so standing legs are straight. Bones aren't scaled by s, so a
-    // low (crouch) hip or a lifted swing foot still bends the knee. ---
+    // Total 0.86 = standing thigh-joint height above the feet (pelvis at 0.95, thigh
+    // joint at -0.09), so standing legs are straight. Lowering the pelvis for crouch
+    // makes the fixed-length thigh and shin fold at the knee. ---
     const float thighLen = 0.43f, shinLen = 0.43f;
     const float yr  = glm::radians(yaw);
     const glm::vec3 fwd = {cosf(yr), 0.0f, sinf(yr)};
     bool  airborne = pos.y > terrainHeight(pos.x, pos.z) + 0.05f;
-    float stride = (crouched ? 0.18f : 0.38f) * amp;
-    float lift   = (crouched ? 0.07f : 0.16f) * amp;
+    float stride = glm::mix(0.38f, 0.18f, crouchT) * amp;
+    float lift   = glm::mix(0.16f, 0.07f, crouchT) * amp;
     auto leg = [&](int hipBone, float ph) {
         glm::vec3 hip = glm::vec3(skel.world[hipBone][3]);
         glm::vec3 foot;
