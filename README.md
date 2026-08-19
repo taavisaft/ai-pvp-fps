@@ -51,7 +51,11 @@ with `FPS_PORT` (default `7777`); the client lobby scans `7777`–`7784` on the 
 you enter.
 
 Starting `./build/game` with no IP drops you into the **lobby** — a small test
-range (target wall with a bullseye, practice cover, a respawning dummy) where you can
+range (target wall with a bullseye, practice cover, a respawning dummy wearing the
+Blender-built body model all players share — vest, backpack, boots. The dummy
+mirrors your moves from its spot without turning — aim pitch, lean, crouch, ADS,
+weapon swaps, jumps, and a walk-in-place when you walk — so you can circle it and
+study the pose from any angle) where you can
 warm up and test things before joining a match. Behind the firing line rises a
 terraced hill (~16 m, flat ledges at set heights) and past the wall's north end a
 smooth knoll — climb one to practice downhill shots, or shoot up the knoll's face to

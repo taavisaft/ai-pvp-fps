@@ -67,6 +67,12 @@ struct Renderer {
     TerrainChunks taigaTerrain;  // chunked LOD 2 km ground + mountain vista
     Vegetation    veg;           // instanced grass + LOD spruce forest (taiga only)
     Mesh   stand;
+    // Blender-authored player body parts (tools/player_model.py), unit-box space —
+    // drawn with the same M * scale(2*half) transform as the plain cube, so the
+    // pose boxes/hitboxes are unchanged. Order matches PMESH_PARTS in player_mesh.h.
+    enum PlayerPartId { PART_HEAD = 0, PART_TORSO, PART_PELVIS, PART_NECK,
+                        PART_ARM, PART_HAND, PART_LEG, PART_FOOT, PART_COUNT };
+    Mesh   playerPart[PART_COUNT];
     Mesh   quad2d;   // unit quad for HUD rects
     Font   font;     // bitmap text, HUD pass only
     MaterialLib materials;
@@ -85,6 +91,7 @@ struct Renderer {
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color);
     void  drawCube(const glm::vec3& center, const glm::vec3& scale, MaterialId mat);
     void  drawCubeModel(const glm::mat4& model, const glm::vec3& color);  // oriented (gun)
+    void  drawMeshModel(const Mesh& m, const glm::mat4& model, const glm::vec3& color);
     void  drawMesh(const Mesh& m, const glm::vec3& pos, MaterialId mat);
     // Alpha-blended oriented cube for debug overlays (hitbox view). Depth-tested but
     // not depth-written; lit-pass only — never call during the shadow pass.

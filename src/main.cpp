@@ -167,23 +167,30 @@ static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, flo
     const glm::vec3 handCol  = {0.30f, 0.30f, 0.33f};
     const glm::vec3 gunMetal = {0.12f, 0.12f, 0.14f};
     const glm::vec3 gunDark  = {0.20f, 0.20f, 0.23f};
-    const glm::vec3 nose     = {0.90f, 0.30f, 0.20f};
 
     PoseBox boxes[MAX_POSE_BOXES];
     int n = buildPlayerPose(pos, yaw, pitch, lean, weaponId, crouched, ads, phase, amp,
                             boxes);
     for (int i = 0; i < n; i++) {
         glm::vec3 c;
+        int part = -1;   // Blender part per pose box; guns stay plain cubes
         switch (boxes[i].part) {
-            case POSE_HEAD:      c = skin;     break;
-            case POSE_NOSE:      c = nose;     break;
-            case POSE_ARM: case POSE_LEG: case POSE_FOOT: c = limb; break;
-            case POSE_HAND:      c = handCol;  break;
+            case POSE_HEAD:      c = skin;    part = Renderer::PART_HEAD;   break;
+            case POSE_NOSE:      continue;    // nose is baked into the head mesh
+            case POSE_ARM:       c = limb;    part = Renderer::PART_ARM;    break;
+            case POSE_LEG:       c = limb;    part = Renderer::PART_LEG;    break;
+            case POSE_FOOT:      c = limb * 0.5f; part = Renderer::PART_FOOT; break;
+            case POSE_HAND:      c = handCol; part = Renderer::PART_HAND;   break;
+            case POSE_PELVIS:    c = bodyCol; part = Renderer::PART_PELVIS; break;
+            case POSE_TORSO:     c = bodyCol; part = Renderer::PART_TORSO;  break;
+            case POSE_NECK:      c = skin;    part = Renderer::PART_NECK;   break;
             case POSE_GUN_METAL: c = gunMetal; break;
             case POSE_GUN_DARK:  c = gunDark;  break;
-            default:             c = bodyCol;  break;   // pelvis/torso/neck
+            default:             c = bodyCol;  break;
         }
-        r.drawCubeModel(boxes[i].M * glm::scale(glm::mat4(1.0f), boxes[i].half * 2.0f), c);
+        glm::mat4 m = boxes[i].M * glm::scale(glm::mat4(1.0f), boxes[i].half * 2.0f);
+        if (part >= 0) r.drawMeshModel(r.playerPart[part], m, c);
+        else           r.drawCubeModel(m, c);
     }
 }
 
@@ -713,6 +720,22 @@ int main(int argc, char** argv) {
         offline.players[0].lean  = input.state.lean;
         offline.players[0].ads   = input.state.ads;
 
+        // Lobby dummy mimics your pose: aim, lean, stance, and gun — but pinned to
+        // its yard with a fixed facing (so you can study it from any angle), walking
+        // only animates it in place (walk-anim slot mirrored below) and jumps replay
+        // as hops on the spot.
+        if (!online && offline.players[1].alive) {
+            const Player& self  = offline.players[0];
+            Player&       dummy = offline.players[1];
+            dummy.pitch    = self.pitch;
+            dummy.lean     = self.lean;
+            dummy.ads      = self.ads;
+            dummy.crouched = self.crouched;
+            dummy.weaponId = self.weaponId;
+            float air = self.pos.y - terrainHeight(self.pos.x, self.pos.z);
+            dummy.pos = dummyPos + glm::vec3(0.0f, air > 0.0f ? air : 0.0f, 0.0f);
+        }
+
         const GameState* shown = &offline;
         if (online) {
             // Reconcile prediction with each new authoritative state. The server
@@ -891,6 +914,9 @@ int main(int argc, char** argv) {
             walkAmp[i] = amp > 1.0f ? 1.0f : amp;
             walkPhase[i] += walkSpeed[i] * 1.8f * dt;               // stride tied to speed
         }
+        // The pinned lobby dummy never moves, so hand it your stride instead —
+        // it walks on the spot whenever you walk.
+        if (!online) { walkAmp[1] = walkAmp[0]; walkPhase[1] = walkPhase[0]; }
 
         gameTime += dt;
         renderer.setTime(gameTime);

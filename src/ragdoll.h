@@ -152,8 +152,10 @@ struct Ragdoll {
         }
     }
 
-    // Box spanning A..B, square cross-section `w` — same construction as main's drawSegment.
-    static void segment(Renderer& r, glm::vec3 A, glm::vec3 B, float w, const glm::vec3& c) {
+    // Box spanning A..B, square cross-section `w` — same construction as main's
+    // drawSegment, but rendered with the Blender body-part mesh for that bone.
+    static void segment(Renderer& r, glm::vec3 A, glm::vec3 B, float w,
+                        const glm::vec3& c, int part) {
         glm::vec3 mid = (A + B) * 0.5f, dir = B - A;
         float len = glm::length(dir);
         if (len < 1e-5f) return;
@@ -166,16 +168,25 @@ struct Ragdoll {
         m[1] = glm::vec4(dir * len, 0.0f);
         m[2] = glm::vec4(bz * w, 0.0f);
         m[3] = glm::vec4(mid, 1.0f);
-        r.drawCubeModel(m, c);
+        r.drawMeshModel(r.playerPart[part], m, c);
     }
 
     void draw(Renderer& r) const {
         if (!active) return;
+        // Body-part mesh per drawn bone (indices match seed()'s bones[] order):
+        // torso column, then arms, then legs.
+        static constexpr int partOf[BONE_COUNT] = {
+            Renderer::PART_TORSO, Renderer::PART_NECK, Renderer::PART_NECK,
+            Renderer::PART_ARM, Renderer::PART_ARM, Renderer::PART_ARM, Renderer::PART_ARM,
+            Renderer::PART_LEG, Renderer::PART_LEG, Renderer::PART_LEG, Renderer::PART_LEG,
+        };
         for (int i = 0; i < BONE_COUNT; ++i)
-            segment(r, p[bones[i].a].pos, p[bones[i].b].pos, bones[i].thick, bones[i].col);
-        // Head: a cube at the head particle (skin-toned like the alive model).
+            segment(r, p[bones[i].a].pos, p[bones[i].b].pos, bones[i].thick,
+                    bones[i].col, partOf[i]);
+        // Head mesh at the head particle (skin-toned like the alive model).
         glm::vec3 skin = {0.90f, 0.78f, 0.62f};
-        r.drawCubeModel(glm::translate(glm::mat4(1.0f), p[RD_HEAD].pos)
+        r.drawMeshModel(r.playerPart[Renderer::PART_HEAD],
+                        glm::translate(glm::mat4(1.0f), p[RD_HEAD].pos)
                       * glm::scale(glm::mat4(1.0f), glm::vec3(0.24f)), skin);
     }
 };
