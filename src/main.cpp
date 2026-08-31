@@ -24,6 +24,7 @@
 #include "ragdoll.h"
 #include "weapon_visual.h"
 #include "playerpose.h"
+#include "perf.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
@@ -255,22 +256,33 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
                         bool thirdPerson, const Ragdoll* ragdolls) {
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
 
+    gProfiler.beginFrame();
     r.invalidateWorldOnMapChange();   // drop town/tree/prop caches on map switch
 
     // Pass 1: scene depth from the sun, focused on the camera (near-field shadows).
+    gProfiler.beginPass(PASS_SHADOW);
     r.beginShadowPass(cam.eye);
     Frustum sunFr = Frustum::fromVP(r.lightSpace);
     drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, crouchAnim, adsAnim,
                       thirdPerson, ragdolls, sunFr, cam.eye);
     r.endShadowPass();
+    gProfiler.endPass(PASS_SHADOW);
 
     // Pass 2: lit main view, sampling the shadow map built above.
+    gProfiler.beginPass(PASS_SKY);
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
     r.drawSky(cam.view(), cam.proj(r.aspect()));
+    gProfiler.endPass(PASS_SKY);
+
+    gProfiler.beginPass(PASS_WORLD);
     Frustum camFr = Frustum::fromVP(cam.proj(r.aspect()) * cam.view());
     drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, crouchAnim, adsAnim,
                       thirdPerson, ragdolls, camFr, cam.eye);
+    gProfiler.endPass(PASS_WORLD);
+
+    gProfiler.beginPass(PASS_WATER);
     r.drawWater();   // translucent Baltic, after all opaque world geometry
+    gProfiler.endPass(PASS_WATER);
 
     if (gMapId == MAP_LOBBY) {
         // Shooting-range aim reference: red cross on the target wall at eye height.
@@ -313,8 +325,13 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         drawViewModel(r, cam, vm);
         r.shader.setInt(r.shader.locUseShadow, 1);
     }
-    if (showHud) drawHUD(r, gs, localID, hud, scoreboard, online, fullMap);
+    if (showHud) {
+        gProfiler.beginPass(PASS_HUD);
+        drawHUD(r, gs, localID, hud, scoreboard, online, fullMap);
+        gProfiler.endPass(PASS_HUD);
+    }
     drawConnectPrompt(r, connectPrompt, lobby);
+    gProfiler.endFrame();
     r.endFrame();
 }
 
@@ -361,6 +378,8 @@ int main(int argc, char** argv) {
         fprintf(stderr, "renderer init failed\n");
         return 1;
     }
+    gProfiler.configureFromEnv();
+    applyQuality(renderer, qualityFromEnv());
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
     Audio audio;
@@ -422,6 +441,19 @@ int main(int argc, char** argv) {
         }
     }
     if (const char* pv = getenv("FPS_PITCH")) cam.pitch = (float)atof(pv);
+    const RefCameraPreset* refCam = refCameraFromEnv();
+    if (refCam) {
+        offlineMap = MAP_PALDISKI;
+        setMap(MAP_PALDISKI);
+        renderer.setAtmosphere(refCam->atmo);
+        applyRefCamera(cam, *refCam);
+        glm::vec3 p = {refCam->feet.x,
+                       terrainHeight(refCam->feet.x, refCam->feet.z),
+                       refCam->feet.z};
+        offline.players[0].pos = p;
+        predicted.pos = p;
+        printf("[ref] camera preset: %s\n", refCam->name);
+    }
     FrameInput input;
 
 
@@ -979,15 +1011,32 @@ int main(int argc, char** argv) {
         // the HUD's smoothed readout), then samples 600 raw frame times.
         if (getenv("FPS_BENCH")) {
             static float benchMs[600];   // pre-allocated: no heap in the loop
+            static float benchPass[PASS_COUNT][600];
             static int   benchN = 0;
-            if (frameCount > 300 && benchN < 600)
-                benchMs[benchN++] = dt * 1000.0f;
+            if (frameCount == 301) {
+                for (int p = 0; p < PASS_COUNT; p++) gProfiler.passMs[p] = 0.0f;
+            }
+            if (frameCount > 300 && benchN < 600) {
+                benchMs[benchN] = dt * 1000.0f;
+                for (int p = 0; p < PASS_COUNT; p++)
+                    benchPass[p][benchN] = gProfiler.passMsRaw[p];
+                benchN++;
+            }
             if (benchN == 600) {
                 std::sort(benchMs, benchMs + 600);
                 float avg = 0.0f;
                 for (float m : benchMs) avg += m;
-                printf("[bench] frame ms avg %.2f  p50 %.2f  p95 %.2f  max %.2f\n",
-                       avg / 600.0f, benchMs[300], benchMs[570], benchMs[599]);
+                printf("[bench] quality=%s  frame ms avg %.2f  p50 %.2f  p95 %.2f  max %.2f\n",
+                       gQuality.name, avg / 600.0f, benchMs[300], benchMs[570], benchMs[599]);
+                printf("[bench] render passes (avg ms over sample):");
+                for (int p = 0; p < PASS_COUNT; p++) {
+                    float pavg = 0.0f;
+                    for (int i = 0; i < 600; i++) pavg += benchPass[p][i];
+                    printf(" %s=%.2f", FrameProfiler::passName((RenderPass)p), pavg / 600.0f);
+                }
+                printf("\n[bench] veg instances: L0=%d L1=%d imp=%d bush=%d\n",
+                       gVegStats.treesL0, gVegStats.treesL1,
+                       gVegStats.treesImp, gVegStats.bushes);
                 running = false;
             }
         }

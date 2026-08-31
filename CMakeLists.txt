@@ -32,6 +32,7 @@ set(CLIENT_SOURCES
     src/veg_mesh.cpp
     src/renderer.cpp
     src/hud.cpp
+    src/perf.cpp
     src/camera.cpp
     src/input.cpp
     src/network.cpp

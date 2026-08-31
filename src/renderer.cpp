@@ -125,6 +125,20 @@ bool Renderer::init(const char* title, int w, int h) {
     return true;
 }
 
+void Renderer::setShadowMapSize(int size) {
+    if (size < 512) size = 512;
+    if (size > 4096) size = 4096;
+    if (size == shadowSize) return;
+    shadowSize = size;
+    if (shadowTex) {
+        glBindTexture(GL_TEXTURE_2D, shadowTex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, shadowSize, shadowSize, 0,
+                     GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        printf("[quality] shadow map resized to %dx%d\n", shadowSize, shadowSize);
+    }
+}
+
 float Renderer::aspect() const {
     return (float)width / (float)height;
 }

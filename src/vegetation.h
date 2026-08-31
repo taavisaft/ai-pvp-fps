@@ -8,6 +8,7 @@
 #include "spatial.h"
 
 struct Renderer;
+struct QualitySettings;
 
 // Instanced vegetation for the taiga map: grass blades near the camera and a
 // spruce forest at three LODs. Geometry is generated; the spruce branches carry
@@ -94,7 +95,17 @@ struct Vegetation {
     std::vector<float> bufL0, bufL1, bufImp, bufShadow, bufTile;
     std::vector<float> bufBush, bufBushShadow;
 
+    // Runtime LOD distances (defaults mirror the constexprs; overridden by quality tier).
+    float treeFade0_ = TREE_FADE0, treeL0End_ = TREE_L0_END;
+    float treeFade1_ = TREE_FADE1, treeL1End_ = TREE_L1_END;
+    float treeImpFade_ = TREE_IMP_FADE, treeImpEnd_ = TREE_IMP_END;
+    float treeShadowRange_ = TREE_SHADOW_RANGE;
+    float bushFade_ = BUSH_FADE, bushEnd_ = BUSH_END;
+    float bushShadowRange_ = BUSH_SHADOW_RANGE;
+    bool  grassEnabled_ = GRASS_ENABLED;
+
     bool init(const char* basePath);   // shaders + meshes + impostor bake (GL ready)
+    void applyQuality(const QualitySettings& q);  // runtime LOD distances (FPS_QUALITY)
     void invalidate();                 // active map changed: drop placements/tiles
     void drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& eye);
     void drawShadow(const Frustum& sunFr, const glm::vec3& focus, float time,

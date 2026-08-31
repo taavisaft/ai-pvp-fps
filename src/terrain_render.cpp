@@ -47,9 +47,9 @@ void TerrainChunks::draw(const Frustum& fr, const glm::vec3& eye, bool withVista
             c.built[LODS - 1] = true;
             if (!c.boundsKnown) { c.minY = mn; c.maxY = mx; c.boundsKnown = true; }
         }
-        // Fine tiers: at most one expensive build per frame; draw the best built
+        // Fine tiers: at most N expensive builds per frame; draw the best built
         // tier meanwhile (a one-frame-late LOD upgrade is invisible, a hitch isn't).
-        if (want < LODS - 1 && !c.built[want] && builds == 0) {
+        if (want < LODS - 1 && !c.built[want] && builds < maxBuildsPerFrame) {
             createTerrainPatch(c.lod[want], x0, z0, CHUNK_SIZE, CHUNK_SIZE, LOD_STEP[want],
                                1.5f + LOD_STEP[want] * 0.5f, terrainHeight);
             c.built[want] = true;

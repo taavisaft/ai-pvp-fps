@@ -36,6 +36,7 @@ struct TerrainChunks {
     Chunk chunks[CHUNKS][CHUNKS];
     Mesh  vistaSlab[4];
     bool  vistaBuilt = false;
+    int   maxBuildsPerFrame = 1;   // expensive LOD mesh builds budget (quality tier)
 
     // Draw all visible chunks (+ vista) with whatever program is already set up —
     // the caller (Renderer::drawTerrain) binds textures/uniforms first.

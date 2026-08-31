@@ -61,6 +61,7 @@ struct Renderer {
     // Atmosphere presets: DayZ overcast gloom / PUBG warm clear / golden-hour dusk.
     enum Atmo { ATMO_CLEAR = 0, ATMO_OVERCAST, ATMO_GOLDEN, ATMO_COUNT };
     void setAtmosphere(int preset);   // sets every palette field above
+    void setShadowMapSize(int size);  // recreate sun shadow map (quality tier)
     Mesh   cube;     // unit cube, scaled per draw
     Mesh   ground;   // 100x100 quad at y=0 (water plane, scaled per draw)
     Mesh   terrain;        // small lobby heightfield (rebuilt on map switch)

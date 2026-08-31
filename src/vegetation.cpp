@@ -3,6 +3,7 @@
 #include "texture.h"
 #include "map.h"
 #include "tree_scatter.h"
+#include "perf.h"
 #include <cstdio>
 
 // GLSL smoothstep twin (terrSmooth(terrClamp01()) is the same cubic).
@@ -18,6 +19,20 @@ static bool loadPair(Shader& sh, const char* base, const char* v, const char* f)
     snprintf(vp, sizeof(vp), "shaders/%s", v);
     snprintf(fp, sizeof(fp), "shaders/%s", f);
     return sh.load(vp, fp);
+}
+
+void Vegetation::applyQuality(const QualitySettings& q) {
+    treeFade0_        = q.treeFade0;
+    treeL0End_        = q.treeL0End;
+    treeFade1_        = q.treeFade1;
+    treeL1End_        = q.treeL1End;
+    treeImpFade_      = q.treeImpFade;
+    treeImpEnd_       = q.treeImpEnd;
+    treeShadowRange_  = q.treeShadowRange;
+    bushFade_         = q.bushFade;
+    bushEnd_          = q.bushEnd;
+    bushShadowRange_  = q.bushShadowRange;
+    grassEnabled_     = q.grassEnabled;
 }
 
 static void uploadMesh(GLuint& vbo, GLuint& ebo, GLsizei& count,
@@ -253,21 +268,22 @@ void Vegetation::rebuildTile(GrassTile& t, int tx, int tz) {
 void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& eye) {
     if (!placed) { buildTrees(); buildBushes(); }
 
+    gVegStats.reset();
     // Bucket visible trees by distance. Buckets OVERLAP across the fade bands —
     // both LODs of a transitioning tree draw, split per-pixel by the dither.
     bufL0.clear(); bufL1.clear(); bufImp.clear(); bufBush.clear();
-    grid.forEachVisibleWithin(fr, eye, TREE_IMP_END, [&](int i) {
+    grid.forEachVisibleWithin(fr, eye, treeImpEnd_, [&](int i) {
         const Tree& t = trees[i];
         glm::vec3 d = t.pos - eye;
         float dist = sqrtf(glm::dot(d, d));
-        if (dist < TREE_L0_END) pushTree(bufL0, t);
-        if (dist > TREE_FADE0 && dist < TREE_L1_END) pushTree(bufL1, t);
-        if (dist > TREE_FADE1 && dist < TREE_IMP_END) pushTree(bufImp, t);
+        if (dist < treeL0End_) { pushTree(bufL0, t); gVegStats.treesL0++; }
+        if (dist > treeFade0_ && dist < treeL1End_) { pushTree(bufL1, t); gVegStats.treesL1++; }
+        if (dist > treeFade1_ && dist < treeImpEnd_) { pushTree(bufImp, t); gVegStats.treesImp++; }
     });
     bushGrid.forEachVisible(fr, [&](int i) {
         const Tree& t = bushes[i];
         glm::vec3 d = t.pos - eye;
-        if (glm::dot(d, d) < BUSH_END * BUSH_END) pushTree(bufBush, t);
+        if (glm::dot(d, d) < bushEnd_ * bushEnd_) { pushTree(bufBush, t); gVegStats.bushes++; }
     });
 
     vegSh.use();
@@ -297,27 +313,27 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     vegSh.setFloat(locWind, 0.05f);
     vegSh.setFloat(locRange, 0.0f);
     glUniform2f(locFadeIn, 0.0f, 0.0f);
-    glUniform2f(locFadeOut, TREE_FADE0, TREE_L0_END);
+    glUniform2f(locFadeOut, treeFade0_, treeL0End_);
     drawStream(vaoL0, streamL0, l0Idx, bufL0);
     // Tree LOD1: dithers in against LOD0, out against the impostors.
-    glUniform2f(locFadeIn, TREE_FADE0, TREE_L0_END);
-    glUniform2f(locFadeOut, TREE_FADE1, TREE_L1_END);
+    glUniform2f(locFadeIn, treeFade0_, treeL0End_);
+    glUniform2f(locFadeOut, treeFade1_, treeL1End_);
     drawStream(vaoL1, streamL1, l1Idx, bufL1);
 
     // Bushes: same shader, own photo on the shared sampler unit; dither fully
-    // out by BUSH_END (nothing fades in behind them — undergrowth just ends).
+    // out by bushEnd_ (nothing fades in behind them — undergrowth just ends).
     glActiveTexture(GL_TEXTURE6);
     glBindTexture(GL_TEXTURE_2D, bushTex);
     glActiveTexture(GL_TEXTURE0);
     vegSh.setFloat(locWind, 0.06f);
     glUniform2f(locFadeIn, 0.0f, 0.0f);
-    glUniform2f(locFadeOut, BUSH_FADE, BUSH_END);
+    glUniform2f(locFadeOut, bushFade_, bushEnd_);
     drawStream(vaoBush, streamBush, bushIdx, bufBush);
 
     // Grass: camera-centered tile ring; stale slots rebuilt within a budget (a
     // fresh slot's blades are still height-zero at the range edge, so a one-frame
     // delay is invisible).
-    if (GRASS_ENABLED) {
+    if (grassEnabled_) {
     vegSh.setFloat(locWind, 0.045f);
     vegSh.setFloat(locRange, GRASS_RANGE);
     glUniform2f(locFadeIn, 0.0f, 0.0f);
@@ -374,8 +390,8 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
         impSh.setFloat(impSh.locExposure, r.exposure);
         impSh.setFloat(impSh.locSaturation, r.saturation);
         glUniform2f(locImpSize, impSize.x, impSize.y);
-        glUniform2f(locImpFadeIn, TREE_FADE1, TREE_L1_END);
-        glUniform2f(locImpFadeOut, TREE_IMP_FADE, TREE_IMP_END);
+        glUniform2f(locImpFadeIn, treeFade1_, treeL1End_);
+        glUniform2f(locImpFadeOut, treeImpFade_, treeImpEnd_);
         glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D, impTex);
         glActiveTexture(GL_TEXTURE0);
@@ -396,13 +412,13 @@ void Vegetation::drawShadow(const Frustum& sunFr, const glm::vec3& focus, float 
     grid.forEachVisible(sunFr, [&](int i) {
         const Tree& t = trees[i];
         glm::vec3 d = t.pos - focus;
-        if (glm::dot(d, d) < TREE_SHADOW_RANGE * TREE_SHADOW_RANGE)
+        if (glm::dot(d, d) < treeShadowRange_ * treeShadowRange_)
             pushTree(bufShadow, t);
     });
     bushGrid.forEachVisible(sunFr, [&](int i) {
         const Tree& t = bushes[i];
         glm::vec3 d = t.pos - focus;
-        if (glm::dot(d, d) < BUSH_SHADOW_RANGE * BUSH_SHADOW_RANGE)
+        if (glm::dot(d, d) < bushShadowRange_ * bushShadowRange_)
             pushTree(bufBushShadow, t);
     });
     if (bufShadow.empty() && bufBushShadow.empty()) return;
