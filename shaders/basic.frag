@@ -110,8 +110,8 @@ vec3 grassColor(vec2 p, float t) {
 }
 
 // Cloud shadows: two octaves of drifting value noise over the ground plane, dimming
-// the direct sun where a cloud passes. Same math in foliage.frag/inst.frag so every
-// surface darkens together (the Arma "cloud sweeping over a field" read).
+// the direct sun where a cloud passes. Same math in sky.frag (visible cloud layer),
+// veg.frag/inst.frag so every surface darkens together.
 float cloudShadow(vec2 xz, float t) {
     if (cloudAmount <= 0.0) return 1.0;
     float cl = vnoise(xz * 0.010 + t * 0.010) * 0.65

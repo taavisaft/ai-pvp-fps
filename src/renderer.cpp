@@ -216,17 +216,20 @@ void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const gl
     glActiveTexture(GL_TEXTURE0);
 }
 
-void Renderer::drawSky(const glm::mat4& view, const glm::mat4& proj) {
-    // Fullscreen gradient, drawn before world geometry. Depth off so it never
-    // occludes (and is never occluded by) the scene; world draws over it normally.
+void Renderer::drawSky(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye) {
+    // Fullscreen gradient + clouds, drawn before world geometry. Depth off so it
+    // never occludes (and is never occluded by) the scene; world draws over it.
     glm::mat4 invVP = glm::inverse(proj * view);
     glDisable(GL_DEPTH_TEST);
     skyShader.use();
     skyShader.setMat4(skyShader.locInvVP, invVP);
+    skyShader.setVec3(skyShader.locEye, eye);
     skyShader.setVec3(skyShader.locSunDir, sunDir);
     skyShader.setVec3(skyShader.locSkyZenith, skyZenith);
     skyShader.setVec3(skyShader.locSkyHorizon, skyHorizon);
     skyShader.setVec3(skyShader.locSunColor, sunColor);
+    skyShader.setFloat(skyShader.locTime, frameTime);
+    skyShader.setFloat(skyShader.locCloud, cloudAmount);
     skyShader.setFloat(skyShader.locExposure, exposure);
     skyShader.setFloat(skyShader.locSaturation, saturation);
     quad2d.draw();

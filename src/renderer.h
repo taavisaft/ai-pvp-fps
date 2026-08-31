@@ -84,7 +84,7 @@ struct Renderer {
     float aspect() const;
     void  setTime(float t) { frameTime = t; }
     void  beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye);
-  void  drawSky(const glm::mat4& view, const glm::mat4& proj);  // call right after beginFrame
+  void  drawSky(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye);
   // Shadow pass: render world geometry between these, viewed from the sun. Centers
   // the light frustum on `focus` (the camera eye). Sets the depth program active.
   void  beginShadowPass(const glm::vec3& focus);

@@ -271,7 +271,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     // Pass 2: lit main view, sampling the shadow map built above.
     gProfiler.beginPass(PASS_SKY);
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
-    r.drawSky(cam.view(), cam.proj(r.aspect()));
+    r.drawSky(cam.view(), cam.proj(r.aspect()), cam.eye);
     gProfiler.endPass(PASS_SKY);
 
     gProfiler.beginPass(PASS_WORLD);
