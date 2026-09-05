@@ -17,4 +17,4 @@ Expected filenames (`.png` or `.jpg`, square recommended):
 Only the **Color / Albedo** map is used (no normal/roughness/AO). Good CC0 source:
 https://ambientcg.com — grab a set, use its `*_Color.jpg`, rename to the table above.
 
-`ground.jpg` here is ambientCG **Grass001** (CC0).
+`ground.jpg` — seamless grass (Pexels / SeamlessTextures).

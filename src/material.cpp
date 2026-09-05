@@ -33,10 +33,7 @@ bool MaterialLib::init() {
             mats[e.id].tint = {1.0f, 1.0f, 1.0f};        // image has its own color
             if (e.id == MAT_GROUND) {
                 groundHasImage = true;
-                // Cool the brown forest-floor photo into the mossy underlayer visible
-                // between blades. Exposed soil still reads through, but the field no
-                // longer looks like grass cards scattered over beige sand.
-                mats[e.id].tint = {0.72f, 0.88f, 0.60f};
+                mats[e.id].tint = {1.0f, 1.0f, 1.0f};
             }
             printf("material: loaded image for %s\n", e.name);
         } else {
@@ -45,7 +42,7 @@ bool MaterialLib::init() {
         mats[e.id].tex = tex;
     }
 
-    mats[MAT_GROUND].tile   = 2.0f;
+    mats[MAT_GROUND].tile   = 3.5f;
     mats[MAT_CONCRETE].tile = 1.0f;
     mats[MAT_METAL].tile    = 1.0f;
     mats[MAT_WOOD].tile     = 0.8f;

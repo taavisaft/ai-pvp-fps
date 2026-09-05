@@ -504,10 +504,9 @@ void Renderer::drawTerrain(const Frustum& fr, const glm::vec3& eye) {
     active->setInt(active->locSplat, 1);
     active->setMat4(active->locModel, glm::mat4(1.0f));
     active->setVec3(active->locColor, glm::vec3(1.0f));
-    // Taiga always uses the procedural bog-grass color (the reference olive-green,
-    // with dry tufts); the photo ground image was tuned as an under-grass layer and
-    // reads tan without blades. The lobby keeps the image when one is present.
-    bool procGrass = gTerrainMode == TERRAIN_PALDISKI || !materials.groundHasImage;
+    // Use textures/ground.* when present (triplanar splat base layer). Procedural
+    // grassColor() only when no ground image was loaded.
+    bool procGrass = !materials.groundHasImage;
     active->setInt(active->locGrass, procGrass ? 1 : 0);
     active->setInt(active->locHasNormal, 1);   // smooth analytic heightfield normals
     if (gTerrainMode == TERRAIN_PALDISKI) {
