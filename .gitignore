@@ -15,3 +15,7 @@ dist/
 
 # Resources
 _RESOURCES/
+
+# Blender/Python authoring caches
+__pycache__/
+*.blend1

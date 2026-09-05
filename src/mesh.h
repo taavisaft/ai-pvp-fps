@@ -5,13 +5,15 @@
 struct Mesh {
     GLuint  vao = 0, vbo = 0, ebo = 0;
     GLsizei indexCount = 0;
+    bool authoredMaterial = false;
 
+    // withMaterial uses xyz+normal+albedo.rgb+specular (10 floats, attribute 3).
     // verts: xyz triples (or xyz+normal 6-tuples if withNormals, or xyz+normal+uv
     // 8-tuples if withUV). floatCount = total floats. withNormals enables attrib 1
     // (normal); withUV additionally enables attrib 2 (uv) with a stride-8 layout.
     bool create(const float* verts, size_t floatCount,
                 const unsigned* indices, size_t idxCount,
-                bool withNormals = false, bool withUV = false);
+                bool withNormals = false, bool withUV = false, bool withMaterial = false);
     void draw() const;
     void destroy();
 };

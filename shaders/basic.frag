@@ -3,6 +3,9 @@ in vec3 worldPos;
 in vec3 vNormal;
 in vec2 vUV;
 in vec4 lightSpacePos;
+in vec4 vMaterial;
+in vec3 vAssetPos;
+uniform int authoredMaterial;
 uniform vec3 color;
 uniform int  useFacade;   // 1 = sample diffuseMap by vUV (building facade), no triplanar
 uniform int  hasNormal;   // 1 = use supplied vertex normal (terrain), 0 = derivative
@@ -279,7 +282,16 @@ void main() {
     float camDist = length(worldPos - eyePos);
     gFar  = (lit == 1) ? smoothstep(150.0, 550.0, camDist) : 0.0;
     gProc = (lit == 1) ? smoothstep(30.0, 140.0, camDist) : 0.0;
-    vec3 c = color;
+    vec3 c = authoredMaterial == 1 ? vMaterial.rgb : color;
+    if (authoredMaterial == 1 && vMaterial.a < 0.0) {
+        vec2 p = (vAssetPos.xy + vAssetPos.z * vec2(.73, .51)) * 8.0;
+        float patch = vnoise(p + vec2(vnoise(p * 1.7), vnoise(p * 1.3 + 9.0)) * 2.0);
+        c = mix(vec3(.080,.095,.055), vec3(.18,.205,.115), smoothstep(.32,.36,patch));
+        c = mix(c, vec3(.26,.235,.15), smoothstep(.61,.65,patch));
+        float weave = sin(vAssetPos.x * 1800.0) * sin(vAssetPos.y * 1800.0);
+        float footprint = max(length(dFdx(vAssetPos)), length(dFdy(vAssetPos)));
+        c *= 1.0 + .035 * weave * (1.0 - smoothstep(.001,.004,footprint));
+    }
     if (lit == 1 && useFacade == 1) {
         vec4 texel = texture(diffuseMap, vUV);
         if (texel.a < 0.03) discard;
@@ -305,10 +317,11 @@ void main() {
         ambient     += groundAmbient * 0.25 * max(-n.y, 0.0);   // upward bounce
         vec3 lit3    = c * (sun + ambient);
 
-        if (specular > 0.0) {
+        float surfaceSpec = authoredMaterial == 1 ? abs(vMaterial.a) : specular;
+        if (surfaceSpec > 0.0) {
             vec3 V = normalize(eyePos - worldPos);
             vec3 H = normalize(L + V);
-            float spec = pow(max(dot(n, H), 0.0), 48.0) * specular;
+            float spec = pow(max(dot(n, H), 0.0), 48.0) * surfaceSpec * sunVisibility(n, L);
             lit3 += vec3(spec);
         }
 
@@ -316,7 +329,12 @@ void main() {
         // hilltops poke out (DayZ morning). Height term uses the fragment's y.
         float dens = 1.0 + fogHeightAmt * exp(-max(worldPos.y, 0.0) / 12.0);
         float fog  = clamp(length(worldPos - eyePos) * dens / fogDist, 0.0, 1.0);
-        c = grade(mix(lit3, skyHorizon, fog * fog));
+        // Authored albedo is linear; legacy textures use display values. Encode
+        // authored lighting, then converge to the same legacy fog color at distance.
+        if (authoredMaterial == 1) {
+            vec3 encoded = pow(max(grade(lit3), vec3(0.0)), vec3(1.0 / 2.2));
+            c = mix(encoded, grade(skyHorizon), fog * fog);
+        } else c = grade(mix(lit3, skyHorizon, fog * fog));
     }
     float outAlpha = alpha;
     if (lit == 1 && useFacade == 1) outAlpha *= texture(diffuseMap, vUV).a;

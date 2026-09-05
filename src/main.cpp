@@ -24,6 +24,7 @@
 #include "ragdoll.h"
 #include "weapon_visual.h"
 #include "playerpose.h"
+#include "player_visual.h"
 #include "perf.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
@@ -42,87 +43,6 @@ static const glm::vec3 IMPACT_DIRS[6] = {
 };
 
 constexpr int DECAL_MAX = 512;    // ring buffer of impact decals
-
-// First-person weapon state (client cosmetic; gameplay is server-authoritative).
-struct ViewModel {
-    float adsT       = 0.0f;  // 0 = hipfire pose, 1 = aimed
-    float flashTimer = 0.0f;  // muzzle flash seconds remaining
-    float recoilT    = 0.0f;  // recoil kick, 1 on fire, decays to 0
-};
-
-// Draws the held gun from a few oriented cubes, anchored to the camera and
-// lerped between hipfire (lower-right) and ADS (centered under crosshair).
-static void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm) {
-    glm::vec3 front = cam.front();
-    glm::vec3 up    = cam.up();                                   // rolled by lean
-    glm::vec3 right = glm::normalize(glm::cross(front, up));
-
-    glm::vec3 hipOff = right * 0.17f - up * 0.30f + front * 0.35f;
-    // Uzi: align hollow sight center (local y=0.06, z=-0.02) with the aim ray.
-    glm::vec3 adsOff = (gWeaponId == WEP_UZI)
-        ? (-up * 0.06f + front * 0.32f)
-        : (-up * 0.05f + front * 0.30f);
-    glm::vec3 off    = glm::mix(hipOff, adsOff, vm.adsT);
-    glm::vec3 anchor = cam.eyePos() + off - front * (vm.recoilT * 0.08f);
-
-    glm::mat4 basis(glm::vec4(right, 0), glm::vec4(up, 0),
-                    glm::vec4(front, 0), glm::vec4(0, 0, 0, 1));
-    glm::mat4 anchorM = glm::translate(glm::mat4(1.0f), anchor) * basis;
-    auto part = [&](glm::vec3 lp, glm::vec3 sz, glm::vec3 col) {
-        glm::mat4 m = glm::scale(glm::translate(anchorM, lp), sz);
-        r.drawCubeModel(m, col);
-    };
-    const glm::vec3 metal = {0.12f, 0.12f, 0.14f};
-    const glm::vec3 dark  = {0.20f, 0.20f, 0.23f};
-    const glm::vec3 poly  = {0.08f, 0.08f, 0.09f};  // pistol polymer frame
-
-    if (gWeaponId == WEP_GLOCK19) {                 // compact pistol
-        part({0.0f,  0.02f,  0.06f}, {0.050f, 0.060f, 0.20f}, metal); // slide
-        part({0.0f, -0.03f,  0.03f}, {0.045f, 0.050f, 0.15f}, poly);  // frame
-        part({0.0f,  0.02f,  0.17f}, {0.026f, 0.026f, 0.05f}, dark);  // barrel tip
-        part({0.0f, -0.12f, -0.05f}, {0.050f, 0.130f, 0.06f}, poly);  // grip
-        part({0.0f, -0.18f, -0.05f}, {0.046f, 0.040f, 0.05f}, metal); // mag base
-    } else {                                        // Uzi — boxy SMG
-        part({0.0f,  0.00f,  0.01f}, {0.078f, 0.10f,  0.26f}, metal); // receiver
-        // Red-dot sight — hollow housing (see-through window along barrel axis).
-        {
-            const glm::vec3 sc = {0.0f, 0.06f, -0.02f};
-            const float wx = 0.050f, wy = 0.040f, wz = 0.12f, wt = 0.009f;
-            part({sc.x, sc.y + wy * 0.5f - wt * 0.5f, sc.z}, {wx, wt, wz}, dark); // top
-            part({sc.x, sc.y - wy * 0.5f + wt * 0.5f, sc.z}, {wx, wt, wz}, dark); // bottom
-            part({sc.x - wx * 0.5f + wt * 0.5f, sc.y, sc.z}, {wt, wy - wt * 2.0f, wz}, dark); // left
-            part({sc.x + wx * 0.5f - wt * 0.5f, sc.y, sc.z}, {wt, wy - wt * 2.0f, wz}, dark); // right
-        }
-        part({0.0f,  0.02f,  0.22f}, {0.032f, 0.032f, 0.16f}, dark);  // barrel
-        part({0.0f, -0.11f, -0.02f}, {0.050f, 0.140f, 0.07f}, metal); // grip
-        part({0.0f, -0.20f, -0.02f}, {0.044f, 0.190f, 0.05f}, dark);  // long magazine
-    }
-
-    // Grip + muzzle come from the shared per-weapon anchor table (weapon_visual.h), so
-    // every gun's hand placement and barrel length live in one place.
-    const WeaponVisual& wv = weaponVisual(gWeaponId);
-    const float gripY = wv.fpFireGrip.y, gripZ = wv.fpFireGrip.z;
-
-    // Right (firing) hand only — PUBG-style, minimal screen space. A fist wrapping
-    // the grip plus a short forearm angled down-back so it leaves frame fast; the gun
-    // sits in front and occludes most of it. ADS/recoil come free from anchor space.
-    const glm::vec3 glove = {0.46f, 0.35f, 0.28f};   // tan fingerless glove
-    glm::vec3 fistC = {wv.fpFireGrip.x, gripY, gripZ};  // fist centered on the grip
-    r.drawCubeModel(glm::scale(glm::translate(anchorM, fistC),
-                               glm::vec3(0.085f, 0.095f, 0.105f)), glove);
-    // Forearm: pivot at the wrist (just under the fist), tilt back about the right
-    // axis so the limb runs from the lower-right toward the shoulder, then hang it.
-    glm::mat4 fore = glm::translate(anchorM, glm::vec3(0.02f, gripY - 0.05f, gripZ - 0.01f))
-                   * glm::rotate(glm::mat4(1.0f), glm::radians(24.0f), glm::vec3(1, 0, 0))
-                   * glm::rotate(glm::mat4(1.0f), glm::radians(14.0f), glm::vec3(0, 0, 1))
-                   * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.11f, 0.0f));
-    r.drawCubeModel(glm::scale(fore, glm::vec3(0.072f, 0.22f, 0.082f)), glove);
-
-    if (vm.flashTimer > 0.0f) {                                    // muzzle flash
-        glm::vec3 muzzle = anchor + up * wv.fpMuzzle.y + front * wv.fpMuzzle.z;
-        r.drawCube(muzzle, glm::vec3(0.16f), {1.0f, 0.85f, 0.35f});
-    }
-}
 
 // A flat impact patch oriented to the surface normal: a thin box (normal axis short,
 // the other two ~decal-sized) nudged just off the surface so it reads as a mark.
@@ -153,46 +73,6 @@ static void drawDecal(Renderer& r, const Decal& d) {
     m[2] = glm::vec4(rx * hole, 0.0f);
     m[3] = glm::vec4(d.pos + n * 0.007f, 1.0f);
     r.drawCubeModel(m, COLOR_DECAL_HOLE);
-}
-
-// Renders a player from the shared pose builder (playerpose.h): FK spine, IK arms
-// onto the weapon grips, the weapon, IK legs — the very same oriented boxes the server
-// hit-tests, just colored by part here. Aim pitch tilts the head + gun, lean rolls the
-// upper body, crouch lowers the hips and bends the knees, feet plant on terrain with a
-// speed-scaled walk stride.
-static void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, float pitch,
-                               float lean, uint8_t weaponId, float crouch, float ads,
-                               float phase, float amp, const glm::vec3& bodyCol) {
-    const glm::vec3 limb     = bodyCol * 0.85f;
-    const glm::vec3 skin     = {0.90f, 0.78f, 0.62f};
-    const glm::vec3 handCol  = {0.30f, 0.30f, 0.33f};
-    const glm::vec3 gunMetal = {0.12f, 0.12f, 0.14f};
-    const glm::vec3 gunDark  = {0.20f, 0.20f, 0.23f};
-
-    PoseBox boxes[MAX_POSE_BOXES];
-    int n = buildPlayerPose(pos, yaw, pitch, lean, weaponId, crouch, ads, phase, amp,
-                            boxes);
-    for (int i = 0; i < n; i++) {
-        glm::vec3 c;
-        int part = -1;   // Blender part per pose box; guns stay plain cubes
-        switch (boxes[i].part) {
-            case POSE_HEAD:      c = skin;    part = Renderer::PART_HEAD;   break;
-            case POSE_NOSE:      continue;    // nose is baked into the head mesh
-            case POSE_ARM:       c = limb;    part = Renderer::PART_ARM;    break;
-            case POSE_LEG:       c = limb;    part = Renderer::PART_LEG;    break;
-            case POSE_FOOT:      c = limb * 0.5f; part = Renderer::PART_FOOT; break;
-            case POSE_HAND:      c = handCol; part = Renderer::PART_HAND;   break;
-            case POSE_PELVIS:    c = bodyCol; part = Renderer::PART_PELVIS; break;
-            case POSE_TORSO:     c = bodyCol; part = Renderer::PART_TORSO;  break;
-            case POSE_NECK:      c = skin;    part = Renderer::PART_NECK;   break;
-            case POSE_GUN_METAL: c = gunMetal; break;
-            case POSE_GUN_DARK:  c = gunDark;  break;
-            default:             c = bodyCol;  break;
-        }
-        glm::mat4 m = boxes[i].M * glm::scale(glm::mat4(1.0f), boxes[i].half * 2.0f);
-        if (part >= 0) r.drawMeshModel(r.playerPart[part], m, c);
-        else           r.drawCubeModel(m, c);
-    }
 }
 
 // Shadow casters + receivers: ground/terrain, cover boxes, remote players, bullets.
@@ -235,7 +115,8 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
         }
         const Player& pl = gs.players[i];
         drawPlayerSkeleton(r, pl.pos, pl.yaw, pl.pitch, pl.lean, pl.weaponId, crouchAnim[i],
-                           adsAnim[i], walkPhase[i], walkAmp[i], COLOR_ENEMY);
+                           adsAnim[i], walkPhase[i], walkAmp[i], COLOR_ENEMY,
+                           glm::dot(pl.pos - eye, pl.pos - eye) > 15.0f * 15.0f);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
         const Bullet& b = gs.bullets[i];
@@ -322,7 +203,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     // First-person gun is an overlay — don't world-shadow it (FPS convention).
     if (gs.players[localID].alive && !connectPrompt.open && !thirdPerson) {
         r.shader.setInt(r.shader.locUseShadow, 0);
-        drawViewModel(r, cam, vm);
+        drawViewModel(r, cam, vm, gWeaponId);
         r.shader.setInt(r.shader.locUseShadow, 1);
     }
     if (showHud) {
@@ -429,6 +310,12 @@ int main(int argc, char** argv) {
         cam.yaw = glm::degrees(atan2f(dummyPos.z - spawn0.z, dummyPos.x - spawn0.x));
     };
     setupOffline();
+    if (const char* w = getenv("FPS_WEAPON")) {
+        if (strcmp(w, "glock") == 0) {
+            gWeaponId = WEP_GLOCK19;
+            giveWeapon(offline.players[0], gWeaponId);
+        }
+    }
     // FPS_YAW/FPS_PITCH=<deg>, FPS_POS=<x,z> override the start view (debug shots).
     if (const char* yv = getenv("FPS_YAW"))   cam.yaw   = (float)atof(yv);
     if (const char* pv = getenv("FPS_PITCH")) cam.pitch = (float)atof(pv);
@@ -509,7 +396,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < MAX_PLAYERS; i++) prevAlive[i] = true;
     bool      showHitboxes = false;           // H: overlay translucent hit regions
     bool      fullMap      = false;           // M: full-screen map overlay
-    bool      showHud      = true;            // J: hide whole HUD for immersion
+    bool      showHud      = getenv("FPS_NOHUD") == nullptr;            // J: hide whole HUD for immersion
     bool      thirdPerson  = getenv("FPS_TPP") != nullptr;  // V: orbit self-view (see your own body)
 
     // Debug: FPS_ATMO=clear|overcast|golden picks the starting atmosphere preset
@@ -533,6 +420,8 @@ int main(int argc, char** argv) {
            "(Uzi/Glock), C connect, V third-person, K atmosphere, F wireframe, H hitboxes, J toggle HUD, ESC quit\n");
     printf("lobby: shooting range + dummy; press C to join a server (Paldiski)\n");
 
+    const char* shotFrameEnv = getenv("FPS_SHOT_FRAME");
+    const int shotFrame = shotFrameEnv ? std::max(1, atoi(shotFrameEnv)) : 60;
     while (running) {
         Uint64 now = SDL_GetPerformanceCounter();
         float  dt  = (float)(now - last) / SDL_GetPerformanceFrequency();
@@ -566,6 +455,11 @@ int main(int argc, char** argv) {
             giveWeapon(offline.players[0], gWeaponId);
         }
         input.state.weaponId = gWeaponId;
+        // Repeatable offline asset checks without injecting mouse/keyboard events.
+        if (!net.connected) {
+            if (getenv("FPS_ADS")) input.state.ads = true;
+            if (getenv("FPS_CROUCH")) input.state.crouch = true;
+        }
 
         // Lean (Q/E): smooth toward the held direction; the result drives the camera
         // roll/peek and is sent to the server for the authoritative shot origin.
@@ -1020,7 +914,12 @@ int main(int argc, char** argv) {
         static int frameCount = 0;
         ++frameCount;
         const char* shotPath = getenv("FPS_SHOT");
-        if (shotPath && frameCount == 60) { dumpFrame(renderer, shotPath); running = false; }
+        if (shotPath && frameCount == shotFrame) {
+            printf("[shot] weapon=%u ads=%.3f crouch=%.3f\n", (unsigned)gWeaponId,
+                   vm.adsT, crouchAnim[localID]);
+            dumpFrame(renderer, shotPath);
+            running = false;
+        }
         // Debug: FPS_BENCH=1 prints steady-state frame stats and quits. Skips the
         // first 300 frames (shader compile, tree scatter, impostor bake pollute
         // the HUD's smoothed readout), then samples 600 raw frame times.

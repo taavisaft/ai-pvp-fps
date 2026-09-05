@@ -162,7 +162,7 @@ struct Ragdoll {
         dir /= len;
         glm::vec3 up = fabsf(dir.y) > 0.99f ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
         glm::vec3 bx = glm::normalize(glm::cross(up, dir));
-        glm::vec3 bz = glm::cross(dir, bx);
+        glm::vec3 bz = glm::cross(bx, dir);
         glm::mat4 m(1.0f);
         m[0] = glm::vec4(bx * w, 0.0f);
         m[1] = glm::vec4(dir * len, 0.0f);
@@ -177,8 +177,8 @@ struct Ragdoll {
         // torso column, then arms, then legs.
         static constexpr int partOf[BONE_COUNT] = {
             Renderer::PART_TORSO, Renderer::PART_NECK, Renderer::PART_NECK,
-            Renderer::PART_ARM, Renderer::PART_ARM, Renderer::PART_ARM, Renderer::PART_ARM,
-            Renderer::PART_LEG, Renderer::PART_LEG, Renderer::PART_LEG, Renderer::PART_LEG,
+            Renderer::PART_ARM, Renderer::PART_FOREARM, Renderer::PART_ARM, Renderer::PART_FOREARM,
+            Renderer::PART_LEG, Renderer::PART_SHIN, Renderer::PART_LEG, Renderer::PART_SHIN,
         };
         for (int i = 0; i < BONE_COUNT; ++i)
             segment(r, p[bones[i].a].pos, p[bones[i].b].pos, bones[i].thick,

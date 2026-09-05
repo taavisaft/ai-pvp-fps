@@ -2,6 +2,9 @@
 #include "map.h"
 #include "stand_mesh.h"
 #include "player_mesh.h"
+#include "uzi_mesh.h"
+#include "player_lod_mesh.h"
+#include "uzi_lod_mesh.h"
 #include "texture.h"
 #include <cstdio>
 #include <glm/gtc/matrix_transform.hpp>
@@ -84,8 +87,17 @@ bool Renderer::init(const char* title, int w, int h) {
                       STAND_IDX, STAND_IDX_COUNT)) return false;
     for (int i = 0; i < PART_COUNT; i++) {
         const PMeshPart& p = PMESH_PARTS[i];
-        if (!playerPart[i].create(p.verts, p.floatCount, p.idx, p.idxCount)) return false;
+        if (!playerPart[i].create(p.verts, p.floatCount, p.idx, p.idxCount, true, false, true)) return false;
+        const PMeshPart& low = PMESH_LOD_PARTS[i];
+        if (!playerLod[i].create(low.verts, low.floatCount, low.idx, low.idxCount,
+                                true, false, true)) return false;
     }
+    if (!uzi.create(WMESH_UZI_VERTS, sizeof(WMESH_UZI_VERTS) / sizeof(float),
+                    WMESH_UZI_IDX, sizeof(WMESH_UZI_IDX) / sizeof(unsigned),
+                    true, false, true)) return false;
+    if (!uziLod.create(WLOD_UZI_VERTS, sizeof(WLOD_UZI_VERTS) / sizeof(float),
+                       WLOD_UZI_IDX, sizeof(WLOD_UZI_IDX) / sizeof(unsigned),
+                       true, false, true)) return false;
     // Heightfield mesh: setMap must have run first (pads + terrain mode set) so the
     // mesh matches the ground the server simulates.
     // The 2 km taiga ground is chunk-built lazily (taigaTerrain); this single mesh
@@ -403,7 +415,15 @@ void Renderer::drawMeshModel(const Mesh& m, const glm::mat4& model, const glm::v
     bindFlatColor(*active);
     active->setMat4(active->locModel, model);
     active->setVec3(active->locColor, color);
+    if (m.authoredMaterial) {
+        active->setInt(active->locHasNormal, 1);
+        active->setInt(active->locAuthoredMaterial, 1);
+    }
     m.draw();
+    if (m.authoredMaterial) {
+        active->setInt(active->locAuthoredMaterial, 0);
+        active->setInt(active->locHasNormal, 0);
+    }
 }
 
 void Renderer::drawCubeModelTranslucent(const glm::mat4& model, const glm::vec3& color,
@@ -540,6 +560,9 @@ void Renderer::shutdown() {
     ground.destroy();
     stand.destroy();
     for (int i = 0; i < PART_COUNT; i++) playerPart[i].destroy();
+    uzi.destroy();
+    uziLod.destroy();
+    for (int i = 0; i < PART_COUNT; i++) playerLod[i].destroy();
     cube.destroy();
     shader.destroy();
     skyShader.destroy();

@@ -21,6 +21,7 @@ set(SHARED_SOURCES
 
 set(CLIENT_SOURCES
     src/main.cpp
+    src/player_visual.cpp
     src/gl_loader.cpp
     src/shader.cpp
     src/font.cpp

@@ -35,6 +35,7 @@ struct Shader {
     GLint  locLightSpace= -1;  // basic + depth programs
     GLint  locShadowMap = -1;  // basic program; sampler on texture unit 1
     GLint  locUseShadow = -1;  // basic program; 1 = sample shadow map
+    GLint  locAuthoredMaterial = -1;
     GLint  locHasNormal = -1;  // basic program; 1 = use supplied vertex normal
     // Terrain slope/height splat (basic program; terrain draw only)
     GLint  locSplat    = -1;   // 1 = blend grass/dirt/rock by slope+height

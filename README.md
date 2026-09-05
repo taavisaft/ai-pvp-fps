@@ -199,3 +199,7 @@ The normal test build does not need an OpenGL window. Configuration still requir
 the project's SDL2/OpenGL development dependencies.
 
 [Implementation and verification details](docs/server-firing-2026-09-05.md)
+
+### Soldier and weapon assets
+
+The client includes an original segmented tactical soldier and a detailed classic Uzi in both first- and third-person views, with smooth normals, per-material color, camouflage, and reduced meshes beyond 15 meters. The editable Blender scene, regeneration/export commands, geometry budgets, and current animation limits are documented in [tools/soldier/README.md](tools/soldier/README.md). Run the game and press V to inspect your character; the offline range dummy mirrors your stance and aim.

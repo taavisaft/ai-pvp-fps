@@ -24,6 +24,7 @@ Current guide, reviewed against source on 2026-09-05. Build a realistic, perform
 - Shared terrain and tree scatter drive server/client placement. Tree trunks block movement but currently do not stop bullets. Paldiski has no generated buildings yet; the lobby has cover and a hunting stand.
 - Sprint, jump, crouch, lean, ADS, Uzi/Glock, preserved per-weapon ammo, manual/automatic reload, sticky recoil, swept projectile collision, drag/falloff, posed regional hitboxes, and target rewind exist.
 - Client prediction currently smooths position corrections; it does not replay acknowledged/unacknowledged input history. Shot cadence, bounded queues and state epochs are enforced by `server_fire.cpp`; broader packet validation/rate limits remain unfinished.
+- Segmented Blender-authored tactical soldier and classic Uzi use normals/material vertex data, local camouflage, and reduced meshes beyond 15 m. The Uzi is shared by first-/third-person views; gameplay hitboxes are unchanged. Editable source and export instructions: `tools/soldier/README.md`. No skinned deformation or magazine/reload animation yet.
 - Textured terrain, instanced vegetation/LOD/impostors, shadow map, sky/clouds, atmosphere presets, water, HUD, minimap, scoreboard, impact decals, audio, and cosmetic ragdolls exist. Grass blades are disabled in all quality tiers.
 - C opens a host prompt and server browser scanning eight ports; it is not a blocking stdin prompt. H toggles hitboxes, not hosting.
 
@@ -37,7 +38,7 @@ Current guide, reviewed against source on 2026-09-05. Build a realistic, perform
 | Server / transport / wire data | `src/server_main.cpp`, `src/server_fire.h/.cpp`, `src/server_rewind.h/.cpp`, `src/network.h/.cpp`, `src/net_common.h/.cpp`, `src/platform.h`, `src/protocol.h` |
 | Rendering / terrain / plants | `src/renderer.h/.cpp`, `src/terrain_render.h/.cpp`, `src/vegetation.h/.cpp`, `src/veg_mesh.cpp`, `shaders/` |
 | Meshes / textures / materials | `src/mesh.h/.cpp`, `src/material.h/.cpp`, `src/texture.h/.cpp`, `src/gl_loader.h/.cpp` |
-| Characters / weapon pose | `src/playerpose.h`, `src/skeleton.h`, `src/player_mesh.h`, `src/weapon_visual.h`, `src/ragdoll.h` |
+| Characters / weapon pose | `src/playerpose.h`, `src/skeleton.h`, `src/player_mesh.h`, `src/player_visual.h/.cpp`, `src/uzi_mesh.h`, `tools/soldier/`, `src/weapon_visual.h`, `src/ragdoll.h` |
 | Input / UI / audio / profiling | `src/input.h/.cpp`, `src/camera.h/.cpp`, `src/hud.h/.cpp`, `src/font.h/.cpp`, `src/lobby.h/.cpp`, `src/audio.h/.cpp`, `src/perf.h/.cpp` |
 
 ## Build and verification

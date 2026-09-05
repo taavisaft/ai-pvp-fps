@@ -72,8 +72,10 @@ struct Renderer {
     // drawn with the same M * scale(2*half) transform as the plain cube, so the
     // pose boxes/hitboxes are unchanged. Order matches PMESH_PARTS in player_mesh.h.
     enum PlayerPartId { PART_HEAD = 0, PART_TORSO, PART_PELVIS, PART_NECK,
-                        PART_ARM, PART_HAND, PART_LEG, PART_FOOT, PART_COUNT };
+                        PART_ARM, PART_HAND, PART_LEG, PART_FOOT, PART_FOREARM, PART_SHIN, PART_COUNT };
     Mesh   playerPart[PART_COUNT];
+    Mesh   uzi, uziLod;
+    Mesh   playerLod[PART_COUNT];
     Mesh   quad2d;   // unit quad for HUD rects
     Font   font;     // bitmap text, HUD pass only
     MaterialLib materials;

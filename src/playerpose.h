@@ -7,11 +7,10 @@
 #include "game.h"
 #include "terrain.h"
 
-// Single source of truth for the posed box-man: buildPlayerPose() emits every box the
-// player visibly is — FK spine, IK arms onto the weapon grips, the weapon itself, IK
-// legs — as oriented boxes. The client renders exactly this list (drawPlayerSkeleton
-// colors by part); the server hit-tests exactly this list (playerHitRegions maps part →
-// damage multiplier). Hitboxes therefore ARE the rendered outline and cannot drift.
+// Shared pose frames and coarse hit volumes: FK spine, IK arms onto weapon grips,
+// weapon proxies, and IK legs. The client attaches detailed cosmetic meshes to these
+// frames; the server maps the boxes to damage regions. Clothing and equipment do
+// not exactly match the box outlines and do not add armor or collision protection.
 // GL-free on purpose: the headless server includes this.
 //
 // The client may pass fractional crouch/ADS values for visual transitions; the server
