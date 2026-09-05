@@ -2,7 +2,7 @@
 
 An online first-person shooter built from scratch in **C++17**, using SDL2, OpenGL and raw UDP. No game engine.
 
-**16-player free-for-all** across Paldiski, a 2×2 km Baltic landscape. Dedicated authoritative server, projectile ballistics, Uzi and Glock, aiming, sprinting, crouching and leaning.
+**16-player free-for-all** across Paldiski, a 2×2 km Baltic landscape. Fight with the Uzi and Glock 19, projectile ballistics, and an authoritative dedicated server. Players have **100 HP** and respawn after **3 seconds**. Practice offline or join an online match.
 
 ![Golden-hour patrol in Paldiski](screenshot.jpg)
 
@@ -29,8 +29,24 @@ You can also press **C** in-game to find and join a server. Multi-config builds 
 
 ## Controls
 
-**WASD** move · **Mouse** look · **Left click** fire · **Right click** aim<br>
-**Shift** sprint · **Space** jump · **Ctrl** crouch · **Q/E** lean<br>
-**1/2** weapon · **R** reload · **Tab** scoreboard · **Esc** quit
+| Key | Action |
+| --- | --- |
+| WASD / Mouse | Move / look |
+| Shift / Space | Sprint / jump |
+| Left Ctrl | Crouch |
+| Q / E | Lean left / right |
+| Left / right click | Fire / aim down sights |
+| 1 / 2 | Uzi / Glock 19 |
+| Scroll wheel | Cycle weapon |
+| R | Reload |
+| B | Cycle fire mode (Uzi: semi/burst/auto) |
+| Tab (hold) | Scoreboard |
+| C | Find and join a server |
+| M / J | Toggle map / HUD |
+| K | Cycle atmosphere |
+| V | Toggle third-person view |
+| G | Clear bullet marks (offline) |
+| H / F | Toggle hitboxes / wireframe (debug) |
+| Esc | Quit |
 
 [Roadmap](TODO.md) · [Development notes](docs/development.md) · [Contributing](AGENTS.md)

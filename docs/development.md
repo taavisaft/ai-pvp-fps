@@ -2,37 +2,9 @@
 
 [Back to the project](../README.md) · [Roadmap](../TODO.md) · [Contributor guide](../AGENTS.md)
 
-## Controls
+The full [key bindings](../README.md#controls) are in the README.
 
-| Input        | Action                            |
-| ------------ | --------------------------------- |
-| W A S D      | Move                              |
-| Shift        | Sprint                            |
-| Space        | Jump                              |
-| Left Ctrl    | Crouch                            |
-| Q / E        | Lean left / right (peek)          |
-| Mouse        | Look                              |
-| Left click   | Shoot                             |
-| Right mouse  | Aim down sights (zoom)            |
-| 1 / 2        | Select weapon (Uzi / Glock 19)    |
-| Scroll wheel | Cycle weapon                      |
-| B            | Cycle fire mode (Uzi: semi/burst/auto; Glock is semi-only) |
-| R            | Reload                            |
-| Tab (hold)   | Scoreboard                        |
-| G            | Clear bullet marks (offline)      |
-| C            | Connect — host prompt, then server browser |
-| M            | Toggle full-screen map            |
-| J            | Toggle HUD on / off (immersion)   |
-| K            | Cycle atmosphere (clear / overcast / golden hour) |
-| V            | Toggle third-person self-view (see your own body) |
-| H            | Toggle hitbox overlay (translucent green, debug) |
-| F            | Toggle wireframe                  |
-| ESC          | Quit                              |
-
-HP, ammo, and the current weapon show on screen, kills appear in the feed top-right, and holding Tab shows the scoreboard. Press **J** to hide the entire HUD for a clean, immersive view; press again to restore it.
-
-
-### Testing netcode (lag, jitter, packet loss)
+## Testing netcode (lag, jitter, packet loss)
 
 The client can simulate a bad connection so you can test lag compensation and the
 interpolation buffer on a single machine. Set any combination of these environment
