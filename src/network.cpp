@@ -152,7 +152,10 @@ bool ClientNet::processPacket(const char* buf, int n, const sockaddr_in& from) {
             snaps[seq % SNAP_HIST]    = s;
             snapUsed[seq % SNAP_HIST] = true;
             if (!hasState || seq > newestSeq)      newestSeq = seq;
-            if (!hasState || seq >= lastState.seq) lastState = s;  // newest authoritative
+            if (!hasState || seq >= lastState.seq) {
+                if (!hasState || lastState.fireEpoch != s.fireEpoch) shotSeq = 0;
+                lastState = s;  // counter belongs to this epoch, never relabel old shots
+            }
             hasState = true;
         }
     } else if (type == PKT_IMPACT && n >= impactPacketSize(0)) {
@@ -268,6 +271,8 @@ void ClientNet::sendInput(const InputState& in, uint32_t viewSeq, uint8_t viewFr
     p.yaw      = in.yaw;
     p.pitch    = in.pitch;
     p.shotSeq  = shotSeq;
+    p.fireEpoch = hasState ? lastState.fireEpoch : 0;
+    p.fireMode = in.fireMode;
     p.flags    = (in.ads ? FLAG_ADS : 0) | (in.reload ? FLAG_RELOAD : 0);
     p.viewSeq  = viewSeq;
     p.viewFrac = viewFrac;

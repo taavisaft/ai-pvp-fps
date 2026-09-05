@@ -12,7 +12,7 @@ struct ClientNet {
     bool        connecting = false;
     bool        connected  = false;
     uint32_t    inputSeq   = 0;
-    uint32_t    shotSeq    = 0;   // bumped per click; carried in every input packet
+    uint32_t    shotSeq    = 0;   // requested shots within the latest server fireEpoch
 
     // Playout buffer: a ring of recent snapshots keyed by seq lets rendering run a
     // fixed delay behind the newest packet, absorbing jitter and bridging dropped

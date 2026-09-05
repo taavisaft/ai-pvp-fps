@@ -43,7 +43,7 @@ add_executable(game ${CLIENT_SOURCES} ${SHARED_SOURCES})
 target_include_directories(game PRIVATE src)
 target_link_libraries(game PRIVATE SDL2::SDL2 OpenGL::GL glm::glm)
 
-add_executable(server src/server_main.cpp ${SHARED_SOURCES})
+add_executable(server src/server_main.cpp src/server_fire.cpp src/server_rewind.cpp ${SHARED_SOURCES})
 target_include_directories(server PRIVATE src)
 target_link_libraries(server PRIVATE glm::glm)
 
@@ -71,3 +71,25 @@ add_custom_command(TARGET game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/sounds $<TARGET_FILE_DIR:game>/sounds)
 
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(server_fire_tests tests/server_fire_tests.cpp src/server_fire.cpp src/server_rewind.cpp
+        src/physics.cpp src/tree_scatter.cpp)
+    target_include_directories(server_fire_tests PRIVATE src)
+    target_link_libraries(server_fire_tests PRIVATE glm::glm)
+    add_test(NAME server_fire COMMAND server_fire_tests)
+    add_executable(client_fire_tests tests/client_fire_tests.cpp src/network.cpp src/net_common.cpp)
+    target_include_directories(client_fire_tests PRIVATE src)
+    target_link_libraries(client_fire_tests PRIVATE glm::glm)
+    if(WIN32)
+        target_link_libraries(client_fire_tests PRIVATE ws2_32)
+    endif()
+    add_test(NAME client_fire COMMAND client_fire_tests)
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME server_fire_udp COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/server_fire_udp.py $<TARGET_FILE:server>)
+        set_tests_properties(server_fire_udp PROPERTIES TIMEOUT 20)
+    endif()
+endif()

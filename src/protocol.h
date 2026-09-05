@@ -19,15 +19,15 @@ enum PacketType : uint8_t {
 constexpr int NET_MAX_IMPACTS = 32;
 enum ImpactDir : uint8_t { IMP_PX = 0, IMP_NX, IMP_PY, IMP_NY, IMP_PZ, IMP_NZ };
 
-// Max bullets carried per StatePacket; keeps the packet under typical MTU.
+// Max bullets carried per StatePacket; v4 fits a 1472-byte IPv4 UDP payload.
 // Bullets beyond this are still simulated server-side, just not rendered.
-constexpr int NET_MAX_BULLETS = 64;
+constexpr int NET_MAX_BULLETS = 63;
 constexpr int NET_MAX_PLAYERS = 16;   // must equal MAX_PLAYERS
 
 // Bump when packet layout or deterministic world/terrain generation changes.
 // Client prediction and server authority must sample the exact same heightfield;
 // accepting a stale server otherwise yanks the camera below the local terrain.
-constexpr uint16_t NET_PROTOCOL_VERSION = 3;
+constexpr uint16_t NET_PROTOCOL_VERSION = 4;
 constexpr uint32_t NET_WORLD_REVISION   = 0x20260723u;
 
 #pragma pack(push, 1)
@@ -51,7 +51,9 @@ struct InputPacket {
     uint8_t    keys;    // bitmask: W=1 A=2 S=4 D=8 (SHOOT no longer used to fire)
     float      yaw;
     float      pitch;
-    uint32_t   shotSeq; // total shots fired this session; reliable event count
+    uint32_t   shotSeq; // requested shots within fireEpoch; bounded reliable counter
+    uint32_t   fireEpoch; // server-issued weapon/mode/reload/life generation
+    uint8_t    fireMode;  // FIRE_SEMI / FIRE_BURST / FIRE_AUTO
     uint8_t    flags;   // FLAG_* bitmask (separate from keys, which is full)
     uint32_t   viewSeq;  // StatePacket seq the client is interpolating from (lag comp)
     uint8_t    viewFrac; // interpolation alpha * 255 toward viewSeq+1 (lag comp)
@@ -89,6 +91,8 @@ struct StatePacket {
     PacketType     type;          // PKT_STATE
     uint32_t       seq;
     uint16_t       usedMask;      // bit i set = player slot i occupied
+    uint32_t       fireEpoch;     // per-recipient firing-state generation
+    uint8_t        fireMode;      // recipient's server-selected mode
     uint8_t        recvHits;      // recipient's damaging-hits-dealt counter
     float          recvHitX, recvHitY, recvHitZ;  // recipient's last impact point
     PlayerNetState players[NET_MAX_PLAYERS];
@@ -124,6 +128,10 @@ struct ImpactPacket {
 constexpr int statePacketSize(int count) {
     return (int)offsetof(StatePacket, bullets) + count * (int)sizeof(BulletNetState);
 }
+
+// Standard 1500-byte IPv4 MTU minus 20-byte IP and 8-byte UDP headers.
+// Smaller paths/tunnels still need a more conservative transport policy.
+static_assert(statePacketSize(NET_MAX_BULLETS) <= 1472, "State exceeds IPv4 UDP payload budget");
 
 // Wire size of an ImpactPacket carrying `count` impacts (sent truncated)
 constexpr int impactPacketSize(int count) {

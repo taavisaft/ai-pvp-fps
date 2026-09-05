@@ -481,7 +481,8 @@ int main(int argc, char** argv) {
     bool        remoteShotsSeeded = false;           // seed once when entering online play
     int         fireMode     = FIRE_SEMI;
     float       fireTimer    = 0.0f;    // cooldown until next allowed shot
-    int         burstRemaining = 0;     // rounds left in current burst
+    int         burstRemaining = 0;   // rounds left in current burst
+    uint32_t    lastFireEpoch = 0;
     bool        prevReloading = false;  // for reload-start sound
     float       gameTime     = 0.0f;    // accumulated seconds, drives grass wind
     uint8_t     prevOwnHits  = 0;       // hit-marker: own hits-dealt counter
@@ -644,6 +645,7 @@ int main(int argc, char** argv) {
             hud.fireModeTimer = 2.0f;                 // flash the new mode, then fade
         }
         hud.fireMode = fireMode;
+        input.state.fireMode = (uint8_t)fireMode;
 
         bool ownAliveF, ownReloadingF; int ownMagF;   // own weapon state for gating
         if (online) {
@@ -654,6 +656,10 @@ int main(int argc, char** argv) {
             ownAliveF = s.alive; ownMagF = s.mag; ownReloadingF = s.reloading;
         }
 
+        if (online && net.lastState.fireEpoch != lastFireEpoch) {
+            lastFireEpoch = net.lastState.fireEpoch;
+            burstRemaining = 0;
+        }
         fireTimer -= dt;
         if (fireMode == FIRE_BURST && input.state.shoot) burstRemaining = lw.burstCount;
         bool  wantFire = false;
@@ -662,12 +668,17 @@ int main(int argc, char** argv) {
         if (fireMode == FIRE_BURST) { wantFire = burstRemaining > 0;    fireInt = lw.fireBurstInt; }
         if (fireMode == FIRE_AUTO)  { wantFire = input.state.shootHeld; fireInt = lw.fireAutoInt;  }
 
-        bool fired = wantFire && ownAliveF && ownMagF > 0 && !ownReloadingF && fireTimer <= 0.0f;
+        bool fireStateReady = !online ||
+            (net.lastState.players[localID].weaponId == gWeaponId &&
+             net.lastState.fireMode == fireMode && net.lastState.fireEpoch != 0);
+        if (!ownAliveF || ownReloadingF || !fireStateReady || input.state.reload)
+            burstRemaining = 0;
+        bool fired = fireStateReady && !input.state.reload && wantFire && ownAliveF && ownMagF > 0 && !ownReloadingF && fireTimer <= 0.0f;
         if (online) offlineShoot = false;
         if (fired) {
             fireTimer = fireInt;
             if (fireMode == FIRE_BURST && burstRemaining > 0) burstRemaining--;
-            if (online) net.shotSeq++;   // reliable shot; server spawns + decrements mag
+            if (online) net.shotSeq++;   // request; server validates cadence and decrements ammo on spawn
             else        offlineShoot = true;
             vm.flashTimer = 0.05f;
             vm.recoilT    = 1.0f;

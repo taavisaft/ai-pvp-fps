@@ -91,8 +91,8 @@ constexpr float RECOIL_RECOVER_TAU  = 0.10f;  // exp decay time constant of reco
 constexpr float RECOIL_FIRST_MULT   = 1.25f;  // extra kick on the first (cold) shot
 constexpr float RECOIL_HEAT_OVER    = 0.25f;  // extra deg/shot per heat unit past ramp
 
-// Fire modes (client-side only — decides when shots are registered). Per-weapon
-// fire intervals / burst counts now come from weaponDef(id), not constants.
+// Client fire modes select shot requests; the server validates mode and cadence.
+// Per-weapon fire intervals / burst counts come from weaponDef(id).
 enum FireMode { FIRE_SEMI = 0, FIRE_BURST, FIRE_AUTO, FIRE_MODE_COUNT };
 
 struct Player {
@@ -156,6 +156,7 @@ struct InputState {
     float yaw;
     float pitch;
     uint8_t weaponId = WEP_UZI;    // selected weapon (1/2 keys), sent to server
+    uint8_t fireMode = FIRE_SEMI;  // selected mode, validated by server
 };
 
 // Switch a player to weapon `id`: stash the held weapon's ammo, restore the

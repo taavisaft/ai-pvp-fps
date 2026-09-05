@@ -168,9 +168,34 @@ Frame samples use uncapped wall time; pass timers measure CPU submission/wait,
 not GPU execution. See the [dated benchmark](docs/progress-2026-09-05.md) for the
 HUD improvement, including its limited test scope.
 
-The current wire format is protocol v3: all 16 player slots plus up to 64 bullet
-records, while the server simulates up to 256 bullets. Server cadence validation,
-input replay, packet sizing and 16-client load tests are outstanding work, not
+The current wire format is protocol v4: all 16 player slots plus up to 63 bullet
+records, while the server simulates up to 256 bullets. Server cadence validation is implemented;
+input replay, smaller-path packet sizing and 16-client load tests are outstanding work, not
 finished guarantees of internet robustness. Full controls above describe the
 current prototype; the [archived starter spec](docs/archive/original-game-spec.md)
 is historical.
+
+
+## Server firing rules and tests
+
+Protocol **v4** adds a server-issued firing-state ID and selected fire mode.
+Rebuild and restart both server and clients together; v3 peers are rejected.
+Weapon/mode changes wait for the server to confirm the selection before the client
+fires. Reload and respawn invalidate old shot requests. The server enforces the
+weapon's selected firing interval (rounded up to its 60 Hz tick), holds at most
+four pending requests, and drops requests older than 350 ms after receipt.
+Oversized counter jumps are discarded rather than fired as a catch-up volley.
+
+```bash
+cmake -B build
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+Tests cover cooldowns, loss recovery, duplicates/reordering, state transitions,
+ammunition, client counter resets, and rewind behavior. When Python3 is available,
+CTest also runs a real UDP regression against an isolated temporary server.
+The normal test build does not need an OpenGL window. Configuration still requires
+the project's SDL2/OpenGL development dependencies.
+
+[Implementation and verification details](docs/server-firing-2026-09-05.md)

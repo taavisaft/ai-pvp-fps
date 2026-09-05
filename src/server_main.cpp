@@ -13,17 +13,16 @@
 #include "game.h"
 #include "physics.h"
 #include "map.h"
-
+#include "server_fire.h"
+#include "server_rewind.h"
 struct ClientSlot {
     bool        used = false;
     sockaddr_in addr{};
     InputState  input{};
     uint32_t    lastSeq      = 0;
+    bool        hasSeq      = false;
     float       silence      = 0.0f;
-    uint32_t    shotSeq      = 0;   // latest shot count seen from client
-    uint32_t    firedShots   = 0;   // shots already spawned; fire while < shotSeq
-    uint32_t    viewSeq      = 0;   // state the client was rendering (lag comp)
-    uint8_t     viewFrac     = 0;   // interpolation alpha * 255 (lag comp)
+    ServerFire  fire;
 };
 
 static GameState  game;
@@ -33,120 +32,13 @@ static bool       prevAlive[MAX_PLAYERS];
 // Human-readable map name, shared by the startup log and the lobby PKT_INFO reply.
 static const char* mapLabel(MapId) { return "PALDISKI"; }
 
-// --- Lag compensation: rewind player hitboxes to the shooter's view-time ---
-constexpr int   HISTORY_TICKS   = 90;    // 1.5 s of position history at 60 Hz
-constexpr float HISTORY_SECONDS = 1.4f;  // max rewind, kept under the buffer
-constexpr int   STATE_HIST      = 64;    // recent state-seq -> send-time map size
-
-static float serverTime = 0.0f;          // monotonic seconds since boot
-
-// One per-tick snapshot of every player's hitbox, tagged with its server time.
-struct Snap {
-    float     t = 0.0f;
-    uint16_t  usedMask = 0;
-    glm::vec3 pos[MAX_PLAYERS];
-    bool      crouched[MAX_PLAYERS];
-    bool      alive[MAX_PLAYERS];
-    float     yaw[MAX_PLAYERS];     // hit regions are yaw-oriented
-    float     pitch[MAX_PLAYERS];   // neck aim tilt moves the head box
-    float     lean[MAX_PLAYERS];    // torso lean roll moves the upper-body boxes
-    bool      ads[MAX_PLAYERS];     // raises the arms box when aiming
-    uint8_t   weaponId[MAX_PLAYERS];// gun + hand-grip boxes are weapon-shaped
-};
-static Snap history[HISTORY_TICKS];
-static int  histHead  = -1;   // index of newest snapshot
-static int  histCount = 0;    // valid snapshots in the ring
-
 // World-impact decals collected across the ticks since the last broadcast, then sent
 // once per state packet and cleared. Cosmetic + unreliable; overflow just drops marks.
 static Impact gImpacts[NET_MAX_IMPACTS];
 static int    gImpactCount = 0;
 
-// Maps a broadcast state seq to the server time it was sent, so an incoming
-// viewSeq can be turned into an absolute server time.
-struct StateStamp { uint32_t seq = 0xFFFFFFFFu; float t = 0.0f; };
-static StateStamp stateStamps[STATE_HIST];
-
-static bool stateTimeFor(uint32_t seq, float& outT) {
-    const StateStamp& s = stateStamps[seq % STATE_HIST];
-    if (s.seq != seq) return false;   // unknown / overwritten
-    outT = s.t;
-    return true;
-}
-
-static void recordSnapshot() {
-    histHead = (histHead + 1) % HISTORY_TICKS;
-    Snap& s = history[histHead];
-    s.t        = serverTime;
-    s.usedMask = game.usedMask;
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-        s.pos[i]      = game.players[i].pos;
-        s.crouched[i] = game.players[i].crouched;
-        s.alive[i]    = game.players[i].alive;
-        s.yaw[i]      = game.players[i].yaw;
-        s.pitch[i]    = game.players[i].pitch;
-        s.lean[i]     = game.players[i].lean;
-        s.ads[i]      = game.players[i].ads;
-        s.weaponId[i] = game.players[i].weaponId;
-    }
-    if (histCount < HISTORY_TICKS) histCount++;
-}
-
-// RewindLookup: where player `pid`'s hitbox was `rewindSec` seconds ago.
-static bool rewindLookup(const void* ctx, int pid, float rewindSec,
-                         glm::vec3& pos, bool& crouched, float& yaw, float& pitch,
-                         float& lean, bool& ads, uint8_t& weaponId, bool& alive) {
-    (void)ctx;
-    if (histCount == 0) return false;
-    float    target = serverTime - rewindSec;
-    uint16_t bit    = (uint16_t)(1u << pid);
-
-    int   olderIdx = histHead, newerIdx = histHead;
-    float a = 0.0f;
-    const Snap& newest = history[histHead];
-    if (target >= newest.t || histCount == 1) {
-        olderIdx = newerIdx = histHead;          // at/after newest: no interp
-    } else {
-        bool found = false;
-        for (int k = 1; k < histCount; k++) {
-            int oi = (histHead - k + HISTORY_TICKS) % HISTORY_TICKS;
-            if (history[oi].t <= target) {
-                olderIdx = oi;
-                newerIdx = (histHead - (k - 1) + HISTORY_TICKS) % HISTORY_TICKS;
-                float span = history[newerIdx].t - history[oi].t;
-                a = span > 1e-6f ? (target - history[oi].t) / span : 0.0f;
-                found = true;
-                break;
-            }
-        }
-        if (!found)                              // older than everything retained
-            olderIdx = newerIdx = (histHead - (histCount - 1) + HISTORY_TICKS) % HISTORY_TICKS;
-    }
-
-    const Snap& sa = history[olderIdx];
-    const Snap& sb = history[newerIdx];
-    if (!(sb.usedMask & bit) || !sb.alive[pid]) return false;  // not a valid target then
-    bool      olderValid = (sa.usedMask & bit) && sa.alive[pid];
-    glm::vec3 older = olderValid ? sa.pos[pid] : sb.pos[pid];
-    pos      = glm::mix(older, sb.pos[pid], a);
-    crouched = sb.crouched[pid];
-    ads      = sb.ads[pid];
-    // Shortest-arc yaw interp so a player spinning across the 0/360 seam doesn't make
-    // the hit regions swing the long way round between snapshots.
-    float ya = olderValid ? sa.yaw[pid] : sb.yaw[pid];
-    float dy = sb.yaw[pid] - ya;
-    while (dy > 180.0f)  dy -= 360.0f;
-    while (dy < -180.0f) dy += 360.0f;
-    yaw      = ya + dy * a;
-    // Pitch is clamped to ±89 and lean to ±1 — no seam, plain lerp.
-    pitch    = glm::mix(olderValid ? sa.pitch[pid] : sb.pitch[pid], sb.pitch[pid], a);
-    lean     = glm::mix(olderValid ? sa.lean[pid]  : sb.lean[pid],  sb.lean[pid],  a);
-    weaponId = sb.weaponId[pid];
-    alive    = true;
-    return true;
-}
-
-// Spawn points on a circle, facing the center. Random point per respawn
+static uint32_t fireEpochSource = 0;
+// Join at the slot-selected spawn; choose a random point per respawn
 // so deaths don't return you to a campable fixed spot.
 static glm::vec3 spawnPos(int point) {
     glm::vec3 p = gMapSpawnCount > 0 ? gMapSpawns[point % gMapSpawnCount]
@@ -172,6 +64,7 @@ static void respawn(int id, bool joining) {
     p.kills  = kills;
     p.deaths = deaths;
     prevAlive[id] = true;
+    clients[id].fire.reset(p, fireEpochSource);
 }
 
 static void dropClient(int id) {
@@ -228,24 +121,11 @@ static void handlePackets(int fd) {
             memcpy(&p, buf, sizeof(p));
             ClientSlot& c = clients[id];
             c.silence = 0.0f;
-            if (p.seq <= c.lastSeq) continue;  // stale/duplicate
+            if (!validFireInput(p) || (c.hasSeq && !serialNewer(p.seq, c.lastSeq))) continue;
+            c.hasSeq = true;
             c.lastSeq = p.seq;
-            c.input.w = p.keys & KEY_W;
-            c.input.a = p.keys & KEY_A;
-            c.input.s = p.keys & KEY_S;
-            c.input.d = p.keys & KEY_D;
-            c.input.sprint = p.keys & KEY_SPRINT;
-            c.input.jump   = p.keys & KEY_JUMP;
-            c.input.crouch = p.keys & KEY_CROUCH;
-            c.input.ads    = p.flags & FLAG_ADS;
-            c.input.reload = p.flags & FLAG_RELOAD;
-            c.input.weaponId = p.weaponId;
-            c.input.lean  = p.lean / 127.0f;
-            c.input.yaw   = p.yaw;
-            c.input.pitch = p.pitch;
-            c.shotSeq     = p.shotSeq;  // packet is seq-gated newest, so monotonic
-            c.viewSeq     = p.viewSeq;  // for lag-compensating this client's shots
-            c.viewFrac    = p.viewFrac;
+            c.input = decodeFireInput(p);
+            c.fire.receive(p, game.players[id], serverTime);
         } else if (type == PKT_QUERY) {
             // Stateless lobby probe: report map + population without joining.
             int online = 0;
@@ -271,7 +151,7 @@ static void tick(float dt) {
         Player& p = game.players[i];
 
         if (!p.alive) {
-            c.firedShots = c.shotSeq;   // drop shots queued while dead
+            c.fire.synchronize(p, c.input.fireMode, fireEpochSource);
             p.respawnTimer -= dt;
             if (p.respawnTimer <= 0.0f) {
                 respawn(i, false);
@@ -287,29 +167,11 @@ static void tick(float dt) {
         p.pitch = c.input.pitch;              // pose the head/neck hitboxes
         p.lean  = c.input.lean;               // lean moves the upper-body hitboxes
         updateReload(p, c.input.reload, dt);
-        if (c.firedShots < c.shotSeq) {   // one shot per tick; drains any backlog
-            float eyeH = p.crouched ? CROUCH_EYE : EYE_HEIGHT;
-            glm::vec3 eye = p.pos + glm::vec3(0, eyeH, 0);
-            LeanShift ls = leanShift(c.input.lean);        // peek: head arcs out + dips
-            float yr = glm::radians(c.input.yaw);
-            eye += glm::vec3(-sinf(yr), 0.0f, cosf(yr)) * ls.lateral;
-            eye.y -= ls.drop;
-            glm::vec3 origin, dir;
-            float spread = aimSpread(p, c.input);   // stance/movement accuracy
-            weaponShot(c.input.yaw, c.input.pitch, eye, c.input.ads, spread, origin, dir);
-            // Rewind targets to the world the shooter saw when they fired.
-            float viewT, comp = 0.0f;
-            if (stateTimeFor(c.viewSeq, viewT)) {
-                comp = serverTime - (viewT + (c.viewFrac / 255.0f) * (1.0f / NET_HZ));
-                if (comp < 0.0f) comp = 0.0f;
-                if (comp > HISTORY_SECONDS) comp = HISTORY_SECONDS;
-            }
-            spawnBullet(game, origin, dir, i, comp);   // no-op if mag empty / reloading
-            c.firedShots++;
-        }
+        c.fire.synchronize(p, c.input.fireMode, fireEpochSource);
+        c.fire.tick(game, i, serverTime, c.input, rewindForShot);
     }
 
-    recordSnapshot();                       // freshest positions for lag-comp lookups
+    recordSnapshot(game);                       // freshest positions for lag-comp lookups
     updateBullets(game, dt, rewindLookup, nullptr, gImpacts, &gImpactCount, NET_MAX_IMPACTS);
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -321,15 +183,15 @@ static void tick(float dt) {
 }
 
 static void broadcast(int fd, uint32_t seq) {
-    static StatePacket s;  // ~1.3 KB; keep off the stack, reused each call
+    static StatePacket s;  // keep off the stack, reused each call
     s.type     = PKT_STATE;
     s.seq      = seq;
     s.usedMask = game.usedMask;
-    stateStamps[seq % STATE_HIST] = {seq, serverTime};  // for lag-comp viewSeq mapping
+    recordStateTime(seq);
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         const Player& p = game.players[i];
-        const uint8_t shots = (uint8_t)clients[i].firedShots;  // wraps naturally for delta-on-client
+        const uint8_t shots = clients[i].fire.shotsFired;  // wraps naturally for delta-on-client
         s.players[i] = {p.pos.x, p.pos.y, p.pos.z, p.yaw,
                         p.hp, (uint8_t)(p.alive ? 1 : 0),
                         (uint8_t)p.mag, (uint8_t)p.reserve, (uint8_t)(p.reloading ? 1 : 0),
@@ -356,6 +218,8 @@ static void broadcast(int fd, uint32_t seq) {
     for (int i = 0; i < MAX_PLAYERS; i++)
         if (clients[i].used) {
             const Player& rp = game.players[i];     // stamp this recipient's own hit info
+            s.fireEpoch = clients[i].fire.epoch;
+            s.fireMode = clients[i].fire.mode;
             s.recvHits = (uint8_t)rp.hits;
             s.recvHitX = rp.lastHitPos.x;
             s.recvHitY = rp.lastHitPos.y;
