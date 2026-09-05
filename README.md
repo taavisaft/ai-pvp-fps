@@ -1,13 +1,17 @@
-# PvP Shooter
+# AI PvP FPS
 
-Barebones 3D first-person free-for-all shooter, built from scratch in C++17.
+3D first-person free-for-all shooter, built from scratch in C++17.
+
+[Next work](TODO.md) · [Contributor guide](AGENTS.md) · [Development records](LOG.md)
 No game engine, no physics library, no networking library — just SDL2, OpenGL 3.3, GLM, and raw UDP sockets.
 
 Up to 16 players drop in and out of a dedicated server and fight across **Paldiski** — a 2×2 km Baltic taiga. Move with sprint, jump, and crouch; aim down sights for accurate fire or shoot from the hip with movement spread, and respawn after 3 seconds at a random spawn point.
 
 Two weapons — a 9mm **Uzi** SMG and a **Glock 19** pistol — fire real projectiles with true muzzle velocity (~375–400 m/s), bullet drop, air drag, and distance damage falloff. Collision is swept per bullet, so fast rounds stop dead on cover instead of tunnelling through it. Recoil is sticky: the gun climbs as you spray and stays where it ended — you pull it back down yourself. Switch weapons with the number keys or the scroll wheel — each gun keeps its own magazine and reserve, so swapping isn't a free reload. The mag reloads automatically when it runs dry, or reload early with R. Lean around cover with Q/E to peek without exposing your body.
 
-The map is **Paldiski**: a 2×2 km taiga — the Baltic on the west behind a wavy shoreline you can wade into (waist-deep, then it walls you off), long ridge-and-valley swells rolling inland (flat bog meadows in the floors, grassy crests to ~70 m with terraced cliff bands), two rivers cutting west, and a snowy mountain vista ramping up beyond the east edge. The terrain is generated deterministically from integer-hash noise that runs identically on the server and every client, so it needs no assets and nothing to sync. The same noise scatters ~40k spruces — dense stands with a treeline wall around every bog meadow, young saplings dotting the open ground — and each tree hands off from detailed mesh to low-poly mesh to a billboard impostor (the spruce baked to a texture at startup) with dithered cross-fades, so every tree is visible at every distance and nothing pops in. (3D grass blades are parked for now; the ground's animated grass shader carries the bog color.) Tree trunks now block movement — you can't walk through a spruce, resolved as a radial push-out from the same deterministic scatter on the server and every client (and in the offline lobby), so what you see is what you bump. Bullets still pass through trees for now. A miniature spruce ring also circles the offline lobby. Buildings and props are still to be rebuilt (terrain → plants → structures). Offline you practice in the lobby against a respawning dummy; the map registry (`FPS_MAP`, one name today: `paldiski`) keeps the door open for future maps.
+The map is **Paldiski**: approximately 2×2 km of procedural Baltic-inspired terrain (±1024 m), with a shoreline, rivers, bog meadows, ridges, and a mountain backdrop. Shared terrain and scatter code supplies placement to the client and server; cross-platform determinism still needs automated verification. About 41,000 spruces are scattered in the current map. The renderer uses instancing, distance tiers and baked tree impostors with dithered transitions, plus terrain chunk LOD and quality presets.
+
+Tree trunks block movement but **bullets still pass through them**. Grass blades are disabled in all quality tiers; the shipped ground image supplies the terrain's grass base, with procedural fallback when missing. Trees and bushes use separate cutout textures. Paldiski buildings and props were reset for a terrain-first rebuild; the offline lobby retains cover, the hunting stand and a practice dummy. See [TODO.md](TODO.md) for the planned forest combat area.
 
 ![screenshot](screenshot.png)
 
@@ -23,7 +27,8 @@ brew install cmake sdl2
 sudo apt install cmake build-essential libsdl2-dev libgl1-mesa-dev
 
 # Windows
-# Nope, I won't touch that even with a 20-inch stick.
+# SDL2 and an OpenGL-capable toolchain are required.
+# Platform branches exist; Windows build/runtime parity is not yet verified.
 
 # then
 cmake -B build
@@ -31,6 +36,16 @@ cmake --build build
 ```
 
 Produces two binaries: `build/game` (client) and `build/server` (dedicated server).
+Use an optimized build for performance comparisons:
+
+```bash
+cmake -B build-release -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release --config Release
+```
+
+For a multi-config generator, binaries are under the selected configuration directory
+(e.g. `build-release/Release/`). macOS has been tested locally; Linux and Windows
+remain intended targets requiring build/runtime verification.
 
 ## Run
 
@@ -86,10 +101,10 @@ variables on the client; they apply to packets in both directions:
 FPS_LAG=150 FPS_JITTER=40 FPS_LOSS=10 ./build/game 127.0.0.1
 ```
 
-- **Lag compensation:** the server rewinds player positions to the moment you fired, so strafing a target and firing on the crosshair still registers despite the delay.
+- **Lag compensation:** the server uses the client's rendered snapshot time to rewind target hitboxes. Moving targets, cover interactions and the rewind cap still need repeatable combat tests.
 - **Interpolation buffer:** remote players render a couple of snapshots behind the newest packet, so jitter and the occasional dropped packet stay smooth instead of stuttering or snapping.
 
-Without these variables (or on a LAN) there's effectively no delay, so behavior is unchanged.
+Without these variables, the artificial delay/loss queues are disabled; real network latency still applies. Local movement prediction currently smooths server corrections and does not yet replay unacknowledged inputs.
 
 ## Controls
 
@@ -129,3 +144,33 @@ out of the haze. Press **K** to cycle three moods: **clear** (bright midday), **
 hour** (low warm sun, long shadows, amber horizon). Set `FPS_ATMO=clear|overcast|golden`
 to pick the starting mood. Atmosphere is client-side and cosmetic — every player can run
 their own sky.
+
+
+## Performance and reference views
+
+```bash
+# Automated fixed forest view: 300 warmup frames, then 600 measured frames
+FPS_REF=forest FPS_QUALITY=medium FPS_BENCH=1 ./build-release/game
+
+# Capture the bog view at frame 60 and exit (use an absolute output path)
+FPS_REF=bog FPS_PERF=1 FPS_SHOT=/tmp/fps-bog.ppm ./build-release/game
+```
+
+`FPS_REF` presets: `shore`, `bog`, `forest`, `ridge`, `golden`. A reference preset
+selects Paldiski offline. `FPS_QUALITY` accepts `low`, `medium` (default), or `high`;
+`FPS_PERF=1` shows CPU pass timings and vegetation counts. Automated captures and
+benchmarks pin the camera; ordinary reference launches remain controllable.
+`FPS_REF=all` currently selects the first preset only; it does not capture a suite.
+Do not combine `FPS_SHOT` with `FPS_BENCH`: the screenshot exits before sampling.
+
+Compare the same build type, hardware, drawable resolution, quality and viewpoint.
+Frame samples use uncapped wall time; pass timers measure CPU submission/wait,
+not GPU execution. See the [dated benchmark](docs/progress-2026-09-05.md) for the
+HUD improvement, including its limited test scope.
+
+The current wire format is protocol v3: all 16 player slots plus up to 64 bullet
+records, while the server simulates up to 256 bullets. Server cadence validation,
+input replay, packet sizing and 16-client load tests are outstanding work, not
+finished guarantees of internet robustness. Full controls above describe the
+current prototype; the [archived starter spec](docs/archive/original-game-spec.md)
+is historical.
