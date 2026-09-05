@@ -28,7 +28,7 @@ constexpr int NET_MAX_PLAYERS = 16;   // must equal MAX_PLAYERS
 // Client prediction and server authority must sample the exact same heightfield;
 // accepting a stale server otherwise yanks the camera below the local terrain.
 constexpr uint16_t NET_PROTOCOL_VERSION = 4;
-constexpr uint32_t NET_WORLD_REVISION   = 0x20260723u;
+constexpr uint32_t NET_WORLD_REVISION   = 0x20260905u;
 
 #pragma pack(push, 1)
 

@@ -5,15 +5,10 @@
 #include <cstring>
 #include "terrain.h"
 #include "stand_col.h"
+#include "forest_site.h"
 
-// Static map geometry, shared by server (collision) and client (collision + render).
-// One map exists today: PALDISKI, a 500x500 m Estonian coastal town — sea on the
-// west, a shore town of Soviet apartment slabs, hills inland. Everything is generated
-// deterministically (pure int-hash noise), so server + every client build the same
-// world with no assets and nothing to sync.
-//
-// The MapId enum / setMap() / mapFromName() registry stays in place so future maps
-// slot in: add an id, a generator, a name, and a setMap branch.
+// Shared static geometry for Paldiski (2 x 2 km) and the offline training lobby.
+// Deterministic generation keeps rendering and authoritative collision aligned.
 
 // Defined in tree_scatter.cpp (shared): rebuild the deterministic tree scatter +
 // collision cylinders for the active map. Called at the end of setMap so server and
@@ -60,19 +55,16 @@ inline void townPush(const Box& b, uint8_t surf) {
     gTownBoxCount++;
 }
 
-// Paldiski is bare terrain for now — the town/props were reset alongside the
-// vegetation to rebuild the world terrain-first (structures return later, on the
-// finished ground). Only spawn points are generated: a deterministic scatter on
-// safe land above the waterline.
+// Paldiski terrain with the first shared forestry combat site.
 inline void generatePaldiski() {
     gTownBoxCount    = 0;
     gMapSpawnCount   = 0;
     gTerrainPadCount = 0;
 
-    // Primary test/player-0 spawn: a broad hilltop (~41 m) with a gentle local
-    // slope and long views toward the central valleys. Keeping it first makes both
-    // FPS_MAP=paldiski practice and the first online join start on high ground.
-    gMapSpawns[gMapSpawnCount++] = {-301.0f, 0.0f, 527.0f};
+    buildForestSite();
+
+    // First join starts at the forestry site; wider map spawns remain available.
+    gMapSpawns[gMapSpawnCount++] = {FOREST_SITE_X - 20, 0.0f, FOREST_SITE_Z + 18};
 
     for (int i = 0; i < 24 && gMapSpawnCount < 64; i++) {
         // Scatter across the taiga between shore and foothills; skip water/rivers.

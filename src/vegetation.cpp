@@ -204,6 +204,7 @@ void Vegetation::buildBushes() {
         for (int ix = 0; ix < n; ix++) {
             float x = -PALDISKI_HALF + (ix + 0.5f) * STEP + (mapRand(ix, iz, 51) - 0.5f) * 6.0f;
             float z = -PALDISKI_HALF + (iz + 0.5f) * STEP + (mapRand(ix, iz, 52) - 0.5f) * 6.0f;
+            if (forestSiteClearance(x, z, 1.2f)) continue;
             float b = pineForestBiome(x, z);
             float dens = b * (1.0f - b) * 2.4f + 0.028f;
             if (mapRand(ix, iz, 53) > dens) continue;

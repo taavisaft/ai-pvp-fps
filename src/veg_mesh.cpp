@@ -1,4 +1,5 @@
 #include "vegetation.h"
+#include "tree_collision.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 
@@ -102,20 +103,26 @@ void vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low)
     const glm::vec3 bark(0.320f, 0.235f, 0.165f);
     const glm::vec3 up(0, 1, 0);
 
-    // Trunk: tapered open prism, full height (visible between the card whorls).
+    // Trunk: tapered capped prism, full height (visible between the card whorls).
     {
-        const int ts = 6;
+        const int ts = TREE_TRUNK_SIDES;
         unsigned b[8], t[8];
         for (int i = 0; i < ts; i++) {
             float a = (float)i / ts * 6.2831853f;
             glm::vec3 d(cosf(a), 0.0f, sinf(a));
             glm::vec3 c = bark * (0.85f + 0.3f * ghash((float)i, 3.0f));
-            b[i] = pushV(v, d * 0.020f,                          d, c, 0.0f);
-            t[i] = pushV(v, d * 0.004f + glm::vec3(0, 0.86f, 0), d, c, 0.0f);
+            b[i] = pushV(v, d * TREE_TRUNK_BASE,                          d, c, 0.0f);
+            t[i] = pushV(v, d * TREE_TRUNK_TOP + glm::vec3(0, TREE_TRUNK_HEIGHT, 0), d, c, 0.0f);
         }
         for (int i = 0; i < ts; i++) {
             int j = (i + 1) % ts;
             idx.insert(idx.end(), {b[i], b[j], t[j], b[i], t[j], t[i]});
+        }
+        const unsigned bottom = pushV(v, glm::vec3(0), -up, bark, 0.0f);
+        const unsigned top = pushV(v, {0, TREE_TRUNK_HEIGHT, 0}, up, bark, 0.0f);
+        for (int i = 0; i < ts; ++i) {
+            int j = (i + 1) % ts;
+            idx.insert(idx.end(), {bottom, b[i], b[j], top, t[j], t[i]});
         }
     }
 

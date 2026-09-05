@@ -17,6 +17,7 @@ struct TreeCol      { float x, z, r; };                    // XZ trunk cylinder
 
 extern std::vector<TreeInstance> gTrees;       // full render/placement list
 extern std::vector<TreeCol>      gTreeCols;    // collision cylinders (x,z,radius)
+extern float gTreeTrunkMaxRadius; // broadphase padding, computed at map startup
 extern SpatialGrid               gTreeColGrid; // XZ grid over gTreeCols for queries
 
 // Trunk collision radius from tree height: modest base + slight growth with size, so

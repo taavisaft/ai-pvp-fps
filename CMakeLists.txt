@@ -16,6 +16,9 @@ FetchContent_MakeAvailable(glm)
 
 set(SHARED_SOURCES
     src/physics.cpp
+    src/projectiles.cpp
+    src/tree_collision.cpp
+    src/forest_site.cpp
     src/net_common.cpp
     src/tree_scatter.cpp)
 
@@ -76,7 +79,7 @@ add_custom_command(TARGET game POST_BUILD
 include(CTest)
 if(BUILD_TESTING)
     add_executable(server_fire_tests tests/server_fire_tests.cpp src/server_fire.cpp src/server_rewind.cpp
-        src/physics.cpp src/tree_scatter.cpp)
+        src/physics.cpp src/projectiles.cpp src/tree_collision.cpp src/tree_scatter.cpp src/forest_site.cpp)
     target_include_directories(server_fire_tests PRIVATE src)
     target_link_libraries(server_fire_tests PRIVATE glm::glm)
     add_test(NAME server_fire COMMAND server_fire_tests)
@@ -87,6 +90,16 @@ if(BUILD_TESTING)
         target_link_libraries(client_fire_tests PRIVATE ws2_32)
     endif()
     add_test(NAME client_fire COMMAND client_fire_tests)
+    add_executable(tree_collision_tests tests/tree_collision_tests.cpp
+        src/physics.cpp src/projectiles.cpp src/tree_collision.cpp src/tree_scatter.cpp src/forest_site.cpp)
+    target_include_directories(tree_collision_tests PRIVATE src)
+    target_link_libraries(tree_collision_tests PRIVATE glm::glm)
+    add_test(NAME tree_collision COMMAND tree_collision_tests)
+    add_executable(forest_site_tests tests/forest_site_tests.cpp
+        src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp)
+    target_include_directories(forest_site_tests PRIVATE src)
+    target_link_libraries(forest_site_tests PRIVATE glm::glm)
+    add_test(NAME forest_site COMMAND forest_site_tests)
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
         add_test(NAME server_fire_udp COMMAND ${Python3_EXECUTABLE}

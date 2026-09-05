@@ -21,7 +21,7 @@ Current guide, reviewed against source on 2026-09-05. Build a realistic, perform
 - 60 Hz authoritative simulation and 20 Hz snapshots. Raw UDP defaults to port 7777; server accepts `FPS_PORT`.
 - Protocol v4 and world revision live in `src/protocol.h`. Snapshots contain all 16 player slots plus an occupied-slot mask and up to 63 bullet records; only the bullet tail is truncated. Simulation has 256 bullet slots.
 - Paldiski is the online map, approximately 2×2 km (±1024 m). Offline launch starts in the separate training lobby. Old warehouse/field maps are removed.
-- Shared terrain and tree scatter drive server/client placement. Tree trunks block movement but currently do not stop bullets. Paldiski has no generated buildings yet; the lobby has cover and a hunting stand.
+- Shared terrain and tree scatter drive server/client placement. Tree trunks block movement and swept bullets; bullet collision matches the visible taper, while movement keeps a wider cylinder. Paldiski has a first forestry shelter and timber-cover layout near (325, 75); the lobby has cover and a hunting stand.
 - Sprint, jump, crouch, lean, ADS, Uzi/Glock, preserved per-weapon ammo, manual/automatic reload, sticky recoil, swept projectile collision, drag/falloff, posed regional hitboxes, and target rewind exist.
 - Client prediction currently smooths position corrections; it does not replay acknowledged/unacknowledged input history. Shot cadence, bounded queues and state epochs are enforced by `server_fire.cpp`; broader packet validation/rate limits remain unfinished.
 - Segmented Blender-authored tactical soldier and classic Uzi use normals/material vertex data, local camouflage, and reduced meshes beyond 15 m. The Uzi is shared by first-/third-person views; gameplay hitboxes are unchanged. Editable source and export instructions: `tools/soldier/README.md`. No skinned deformation or magazine/reload animation yet.
@@ -33,8 +33,8 @@ Current guide, reviewed against source on 2026-09-05. Build a realistic, perform
 | Area | Files |
 | --- | --- |
 | Build / client loop | `CMakeLists.txt`, `src/main.cpp` |
-| Shared gameplay / weapons | `src/game.h`, `src/weapon.h`, `src/physics.h/.cpp` |
-| World / collision placement | `src/map.h`, `src/terrain.h`, `src/tree_scatter.h/.cpp`, `src/spatial.h` |
+| Shared gameplay / weapons | `src/game.h`, `src/weapon.h`, `src/physics.h/.cpp`, `src/projectiles.cpp` |
+| World / collision placement | `src/map.h`, `src/forest_site.h/.cpp`, `src/terrain.h`, `src/tree_scatter.h/.cpp`, `src/tree_collision.h/.cpp`, `src/spatial.h` |
 | Server / transport / wire data | `src/server_main.cpp`, `src/server_fire.h/.cpp`, `src/server_rewind.h/.cpp`, `src/network.h/.cpp`, `src/net_common.h/.cpp`, `src/platform.h`, `src/protocol.h` |
 | Rendering / terrain / plants | `src/renderer.h/.cpp`, `src/terrain_render.h/.cpp`, `src/vegetation.h/.cpp`, `src/veg_mesh.cpp`, `shaders/` |
 | Meshes / textures / materials | `src/mesh.h/.cpp`, `src/material.h/.cpp`, `src/texture.h/.cpp`, `src/gl_loader.h/.cpp` |

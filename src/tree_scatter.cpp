@@ -1,4 +1,4 @@
-#include "tree_scatter.h"
+#include "tree_collision.h"
 #include "map.h"       // gMapId, mapRand, PALDISKI_HALF, LOBBY_HALF, MAP_LOBBY
 #include "terrain.h"   // terrainHeight, pineForestBiome
 #include <cmath>
@@ -6,6 +6,7 @@
 std::vector<TreeInstance> gTrees;
 std::vector<TreeCol>      gTreeCols;
 SpatialGrid               gTreeColGrid;
+float gTreeTrunkMaxRadius = 0.0f;
 
 // Deterministic spruce scatter. Moved verbatim (math-identical) from the old
 // Vegetation::buildTrees so the rendered forest and the collision cylinders agree.
@@ -34,6 +35,7 @@ static void scatterTrees(std::vector<TreeInstance>& out) {
         for (int ix = 0; ix < n; ix++) {
             float x = -PALDISKI_HALF + (ix + 0.5f) * STEP + (mapRand(ix, iz, 41) - 0.5f) * 4.2f;
             float z = -PALDISKI_HALF + (iz + 0.5f) * STEP + (mapRand(ix, iz, 42) - 0.5f) * 4.2f;
+            if (forestSiteClearance(x, z, 1.0f)) continue;
             float b = pineForestBiome(x, z);
             float dens = b * b * 2.2f + b * 0.30f + 0.045f;
             if (mapRand(ix, iz, 43) > dens) continue;
@@ -60,8 +62,11 @@ void buildTreeColliders() {
 
     gTreeCols.clear();
     gTreeCols.reserve(gTrees.size());
-    for (const TreeInstance& t : gTrees)
+    gTreeTrunkMaxRadius = 0.0f;
+    for (const TreeInstance& t : gTrees) {
         gTreeCols.push_back({t.x, t.z, treeCollRadius(t.scale)});
+        gTreeTrunkMaxRadius = fmaxf(gTreeTrunkMaxRadius, TREE_TRUNK_BASE * t.scale);
+    }
 
     // XZ grid matching the render cull grid's resolution, so cell queries are cheap.
     float half  = (gMapId == MAP_LOBBY) ? LOBBY_HALF : PALDISKI_HALF;

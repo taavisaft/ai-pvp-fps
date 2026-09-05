@@ -104,6 +104,11 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
         if (fr.aabbVisible(sc, sh)) r.drawMesh(r.stand, sp, MAT_WOOD);
     } else {
         r.drawTerrain(fr, eye);
+        for (int i = 0; i < gMapBoxCount; ++i) {
+            const Box& b = gMapBoxes[i];
+            if (fr.aabbVisible(b.center, b.half))
+                r.drawCube(b.center, b.half * 2.0f, mapBoxMaterial(i));
+        }
     }
     r.drawVegetation(fr, eye);   // taiga forest (miniature spruce ring on the lobby)
     for (int i = 0; i < MAX_PLAYERS; i++) {
