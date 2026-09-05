@@ -479,7 +479,6 @@ int main(int argc, char** argv) {
     float       stepTimer    = 0.0f;    // footstep cadence
     uint8_t     prevRemoteShots[MAX_PLAYERS] = {0};  // last seen authoritative per-player shot counters
     bool        remoteShotsSeeded = false;           // seed once when entering online play
-    float       fpsAvg       = 0.0f;    // smoothed FPS readout
     int         fireMode     = FIRE_SEMI;
     float       fireTimer    = 0.0f;    // cooldown until next allowed shot
     int         burstRemaining = 0;     // rounds left in current burst
@@ -536,13 +535,12 @@ int main(int argc, char** argv) {
     while (running) {
         Uint64 now = SDL_GetPerformanceCounter();
         float  dt  = (float)(now - last) / SDL_GetPerformanceFrequency();
+        const float rawFrameMs = dt * 1000.0f;
         last = now;
         if (dt > 0.0f) {              // smoothed FPS from raw frame time (before the cap)
-            float inst = 1.0f / dt;
-            fpsAvg = fpsAvg <= 0.0f ? inst : fpsAvg + (inst - fpsAvg) * 0.1f;
-            hud.fps = fpsAvg;
-            float ms = dt * 1000.0f;
+            float ms = rawFrameMs;
             hud.frameMs = hud.frameMs <= 0.0f ? ms : hud.frameMs + (ms - hud.frameMs) * 0.1f;
+            hud.fps = 1000.0f / hud.frameMs;
         }
         if (dt > 0.05f) dt = 0.05f;   // cap to avoid spiral
 
@@ -993,6 +991,12 @@ int main(int argc, char** argv) {
             if (cpos.y < gy) cpos.y = gy;
             cam.tpPos = cpos;
         }
+        // Automated reference runs must render the same view even if desktop
+        // mouse/focus events arrive while the benchmark or capture is running.
+        if (refCam && (getenv("FPS_BENCH") || getenv("FPS_SHOT"))) {
+            applyRefCamera(cam, *refCam);
+            cam.tpDist = 0.0f;
+        }
         Uint64 renderStart = SDL_GetPerformanceCounter();
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
                     decals, decalCount, connectPrompt, lobby, walkPhase, walkAmp,
@@ -1017,7 +1021,7 @@ int main(int argc, char** argv) {
                 for (int p = 0; p < PASS_COUNT; p++) gProfiler.passMs[p] = 0.0f;
             }
             if (frameCount > 300 && benchN < 600) {
-                benchMs[benchN] = dt * 1000.0f;
+                benchMs[benchN] = rawFrameMs;  // include hitches beyond the simulation cap
                 for (int p = 0; p < PASS_COUNT; p++)
                     benchPass[p][benchN] = gProfiler.passMsRaw[p];
                 benchN++;
@@ -1028,7 +1032,7 @@ int main(int argc, char** argv) {
                 for (float m : benchMs) avg += m;
                 printf("[bench] quality=%s  frame ms avg %.2f  p50 %.2f  p95 %.2f  max %.2f\n",
                        gQuality.name, avg / 600.0f, benchMs[300], benchMs[570], benchMs[599]);
-                printf("[bench] render passes (avg ms over sample):");
+                printf("[bench] render passes (CPU submission/wait, avg ms over sample):");
                 for (int p = 0; p < PASS_COUNT; p++) {
                     float pavg = 0.0f;
                     for (int i = 0; i < 600; i++) pavg += benchPass[p][i];

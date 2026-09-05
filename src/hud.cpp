@@ -252,7 +252,8 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
 
     if (!online)
         r.drawText("OFFLINE PRACTICE - PRESS C TO CONNECT",
-                   -0.98f, 0.83f, 0.04f, {0.8f, 0.8f, 0.8f}, 0.8f);
+                   -0.98f, gProfiler.showHud ? 0.56f : 0.83f, 0.04f,
+                   {0.8f, 0.8f, 0.8f}, 0.8f);
 
     for (int i = 0; i < hud.feed.count; i++) {
         const KillFeed::Entry& e = hud.feed.entries[i];

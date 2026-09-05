@@ -92,6 +92,7 @@ void FrameProfiler::configureFromEnv() {
 
 void FrameProfiler::beginFrame() {
     frameStart = SDL_GetPerformanceCounter();
+    for (float& ms : passMsRaw) ms = 0.0f;  // skipped passes must not reuse old timings
 }
 
 void FrameProfiler::endFrame() {
@@ -157,6 +158,8 @@ void applyRefCamera(Camera& cam, const RefCameraPreset& ref) {
     float gy = terrainHeight(ref.feet.x, ref.feet.z);
     cam.yaw   = ref.yaw;
     cam.pitch = ref.pitch;
+    cam.fov   = HIP_FOV;
+    cam.recoilYaw = cam.recoilPitch = 0.0f;
     cam.lean  = 0.0f;
     cam.eye   = {ref.feet.x, gy + EYE_HEIGHT, ref.feet.z};
 }

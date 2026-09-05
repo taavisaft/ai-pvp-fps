@@ -115,7 +115,7 @@ bool Font::init() {
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, MAX_CHARS * 6 * 4 * sizeof(float),
-                 nullptr, GL_DYNAMIC_DRAW);
+                 nullptr, GL_STREAM_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
@@ -158,6 +158,10 @@ void Font::draw(const char* s, float x, float y, float h, float invAspect,
     glBindTexture(GL_TEXTURE_2D, tex);
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    // Previous text draws may still be reading this storage. Orphan it before
+    // replacing the vertices so the driver needn't wait for those draws.
+    glBufferData(GL_ARRAY_BUFFER, MAX_CHARS * 6 * 4 * sizeof(float),
+                 nullptr, GL_STREAM_DRAW);
     glBufferSubData(GL_ARRAY_BUFFER, 0, n * 24 * sizeof(float), verts);
     glDrawArrays(GL_TRIANGLES, 0, n * 6);
     glBindVertexArray(0);
