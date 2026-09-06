@@ -39,6 +39,7 @@ set(CLIENT_SOURCES
     src/veg_blade.cpp
     src/veg_mesh.cpp
     src/renderer.cpp
+    src/renderer_window.cpp
     src/hud.cpp
     src/perf.cpp
     src/camera.cpp
@@ -109,6 +110,13 @@ if(BUILD_TESTING)
     target_include_directories(lobby_ground_tests PRIVATE src)
     target_link_libraries(lobby_ground_tests PRIVATE glm::glm)
     add_test(NAME lobby_ground COMMAND lobby_ground_tests)
+    # Window/GL mock symbols cannot override Windows dllimport declarations.
+    if(NOT WIN32)
+        add_executable(renderer_size_tests tests/renderer_size_tests.cpp src/renderer_window.cpp)
+        target_include_directories(renderer_size_tests PRIVATE src)
+        target_link_libraries(renderer_size_tests PRIVATE SDL2::SDL2 glm::glm)
+        add_test(NAME renderer_size COMMAND renderer_size_tests)
+    endif()
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
         add_test(NAME server_fire_udp COMMAND ${Python3_EXECUTABLE}

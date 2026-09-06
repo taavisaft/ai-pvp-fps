@@ -443,6 +443,7 @@ int main(int argc, char** argv) {
         if (dt > 0.05f) dt = 0.05f;   // cap to avoid spiral
 
         pollInput(input, cam, &connectPrompt);
+        renderer.refreshWindowSize();
         if (input.quit) running = false;
         if (input.wireframeToggle) renderer.toggleWireframe();
         if (input.hitboxToggle) showHitboxes = !showHitboxes;

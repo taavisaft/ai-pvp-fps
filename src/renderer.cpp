@@ -37,11 +37,7 @@ bool Renderer::init(const char* title, int w, int h) {
 
     if (!loadGLFunctions()) return false;
 
-    int dw, dh;
-    SDL_GL_GetDrawableSize(window, &dw, &dh);
-    glViewport(0, 0, dw, dh);
-    fbW = dw;
-    fbH = dh;
+    refreshWindowSize();
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);

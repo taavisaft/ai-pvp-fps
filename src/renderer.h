@@ -100,6 +100,8 @@ struct Renderer {
     // not depth-written; lit-pass only — never call during the shadow pass.
     void  drawCubeModelTranslucent(const glm::mat4& model, const glm::vec3& color,
                                    float alpha);
+    // Refresh logical/backing sizes after event polling, including monitor moves.
+    void refreshWindowSize();
     // Ground: chunked LOD taiga (+ vista in the lit pass) or the lobby mesh.
     void  drawTerrain(const Frustum& fr, const glm::vec3& eye);
     // Grass + trees for the taiga map, in whichever world pass is active (lit or

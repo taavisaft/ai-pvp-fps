@@ -10,3 +10,4 @@ Use dated reports for measurements and inspections; [TODO.md](TODO.md) owns curr
 - [2026-09-05: forestry combat site, first stage](docs/forest-site-2026-09-05.md) — enterable shelter, staggered timber cover, movement checks and frame comparison.
 - [2026-09-05: lobby meadow trial](docs/lobby-meadow-2026-09-05.md) — finer terrain, layered ground materials and bounded grass, awaiting visual review.
 - [2026-09-05: dense meadow reference patch](docs/dense-meadow-2026-09-05.md) — continuous grass coverage, plant variants, cast shadows and delayed GPU measurements.
+- [2026-09-06: Retina/standard-DPI switching](docs/display-scaling-2026-09-06.md) — refresh backing dimensions after events; tests pass, but the user still reproduces the display-transition problem.
