@@ -278,6 +278,33 @@ vec3 splatTerrain(vec3 p, vec3 an) {
     return col;
 }
 
+// Lobby-only meadow trial. Worn range and curved footpath share CPU masks.
+float lobbyWear(vec2 p) {
+    float range = (1.0-smoothstep(9.0,15.0,abs(p.y))) *
+                  (1.0-smoothstep(26.0,32.0,p.x)) * smoothstep(-19.0,-13.0,p.x);
+    float trail = 1.0-smoothstep(.7,2.2,abs(p.y-19.0-2.0*sin(p.x*.10)));
+    return max(range, trail*.92);
+}
+vec3 lobbyTerrain(vec3 p, vec3 an) {
+    // Three scales break the repeated grass photograph into soil, moss and litter.
+    vec3 turf = antiTile(diffuseMap,p,1.8,an);
+    float lum = dot(turf,vec3(.299,.587,.114));
+    turf = mix(vec3(lum),turf,.35)*vec3(.66,.72,.44);
+    vec3 litter = antiTile(forestMap,p,1.25,an)*vec3(.66,.63,.49);
+    vec3 soil = mix(antiTile(dirtMap,p,.85,an)*vec3(.56,.47,.35),
+                    litter*vec3(.85,.78,.64),.65);
+    float patch = vnoise(p.xz*.27 + vec2(vnoise(p.xz*.09)*2.0));
+    vec3 meadow = mix(turf,litter,smoothstep(.42,.76,patch)*.64);
+    float wear = lobbyWear(p.xz);
+    wear = clamp(wear+(vnoise(p.xz*2.4)-.5)*.20*wear,0.0,1.0);
+    vec3 ground = mix(meadow,soil,wear);
+    float rock = smoothstep(.16,.38,1.0-normalize(vNormal).y);
+    ground = mix(ground,antiTile(rockMap,p,1.4,an)*.75,rock);
+    float meadowMask=(1.0-smoothstep(8.0,10.0,abs(p.x)))*(1.0-smoothstep(8.0,10.0,abs(p.z-30.0)));
+    ground=mix(ground,ground*.82,meadowMask*(1.0-wear));
+    return ground*(.87+.22*vnoise(p.xz*.075));
+}
+
 void main() {
     float camDist = length(worldPos - eyePos);
     gFar  = (lit == 1) ? smoothstep(150.0, 550.0, camDist) : 0.0;
@@ -296,6 +323,8 @@ void main() {
         vec4 texel = texture(diffuseMap, vUV);
         if (texel.a < 0.03) discard;
         c = texel.rgb * tint;   // UV facade or transparent environment decal
+    } else if (lit == 1 && splat == 2) {
+        c = lobbyTerrain(worldPos, axisBlend(worldPos));
     } else if (lit == 1 && splat == 1) {
         c = splatTerrain(worldPos, axisBlend(worldPos));
     } else if (lit == 1 && grass == 1) {
@@ -307,6 +336,14 @@ void main() {
     if (lit == 1) {
         vec3 n = (hasNormal == 1) ? normalize(vNormal)
                                   : normalize(cross(dFdx(worldPos), dFdy(worldPos)));
+        if (splat == 2) {
+            // Fine soil relief fades before it can shimmer at distance.
+            vec2 p = worldPos.xz*9.0;
+            float strength = .15*(1.0-smoothstep(5.0,24.0,camDist));
+            vec2 bump = vec2(vnoise(p+vec2(.1,0))-vnoise(p-vec2(.1,0)),
+                             vnoise(p+vec2(0,.1))-vnoise(p-vec2(0,.1)));
+            n = normalize(n-vec3(bump.x,0,bump.y)*strength);
+        }
         vec3 L = normalize(sunDir);
 
         // 3-term outdoor light: direct sun (shadowed + cloud-dimmed) + hemispheric

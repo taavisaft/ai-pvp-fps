@@ -100,13 +100,19 @@ void main() {
 
     vec3 V = normalize(eyePos - worldPos);
     vec3 n = normalize(vNormal);
-    if (dot(n, V) < 0.0) n = -n;   // two-sided: culling is off for vegetation
+    if (vUV.x >= -1.5 && dot(n, V) < 0.0) n = -n;   // two-sided: culling is off for vegetation
     vec3 L = normalize(sunDir);
 
     vec3 sun     = sunColor * max(dot(n, L), 0.0)
                  * sunVisibility(n, L) * cloudShadow(worldPos.xz, time);
     vec3 ambient = mix(groundAmbient, skyZenith, n.y * 0.5 + 0.5);
     vec3 lit3    = albedo * (sun + ambient);
+    if (vUV.x < -1.5) {
+        // Blade-only root occlusion and soft transmitted light; trees unchanged.
+        float rootShade = mix(.68,1.0,smoothstep(0.0,.7,vUV.y));
+        float through = pow(max(dot(-L,V),0.0),3.0)*.22;
+        lit3 = albedo*(sun+ambient+sunColor*through)*rootShade;
+    }
 
     float dens = 1.0 + fogHeightAmt * exp(-max(worldPos.y, 0.0) / 12.0);
     float fog  = clamp(length(worldPos - eyePos) * dens / fogDist, 0.0, 1.0);

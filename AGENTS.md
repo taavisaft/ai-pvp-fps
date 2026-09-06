@@ -25,7 +25,7 @@ Current guide, reviewed against source on 2026-09-05. Build a realistic, perform
 - Sprint, jump, crouch, lean, ADS, Uzi/Glock, preserved per-weapon ammo, manual/automatic reload, sticky recoil, swept projectile collision, drag/falloff, posed regional hitboxes, and target rewind exist.
 - Client prediction currently smooths position corrections; it does not replay acknowledged/unacknowledged input history. Shot cadence, bounded queues and state epochs are enforced by `server_fire.cpp`; broader packet validation/rate limits remain unfinished.
 - Segmented Blender-authored tactical soldier and classic Uzi use normals/material vertex data, local camouflage, and reduced meshes beyond 15 m. The Uzi is shared by first-/third-person views; gameplay hitboxes are unchanged. Editable source and export instructions: `tools/soldier/README.md`. No skinned deformation or magazine/reload animation yet.
-- Textured terrain, instanced vegetation/LOD/impostors, shadow map, sky/clouds, atmosphere presets, water, HUD, minimap, scoreboard, impact decals, audio, and cosmetic ragdolls exist. Grass blades are disabled in all quality tiers.
+- Textured terrain, instanced vegetation/LOD/impostors, shadow map, sky/clouds, atmosphere presets, water, HUD, minimap, scoreboard, impact decals, audio, and cosmetic ragdolls exist. Grass remains disabled on Paldiski. The offline lobby has a meadow/soil material trial, half-metre terrain grid and prebuilt grass tiles visible to 38 m; plus a dense 20×20 m reference patch at (0,30), with cast shadows; see `docs/dense-meadow-2026-09-05.md`.
 - C opens a host prompt and server browser scanning eight ports; it is not a blocking stdin prompt. H toggles hitboxes, not hosting.
 
 ## Source ownership
@@ -34,9 +34,9 @@ Current guide, reviewed against source on 2026-09-05. Build a realistic, perform
 | --- | --- |
 | Build / client loop | `CMakeLists.txt`, `src/main.cpp` |
 | Shared gameplay / weapons | `src/game.h`, `src/weapon.h`, `src/physics.h/.cpp`, `src/projectiles.cpp` |
-| World / collision placement | `src/map.h`, `src/forest_site.h/.cpp`, `src/terrain.h`, `src/tree_scatter.h/.cpp`, `src/tree_collision.h/.cpp`, `src/spatial.h` |
+| World / collision placement | `src/map.h`, `src/forest_site.h/.cpp`, `src/terrain.h`, `src/lobby_ground.h`, `src/tree_scatter.h/.cpp`, `src/tree_collision.h/.cpp`, `src/spatial.h` |
 | Server / transport / wire data | `src/server_main.cpp`, `src/server_fire.h/.cpp`, `src/server_rewind.h/.cpp`, `src/network.h/.cpp`, `src/net_common.h/.cpp`, `src/platform.h`, `src/protocol.h` |
-| Rendering / terrain / plants | `src/renderer.h/.cpp`, `src/terrain_render.h/.cpp`, `src/vegetation.h/.cpp`, `src/veg_mesh.cpp`, `shaders/` |
+| Rendering / terrain / plants | `src/renderer.h/.cpp`, `src/terrain_render.h/.cpp`, `src/vegetation.h/.cpp`, `src/veg_mesh.cpp`, `src/veg_blade.cpp`, `src/veg_grass.cpp`, `src/veg_meadow.cpp`, `src/meadow_mesh.cpp`, `shaders/` |
 | Meshes / textures / materials | `src/mesh.h/.cpp`, `src/material.h/.cpp`, `src/texture.h/.cpp`, `src/gl_loader.h/.cpp` |
 | Characters / weapon pose | `src/playerpose.h`, `src/skeleton.h`, `src/player_mesh.h`, `src/player_visual.h/.cpp`, `src/uzi_mesh.h`, `tools/soldier/`, `src/weapon_visual.h`, `src/ragdoll.h` |
 | Input / UI / audio / profiling | `src/input.h/.cpp`, `src/camera.h/.cpp`, `src/hud.h/.cpp`, `src/font.h/.cpp`, `src/lobby.h/.cpp`, `src/audio.h/.cpp`, `src/perf.h/.cpp` |

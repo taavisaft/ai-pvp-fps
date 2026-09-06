@@ -36,7 +36,7 @@ For payload policy, follow [RFC 8085 message-size guidance](https://www.rfc-edit
 | P2 | Shot events and selective tracers | Represent projectile birth with stable IDs/timing and velocity; reconstruct cosmetics while keeping server impact/damage authority. | At 20 Hz snapshots and under loss, bullets remain visually understandable without duplicate tracers or per-frame position bandwidth for every cosmetic projectile. Not every round needs a bright tracer. |
 | P2 | Surface-aware movement audio | Distinguish ground/wood/metal steps and landings; improve distance and obstruction cues. | Another player can locate movement without hearing through every wall at full strength; audio work stays bounded. |
 | P2 | Per-weapon recoil and motion | Separate weapon tuning, modest sway/bob and animation; preserve sticky recoil and clear aim response. | Uzi/Glock feel distinct without making camera movement nauseating; behavior remains consistent across frame rates. |
-| P2 | Small grass experiment | One near-field patch with density/LOD and alpha-overdraw limits. Grass blades are currently disabled in every quality preset. | Measure GPU/frame cost before enabling wider coverage; low quality must not remove gameplay-critical concealment or cover. |
+| P2 | Small grass experiment | Lobby-only trial implemented: prebuilt tiles, 38 m range, varied blades and meadow/soil terrain. Local mean frame cost +0.88 ms; see [record](docs/lobby-meadow-2026-09-05.md). A denser 20×20 m patch with folded grass, leaves and shadows is now available; median frame cost +2.69 ms versus sparse grass. See [dense patch record](docs/dense-meadow-2026-09-05.md). Await visual review and distance optimization before promoting to Paldiski. | Measure GPU/frame cost before enabling wider coverage; low quality must not remove gameplay-critical concealment or cover. |
 
 ## Usability and portability
 
@@ -59,7 +59,7 @@ For payload policy, follow [RFC 8085 message-size guidance](https://www.rfc-edit
 
 Dedicated server; 16-player FFA; three-second respawn; Paldiski plus offline lobby; sprint/jump/crouch/lean/ADS; Uzi and Glock with per-weapon ammunition/reload; sticky recoil; projectile travel/gravity/drag/falloff; swept box/terrain/posed-body hits; target rewind; snapshot interpolation; basic prediction/error smoothing; host-entry/server discovery; minimap/scoreboard/kill feed; decals; audio; character posing/ragdolls; terrain chunks; instanced trees/bushes and impostors; shadow map/clouds/fog/atmosphere; quality presets; reference captures and corrected frame benchmarks.
 
-These are implemented features, not claims of production readiness. Trees stop movement and bullets at the trunk; grass blades remain off; Paldiski has one forestry shelter; no four-hit universal damage rule, fixed ammo-per-life total, or round end exists.
+These are implemented features, not claims of production readiness. Trees stop movement and bullets at the trunk; grass is being tested in the lobby only; Paldiski has one forestry shelter; no four-hit universal damage rule, fixed ammo-per-life total, or round end exists.
 
 ## How to finish each task
 

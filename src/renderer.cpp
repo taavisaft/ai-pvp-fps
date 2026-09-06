@@ -448,7 +448,9 @@ void Renderer::invalidateWorldOnMapChange() {
     veg.invalidate();                   // placements re-scatter for the new map
     if (gMapId == MAP_LOBBY) {          // small static lobby heightfield
         terrain.destroy();
-        createTerrainMesh(terrain, gArenaHalf, terrainHeight);
+        createTerrainPatch(terrain, -gArenaHalf, -gArenaHalf, 2*gArenaHalf, 2*gArenaHalf,
+                           0.5f, 0.0f, terrainHeight);
+        veg.prepareLobbyGrass();
     } else {
         taigaTerrain.destroy();         // chunks rebuild lazily from the new map
     }
@@ -521,7 +523,7 @@ void Renderer::drawTerrain(const Frustum& fr, const glm::vec3& eye) {
     active->setFloat(active->locRockTile, materials.mats[MAT_ROCK].tile);
     active->setFloat(active->locDirtTile, materials.mats[MAT_DIRT].tile);
     active->setFloat(active->locForestTile, 3.2f);
-    active->setInt(active->locSplat, 1);
+    active->setInt(active->locSplat, gMapId == MAP_LOBBY ? 2 : 1);
     active->setMat4(active->locModel, glm::mat4(1.0f));
     active->setVec3(active->locColor, glm::vec3(1.0f));
     // Use textures/ground.* when present (triplanar splat base layer). Procedural

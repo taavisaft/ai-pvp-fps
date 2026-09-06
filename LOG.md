@@ -8,3 +8,5 @@ Use dated reports for measurements and inspections; [TODO.md](TODO.md) owns curr
 - [2026-09-05: soldier and Uzi visual pass](docs/soldier-uzi-2026-09-05.md) — editable Blender assets, shared first-/third-person Uzi, distance meshes, visual checks and Release comparison.
 - [2026-09-05: tree cover](docs/tree-cover-2026-09-05.md) — shared tapered-trunk sweeps, regression coverage and dense-stand query cost.
 - [2026-09-05: forestry combat site, first stage](docs/forest-site-2026-09-05.md) — enterable shelter, staggered timber cover, movement checks and frame comparison.
+- [2026-09-05: lobby meadow trial](docs/lobby-meadow-2026-09-05.md) — finer terrain, layered ground materials and bounded grass, awaiting visual review.
+- [2026-09-05: dense meadow reference patch](docs/dense-meadow-2026-09-05.md) — continuous grass coverage, plant variants, cast shadows and delayed GPU measurements.

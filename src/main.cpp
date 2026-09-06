@@ -346,6 +346,7 @@ int main(int argc, char** argv) {
         predicted.pos = p;
         printf("[ref] camera preset: %s\n", refCam->name);
     }
+    const RefCameraPreset captureCamera{"capture", predicted.pos, cam.yaw, cam.pitch, 0};
     FrameInput input;
 
 
@@ -903,8 +904,8 @@ int main(int argc, char** argv) {
         }
         // Automated reference runs must render the same view even if desktop
         // mouse/focus events arrive while the benchmark or capture is running.
-        if (refCam && (getenv("FPS_BENCH") || getenv("FPS_SHOT"))) {
-            applyRefCamera(cam, *refCam);
+        if ((refCam || getenv("FPS_POS")) && (getenv("FPS_BENCH") || getenv("FPS_SHOT"))) {
+            applyRefCamera(cam, refCam ? *refCam : captureCamera);
             cam.tpDist = 0.0f;
         }
         Uint64 renderStart = SDL_GetPerformanceCounter();

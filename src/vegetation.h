@@ -6,6 +6,7 @@
 #include "shader.h"
 #include "frustum.h"
 #include "spatial.h"
+#include "meadow_timer.h"
 
 struct Renderer;
 struct QualitySettings;
@@ -32,8 +33,7 @@ struct QualitySettings;
 // screen-door dither (see veg.frag) — every tree is visible at every distance
 // and never pops. LOD0 trees also render into the sun shadow map.
 struct Vegetation {
-    // 3D grass is parked (user judged the blade look not worth it yet) — the tile
-    // machinery stays; flip this to bring it back once the tree pass looks right.
+    // Paldiski grass remains parked. The lobby trial explicitly uses prebuilt tiles.
     static constexpr bool  GRASS_ENABLED = false;
     static constexpr float GRASS_TILE   = 16.0f;
     static constexpr int   GRASS_RING   = 6;                    // tiles each side
@@ -61,6 +61,17 @@ struct Vegetation {
         int    tx = INT_MIN, tz = INT_MIN;   // world tile held (INT_MIN = stale)
         float  minY = 0.0f, maxY = 0.0f;
     };
+
+    MeadowTimer meadowTimer[2];
+    bool meadowEnabled = true; // FPS_NOMEADOW comparison aid
+    GrassTile meadowTiles[16];
+    float meadowRanks[16][900]{};
+    GLuint meadowVbo=0, meadowEbo=0;
+    GLsizei meadowIdx=0;
+    GLint locMeadowEye=-1, locMeadowRange=-1;
+    void prepareMeadow();
+    void drawMeadow(const Frustum& fr, const glm::vec3& eye, bool shadow);
+    void destroyMeadow();
 
     Shader vegSh;        // instanced mesh vegetation (grass + tree LOD0/LOD1)
     Shader impSh;        // far-tree billboard impostors
@@ -114,10 +125,13 @@ struct Vegetation {
 
     void buildTrees();
     void buildBushes();
+    void prepareLobbyGrass();
+    void drawGrass(const Frustum& fr, const glm::vec3& eye);
     void rebuildTile(GrassTile& t, int tx, int tz);
 };
 
 // veg_mesh.cpp — build-time helpers.
+void   vegBuildMeadow(std::vector<float>& v, std::vector<unsigned>& idx);
 void   vegBuildBlade(std::vector<float>& v, std::vector<unsigned>& idx);
 void   vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low);
 void   vegBuildBush(std::vector<float>& v, std::vector<unsigned>& idx);

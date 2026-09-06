@@ -33,6 +33,10 @@ set(CLIENT_SOURCES
     src/material.cpp
     src/terrain_render.cpp
     src/vegetation.cpp
+    src/meadow_mesh.cpp
+    src/veg_meadow.cpp
+    src/veg_grass.cpp
+    src/veg_blade.cpp
     src/veg_mesh.cpp
     src/renderer.cpp
     src/hud.cpp
@@ -100,6 +104,11 @@ if(BUILD_TESTING)
     target_include_directories(forest_site_tests PRIVATE src)
     target_link_libraries(forest_site_tests PRIVATE glm::glm)
     add_test(NAME forest_site COMMAND forest_site_tests)
+    add_executable(lobby_ground_tests tests/lobby_ground_tests.cpp
+        src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp)
+    target_include_directories(lobby_ground_tests PRIVATE src)
+    target_link_libraries(lobby_ground_tests PRIVATE glm::glm)
+    add_test(NAME lobby_ground COMMAND lobby_ground_tests)
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
         add_test(NAME server_fire_udp COMMAND ${Python3_EXECUTABLE}

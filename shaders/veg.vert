@@ -51,10 +51,21 @@ void main() {
 
     // Wind: two sines with per-instance phase plus a spatial term so gusts travel
     // across the field as waves instead of the whole map rocking in unison.
+    // Different plants share a batch; uncommon leaves/seed heads collapse away.
+    if ((aUV.x < -4.5 && iB.y < .97) || (aUV.x < -3.5 && aUV.x > -4.5 && iB.y < .72)) p=vec3(0);
+    // Stable per-plant density: full within 6 m, about 22% at 28 m.
+    // Must match meadow_density.h; shadows use the same camera and threshold.
+    float densityGrow=1.0;
+    if (aUV.x < -2.5 && grassRange > 0.0) {
+        float density=mix(1.06,.22,smoothstep(6.0,28.0,length(iA.xz-eyePos.xz)));
+        float rank=fract(iB.y*13.37);
+        densityGrow=1.0-smoothstep(density-.06,density,rank);
+        p*=densityGrow;
+    }
     float w = sin(time * 1.9 + iB.y * 6.2831 + dot(iA.xz, vec2(0.13, 0.09)))
             + 0.5 * sin(time * 3.7 + iB.y * 9.0);
     vec3 wp = iA.xyz + p;
-    wp.xz += w * windAmp * aFlex * iA.w;
+    wp.xz += w * windAmp * aFlex * iA.w * densityGrow;
 
     worldPos = wp;
     vNormal  = n;

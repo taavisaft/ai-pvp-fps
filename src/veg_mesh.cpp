@@ -50,42 +50,6 @@ static unsigned pushV(std::vector<float>& v, glm::vec3 p, glm::vec3 n, glm::vec3
     return pushVT(v, p, n, c, flex, {-1.0f, -1.0f});
 }
 
-// One grass instance = a tuft of three tapered blades fanned around the root
-// (3x the visual density per instance for the same instance-stream cost).
-// Up-facing normals on purpose: blades then take exactly the ground's lighting
-// and read as part of the field instead of dark spikes on it.
-void vegBuildBlade(std::vector<float>& v, std::vector<unsigned>& idx) {
-    const glm::vec3 root(0.105f, 0.190f, 0.070f);
-    const glm::vec3 tip (0.300f, 0.430f, 0.150f);
-    const glm::vec3 n(0.0f, 1.0f, 0.0f);
-    struct Row { float y, w, bend, flex; };
-    const Row rows[3] = {{0.00f, 0.026f, 0.00f, 0.0f},
-                         {0.22f, 0.019f, 0.03f, 0.3f},
-                         {0.37f, 0.011f, 0.08f, 0.65f}};
-    const float bladeYaw[3]  = {0.0f, 2.19f, 4.35f};   // fan directions
-    const float bladeSize[3] = {1.0f, 0.78f, 0.62f};
-    for (int b = 0; b < 3; b++) {
-        float cy = cosf(bladeYaw[b]), sy = sinf(bladeYaw[b]);
-        float sc = bladeSize[b];
-        glm::vec3 off(cy * 0.035f, 0.0f, sy * 0.035f);   // root offset from center
-        auto place = [&](float x, float y, float z) {
-            glm::vec3 p = glm::vec3(cy * x - sy * z, y, sy * x + cy * z) * sc + off;
-            return p;
-        };
-        unsigned r[3][2];
-        for (int i = 0; i < 3; i++) {
-            glm::vec3 c = root + (tip - root) * (rows[i].y / 0.48f);
-            r[i][0] = pushV(v, place(-rows[i].w, rows[i].y, rows[i].bend), n, c, rows[i].flex);
-            r[i][1] = pushV(v, place( rows[i].w, rows[i].y, rows[i].bend), n, c, rows[i].flex);
-        }
-        unsigned t = pushV(v, place(0.0f, 0.48f, 0.15f), n, tip, 1.0f);
-        for (int i = 0; i < 2; i++)
-            idx.insert(idx.end(), {r[i][0], r[i][1], r[i + 1][1],
-                                   r[i][0], r[i + 1][1], r[i + 1][0]});
-        idx.insert(idx.end(), {r[2][0], r[2][1], t});
-    }
-}
-
 // Textured spruce, unit height 1 (instance scale = tree height in meters).
 // DayZ-style construction: a tapered bark trunk plus branch "cards" — flat quads
 // carrying a photo of a real needle spray (textures/spruce_branch.png, alpha

@@ -1,6 +1,7 @@
 #pragma once
 #include <glm/glm.hpp>
 #include <cmath>
+#include "lobby_ground.h"
 
 // Shared procedural heightfield for PALDISKI (the one map, for now). The same inline
 // float math runs on the server (authoritative physics) and the client (mesh +
@@ -190,6 +191,11 @@ inline float terrainHeight(float x, float z) {
         // facing the pad, so uphill impact points read directly as drop at range.
         float dk = sqrtf((x - 40.0f) * (x - 40.0f) + (z - 42.0f) * (z - 42.0f));
         h += terrSmooth(terrClamp01(1.0f - dk / 30.0f)) * 9.0f;
+        // Low meadow hummocks outside the established range/prop pad.
+        float meadow = lobbySmooth(14, 22, fabsf(z));
+        float rolls = 0.45f + 1.15f*terrValueNoise(x*.085f+17, z*.085f-9);
+        float rough = (terrValueNoise(x*.55f, z*.55f)-.5f)*.14f;
+        h += meadow * (rolls + rough) * (1-.7f*lobbyWear(x,z));
         return h;
     }
     return 0.0f;
