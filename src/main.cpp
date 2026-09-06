@@ -26,6 +26,7 @@
 #include "playerpose.h"
 #include "player_visual.h"
 #include "perf.h"
+#include "app_resources.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
 static const glm::vec3 COLOR_BULLET_OWN   = {1.00f, 0.90f, 0.20f};
@@ -245,6 +246,7 @@ static void dumpFrame(const Renderer& r, const char* path) {
 static const char* DEFAULT_SERVER_IP = "127.0.0.1";
 
 int main(int argc, char** argv) {
+    if (!prepareAppResources()) return 1;
     setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffered so logs flush when piped to a file
     platformSocketInit();
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {

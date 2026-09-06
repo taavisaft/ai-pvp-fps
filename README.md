@@ -1,5 +1,9 @@
 # AI PvP FPS
 
+[![Download for macOS](https://img.shields.io/badge/Download_for_macOS-Apple_Silicon-2d4938?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/taavisaft/ai-pvp-fps/releases/download/v0.1.0-alpha.1/ai-pvp-fps-0.1.0-macos-arm64.zip)
+
+**Alpha 1 · Apple Silicon Macs only.** Extract the ZIP and open **AI PvP FPS.app**. If macOS blocks this unnotarized alpha, use **System Settings → Privacy & Security → Open Anyway** after attempting to open it. [Release notes](https://github.com/taavisaft/ai-pvp-fps/releases/tag/v0.1.0-alpha.1).
+
 An online first-person shooter built from scratch in **C++17**, using SDL2, OpenGL and raw UDP. No game engine.
 
 **16-player free-for-all** across Paldiski, a 2×2 km Baltic landscape. Fight with the Uzi and Glock 19, projectile ballistics, and an authoritative dedicated server. Players have **100 HP** and respawn after **3 seconds**. Practice offline or join an online match.
