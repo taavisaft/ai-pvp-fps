@@ -143,10 +143,13 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
                         bool thirdPerson, const Ragdoll* ragdolls) {
     static const glm::vec3 COLOR_BLOB = {0.16f, 0.27f, 0.16f};  // ground, darkened
 
+    static bool diagOnce = false;
+    if (!diagOnce) printf("[diag] enter renderScene\n");
     gProfiler.beginFrame();
     r.invalidateWorldOnMapChange();   // drop town/tree/prop caches on map switch
 
     // Pass 1: scene depth from the sun, focused on the camera (near-field shadows).
+    if (!diagOnce) printf("[diag] pass 1: shadow\n");
     gProfiler.beginPass(PASS_SHADOW);
     r.beginShadowPass(cam.eye);
     Frustum sunFr = Frustum::fromVP(r.lightSpace);
@@ -156,34 +159,36 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     gProfiler.endPass(PASS_SHADOW);
 
     // Pass 2: lit main view, sampling the shadow map built above.
+    if (!diagOnce) printf("[diag] pass 2: sky\n");
     gProfiler.beginPass(PASS_SKY);
     r.beginFrame(cam.view(), cam.proj(r.aspect()), cam.eye);
     r.drawSky(cam.view(), cam.proj(r.aspect()), cam.eye);
     gProfiler.endPass(PASS_SKY);
 
+    if (!diagOnce) printf("[diag] pass 3: world\n");
     gProfiler.beginPass(PASS_WORLD);
     Frustum camFr = Frustum::fromVP(cam.proj(r.aspect()) * cam.view());
     drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, crouchAnim, adsAnim,
                       thirdPerson, ragdolls, camFr, cam.eye);
     gProfiler.endPass(PASS_WORLD);
-
+    if (!diagOnce) printf("[diag] after world\n");
+    if (!diagOnce) printf("[diag] A: water\n");
     gProfiler.beginPass(PASS_WATER);
     r.drawWater();   // translucent Baltic, after all opaque world geometry
     gProfiler.endPass(PASS_WATER);
 
+    if (!diagOnce) printf("[diag] B: lobby cross\n");
     if (gMapId == MAP_LOBBY) {
         // Shooting-range aim reference: red cross on the target wall at eye height.
         glm::vec3 c = {LOBBY_WALL_FACE - 0.03f, LOBBY_BULLSEYE_Y, 0.0f};
         r.drawCube(c, {0.06f, 1.0f, 0.10f}, {0.85f, 0.25f, 0.20f});
         r.drawCube(c, {0.06f, 0.10f, 1.0f}, {0.85f, 0.25f, 0.20f});
     }
+    if (!diagOnce) printf("[diag] C: decals\n");
     // Bullet-impact decals on every surface (online + offline), oriented to the hit face.
     for (int i = 0; i < decalCount; i++)
         drawDecal(r, decals[i]);
     if (showHitboxes) {
-        // Debug (H): translucent green gameplay hit regions overlaid on the models.
-        // Dead players get the stack at their (frozen) death pos so the ragdoll can be
-        // compared against the boxes — hits don't actually register on corpses.
         for (int i = 0; i < MAX_PLAYERS; i++) {
             if (!(gs.usedMask & (1u << i))) continue;
             if (i == localID && !thirdPerson) continue;
@@ -191,14 +196,13 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
             HitRegion rg[MAX_HIT_REGIONS];
             int nr = playerHitRegions(pl.pos, pl.crouched, pl.yaw, pl.pitch, pl.lean,
                                       pl.ads, pl.weaponId, rg);
-            // Each region carries its own oriented frame — the exact volumes the
-            // server sweeps, so what you see is what gets hit.
             for (int k = 0; k < nr; k++)
                 r.drawCubeModelTranslucent(
                     rg[k].M * glm::scale(glm::mat4(1.0f), rg[k].half * 2.0f),
                     {0.20f, 0.90f, 0.30f}, 0.35f);
         }
     }
+    if (!diagOnce) printf("[diag] D: bullet blobs\n");
     // Bullet ground blobs (real shadows replace the old per-player blob).
     for (int i = 0; i < MAX_BULLETS; i++) {
         const Bullet& b = gs.bullets[i];
@@ -206,18 +210,22 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         r.drawCube({b.pos.x, terrainHeight(b.pos.x, b.pos.z) + 0.01f, b.pos.z},
                    {0.22f, 0.001f, 0.22f}, COLOR_BLOB);
     }
+    if (!diagOnce) printf("[diag] E: viewmodel\n");
     // First-person gun is an overlay — don't world-shadow it (FPS convention).
     if (gs.players[localID].alive && !connectPrompt.open && !thirdPerson) {
         r.shader.setInt(r.shader.locUseShadow, 0);
         drawViewModel(r, cam, vm, gWeaponId);
         r.shader.setInt(r.shader.locUseShadow, 1);
     }
+    if (!diagOnce) printf("[diag] F: hud\n");
     if (showHud) {
         gProfiler.beginPass(PASS_HUD);
         drawHUD(r, gs, localID, hud, scoreboard, online, fullMap);
         gProfiler.endPass(PASS_HUD);
     }
+    if (!diagOnce) printf("[diag] G: connect prompt\n");
     drawConnectPrompt(r, connectPrompt, lobby);
+    if (!diagOnce) { printf("[diag] H: endFrame\n"); diagOnce = true; }
     gProfiler.endFrame();
     r.endFrame();
 }

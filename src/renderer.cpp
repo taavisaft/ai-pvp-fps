@@ -102,10 +102,9 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!createQuad2D(quad2d)) return false;
     if (!font.init()) return false;
     if (!materials.init()) return false;
-    if (!veg.init(base)) return false;
-    glViewport(0, 0, fbW, fbH);   // the impostor bake in veg.init resized it
 
     // Shadow map: a depth-only texture rendered from the sun each frame.
+    // Created before veg.init so unit 1 is valid and loaded during impostor baking.
     glGenFramebuffers(1, &shadowFBO);
     glGenTextures(1, &shadowTex);
     glBindTexture(GL_TEXTURE_2D, shadowTex);
@@ -113,6 +112,8 @@ bool Renderer::init(const char* title, int w, int h) {
                  GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
     // Clamp to a white border so anything sampled outside the map reads "lit" (depth 1).
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
@@ -129,6 +130,11 @@ bool Renderer::init(const char* title, int w, int h) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    if (!veg.init(base, shadowTex)) return false;
+    glViewport(0, 0, fbW, fbH);   // the impostor bake in veg.init resized it
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, materials.mats[MAT_GROUND].tex);
+
     active = &shader;
     return true;
 }
@@ -142,6 +148,8 @@ void Renderer::setShadowMapSize(int size) {
         glBindTexture(GL_TEXTURE_2D, shadowTex);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, shadowSize, shadowSize, 0,
                      GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
         glBindTexture(GL_TEXTURE_2D, 0);
         printf("[quality] shadow map resized to %dx%d\n", shadowSize, shadowSize);
     }
@@ -222,6 +230,7 @@ void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const gl
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, shadowTex);
     glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, materials.mats[MAT_GROUND].tex);
 }
 
 void Renderer::drawSky(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye) {

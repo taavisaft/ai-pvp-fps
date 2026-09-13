@@ -59,7 +59,8 @@ static void drawStream(GLuint vao, GLuint stream, GLsizei idxCount,
     glBindVertexArray(0);
 }
 
-bool Vegetation::init(const char* base) {
+bool Vegetation::init(const char* base, GLuint shadow) {
+    shadowTex = shadow;
     if (!loadPair(vegSh, base, "veg.vert", "veg.frag")) return false;
     if (!loadPair(impSh, base, "veg_imp.vert", "veg_imp.frag")) return false;
     if (!loadPair(vegDepthSh, base, "veg_depth.vert", "veg_depth.frag")) return false;
@@ -95,6 +96,7 @@ bool Vegetation::init(const char* base) {
     glUniform1i(glGetUniformLocation(impSh.program, "impTex"), 5);   // atlas unit
     vegSh.use();
     glUniform1i(glGetUniformLocation(vegSh.program, "branchTex"), 6);
+    glUniform1i(glGetUniformLocation(vegSh.program, "shadowMap"), 1); // shadow depth unit
     vegDepthSh.use();
     glUniform1i(glGetUniformLocation(vegDepthSh.program, "branchTex"), 6);
 

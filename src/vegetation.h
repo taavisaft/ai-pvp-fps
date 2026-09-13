@@ -94,6 +94,7 @@ struct Vegetation {
     GLuint  impTex = 0;                           // baked spruce atlas
     GLuint  branchTex = 0;                        // needle-spray photo, alpha cutout
     GLuint  bushTex = 0;                          // berry-bush photo, alpha cutout
+    GLuint  shadowTex = 0;                        // shadow map texture reference for impostor bake
     glm::vec2 impSize = {0.52f, 1.10f};           // world size of the bake, scale 1
 
     std::vector<Tree> trees;
@@ -115,7 +116,7 @@ struct Vegetation {
     float bushShadowRange_ = BUSH_SHADOW_RANGE;
     bool  grassEnabled_ = GRASS_ENABLED;
 
-    bool init(const char* basePath);   // shaders + meshes + impostor bake (GL ready)
+    bool init(const char* basePath, GLuint shadowTex = 0);   // shaders + meshes + impostor bake (GL ready)
     void applyQuality(const QualitySettings& q);  // runtime LOD distances (FPS_QUALITY)
     void invalidate();                 // active map changed: drop placements/tiles
     void drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& eye);

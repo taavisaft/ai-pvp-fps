@@ -268,6 +268,10 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH) {
         veg.vegSh.setVec3(veg.vegSh.locEye, glm::vec3(100.0f));
         glActiveTexture(GL_TEXTURE6);
         glBindTexture(GL_TEXTURE_2D, veg.branchTex);
+        if (veg.shadowTex) {
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, veg.shadowTex);
+        }
         glActiveTexture(GL_TEXTURE0);
 
         const float inst[8] = {0, 0, 0, 1, 0, 0, 1, 0};

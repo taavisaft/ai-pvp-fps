@@ -91,21 +91,27 @@ bool Font::init() {
         if (!shader.load("shaders/text.vert", "shaders/text.frag")) return false;
     }
 
-    static unsigned char pixels[ATLAS_W * ATLAS_H];
+    static unsigned char pixels[ATLAS_W * ATLAS_H * 4];
     memset(pixels, 0, sizeof(pixels));
     for (int g = 0; g < GLYPHS; g++)
         for (int col = 0; col < 5; col++)
             for (int row = 0; row < 7; row++)
-                if (FONT5X7[g][col] & (1 << row))
-                    pixels[row * ATLAS_W + g * CELL + col] = 255;
+                if (FONT5X7[g][col] & (1 << row)) {
+                    int idx = (row * ATLAS_W + g * CELL + col) * 4;
+                    pixels[idx + 0] = 255;
+                    pixels[idx + 1] = 255;
+                    pixels[idx + 2] = 255;
+                    pixels[idx + 3] = 255;
+                }
 
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, ATLAS_W, ATLAS_H, 0,
-                 GL_RED, GL_UNSIGNED_BYTE, pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, ATLAS_W, ATLAS_H, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
