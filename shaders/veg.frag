@@ -1,8 +1,12 @@
 #version 330 core
+#include "grass_surface.glsl"
+#include "lobby_growth.glsl"
 // Vegetation lighting: same 3-term daylight + shadow + fog + grade as basic.frag,
 // minus the splat/triplanar machinery. Adds the screen-door LOD cross-fade and
 // two-sided normals (blades and cone skirts are drawn without face culling).
 in vec3  worldPos;
+in vec3 terrainNormal;
+flat in float trainingMeadow;
 in vec3  vNormal;
 in vec3  vColor;
 in vec2  vUV;
@@ -84,6 +88,21 @@ void main() {
     // Branch cards: photo albedo, cut out by alpha. Trunk/blades (uv sentinel
     // -1) shade from the vertex color alone. vColor is the card's shade jitter.
     vec3 albedo = vColor;
+    float cardDistance=smoothstep(12.0,42.0,length(worldPos.xz-eyePos.xz));
+    if(vUV.x < -7.5) {
+        vec4 plant=texture(branchTex,vec2(-vUV.x-8.0,vUV.y));
+        // Geometry supplies the blade silhouette; photographed intensity is
+        // subtle surface detail only, avoiding ragged atlas-edge artifacts.
+        float detail=clamp(dot(plant.rgb,vec3(.299,.587,.114)),.15,.65);
+        vec3 photograph=vColor*(.90+.3*detail);
+        vec3 field=meadowSurface(worldPos.xz);
+        if(trainingMeadow>0.5) {
+            float growth=lobbyGrowth(worldPos.xz);
+            photograph=mix(photograph*vec3(1.25,1.08,.85),photograph,growth);
+            field=lobbyGrowthColor(worldPos.xz);
+        }
+        albedo=mix(photograph,field,smoothstep(18.0,48.0,length(worldPos.xz-eyePos.xz))*.92);
+    }
     if (vUV.x >= 0.0) {
         vec4 t = texture(branchTex, vUV);
         if (t.a < 0.42) discard;
@@ -101,6 +120,7 @@ void main() {
     vec3 V = normalize(eyePos - worldPos);
     vec3 n = normalize(vNormal);
     if (vUV.x >= -1.5 && dot(n, V) < 0.0) n = -n;   // two-sided: culling is off for vegetation
+    if(vUV.x < -7.5) n=normalize(mix(n,terrainNormal,cardDistance));
     vec3 L = normalize(sunDir);
 
     vec3 sun     = sunColor * max(dot(n, L), 0.0)
@@ -110,7 +130,10 @@ void main() {
     if (vUV.x < -1.5) {
         // Blade-only root occlusion and soft transmitted light; trees unchanged.
         float rootShade = mix(.68,1.0,smoothstep(0.0,.7,vUV.y));
+        if (vUV.x < -2.5)
+            rootShade=mix(rootShade,1.0,smoothstep(16.0,44.0,length(worldPos.xz-eyePos.xz)));
         float through = pow(max(dot(-L,V),0.0),3.0)*.22;
+        if(vUV.x < -7.5) { rootShade=mix(.88,1.0,cardDistance); through*=1.0-cardDistance; }
         lit3 = albedo*(sun+ambient+sunColor*through)*rootShade;
     }
 

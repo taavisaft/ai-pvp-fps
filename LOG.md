@@ -2,6 +2,8 @@
 
 Use dated reports for measurements and inspections; [TODO.md](TODO.md) owns current priorities. Old reports describe the state when measured and should not silently be rewritten as current claims.
 
+- [2026-09-14: Paldiski grass scale test](docs/paldiski-grass-2026-09-14.md) — streaming meadow pool and main-map material comparison.
+- [2026-09-13: full lobby grass](docs/lobby-grass-coverage-2026-09-13.md) — expanded coverage and controlled Release comparison.
 - [2026-09-05: game inspection and HUD performance improvement](docs/progress-2026-09-05.md) — controlled local benchmark and connection smoke test.
 - [2026-09-05: documentation review](docs/documentation-review-2026-09-05.md) — stale claims, verified facts, and refreshed roadmap.
 - [2026-09-05: server-enforced firing rules](docs/server-firing-2026-09-05.md) — protocol v4, bounded firing requests, state epochs and headless/UDP regression coverage.
@@ -11,3 +13,5 @@ Use dated reports for measurements and inspections; [TODO.md](TODO.md) owns curr
 - [2026-09-05: lobby meadow trial](docs/lobby-meadow-2026-09-05.md) — finer terrain, layered ground materials and bounded grass, awaiting visual review.
 - [2026-09-05: dense meadow reference patch](docs/dense-meadow-2026-09-05.md) — continuous grass coverage, plant variants, cast shadows and delayed GPU measurements.
 - [2026-09-06: Retina/standard-DPI switching](docs/display-scaling-2026-09-06.md) — refresh backing dimensions after events; tests pass, but the user still reproduces the display-transition problem.
+
+- [Training meadow reference pass and generated ground texture](docs/training-meadow-asset-2026-09-14.md) — 2026-09-14.

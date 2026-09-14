@@ -29,6 +29,10 @@ For multiplayer, start a server and connect using its IP:
 ./build/game 127.0.0.1
 ```
 
+Test the current grass and terrain material across Paldiski offline with
+`FPS_MAP=paldiski ./build/game`. Grass streams around the camera and does not cast
+shadows. `FPS_NOMEADOW=1` disables the new grass for performance comparisons.
+
 You can also press **C** in-game to find and join a server. Multi-config builds place binaries under `build/Release/`.
 
 ## Controls

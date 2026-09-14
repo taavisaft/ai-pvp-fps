@@ -61,6 +61,7 @@ static void drawStream(GLuint vao, GLuint stream, GLsizei idxCount,
 
 bool Vegetation::init(const char* base, GLuint shadow) {
     shadowTex = shadow;
+    initMeadowAtlas(base);
     if (!loadPair(vegSh, base, "veg.vert", "veg.frag")) return false;
     if (!loadPair(impSh, base, "veg_imp.vert", "veg_imp.frag")) return false;
     if (!loadPair(vegDepthSh, base, "veg_depth.vert", "veg_depth.frag")) return false;
@@ -291,7 +292,7 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     drawStream(vaoBush, streamBush, bushIdx, bufBush);
 
     drawGrass(fr, eye);
-    if (gMapId == MAP_LOBBY) drawMeadow(fr,eye,false);
+    drawMeadow(fr,eye,false);
     glBindVertexArray(0);
 
     // Far trees: baked billboard per tree, out to the map edge — every tree is
@@ -343,7 +344,7 @@ void Vegetation::drawShadow(const Frustum& sunFr, const glm::vec3& focus, float 
         if (glm::dot(d, d) < bushShadowRange_ * bushShadowRange_)
             pushTree(bufBushShadow, t);
     });
-    if (bufShadow.empty() && bufBushShadow.empty() && gMapId != MAP_LOBBY) return;
+    if (bufShadow.empty() && bufBushShadow.empty()) return;
     vegDepthSh.use();
     vegDepthSh.setMat4(vegDepthSh.locLightSpace, lightSpace);
     vegDepthSh.setFloat(vegDepthSh.locTime, time);
@@ -355,7 +356,7 @@ void Vegetation::drawShadow(const Frustum& sunFr, const glm::vec3& focus, float 
     glBindTexture(GL_TEXTURE_2D, bushTex);
     glActiveTexture(GL_TEXTURE0);
     drawStream(vaoBushShadow, streamBushShadow, bushIdx, bufBushShadow);
-    drawMeadow(sunFr,focus,true);
+    // Grass receives world shadows in the lit pass, but does not cast them.
 }
 
 void Vegetation::invalidate() {

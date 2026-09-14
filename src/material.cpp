@@ -79,6 +79,11 @@ bool MaterialLib::init() {
     } else {
         printf("material: loaded pine forest floor\n");
     }
+    snprintf(forestPath, sizeof(forestPath), "%stextures/training_meadow_ground.png",
+             exeBase ? exeBase : "");
+    trainingGroundTex = loadTexture(forestPath);
+    if (!trainingGroundTex) trainingGroundTex = loadTexture("textures/training_meadow_ground.png");
+    SDL_free((void*)exeBase);
     return true;
 }
 
@@ -90,6 +95,8 @@ void MaterialLib::bind(MaterialId id) const {
 }
 
 void MaterialLib::destroy() {
+    if (trainingGroundTex) destroyTexture(trainingGroundTex);
+    trainingGroundTex = 0;
     if (forestGroundTex && forestGroundTex != mats[MAT_GROUND].tex)
         destroyTexture(forestGroundTex);
     forestGroundTex = 0;

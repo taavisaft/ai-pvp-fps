@@ -1,6 +1,7 @@
 #include "map.h"
 #include "physics.h"
 #include "meadow_density.h"
+#include "lobby_growth.h"
 #include <cstdio>
 
 static int failures = 0;
@@ -11,9 +12,32 @@ int main() {
     const float baseline[] = {.287819326f,4.1805234f,40.7698097f,-3.78697681f};
     for (int i=0; i<4; ++i) CHECK(fabsf(paldiskiElevation(samples[i].x,samples[i].y)-baseline[i]) < .0001f);
     CHECK(meadowDensity(0) > 1 && meadowDensity(6) > 1);
-    CHECK(fabsf(meadowDensity(28)-.22f) < .00001f);
-    for(int d=0;d<40;++d) CHECK(meadowDensity(d) >= meadowDensity(d+1));
+    CHECK(meadowDensity(28) > .13f && meadowDensity(28) < .14f);
+    CHECK(meadowDensity(60) > .025f && meadowDensity(60) < .026f);
+    CHECK(meadowDensity(170) == .004f); // far lobby still has grass
+    for(int d=0;d<180;++d) CHECK(meadowDensity(d) >= meadowDensity(d+1));
     for(int i=0;i<100;++i) CHECK(meadowRank(i*.01f)>=0 && meadowRank(i*.01f)<1);
+    CHECK(worldMeadowDensity(6)==meadowDensity(6));
+    CHECK(worldMeadowDensity(45)>0 && worldMeadowDensity(45)<meadowDensity(45));
+    CHECK(worldMeadowDensity(50)==0 && worldMeadowDensity(100)==0);
+    for(int d=0;d<60;++d) CHECK(worldMeadowDensity(d)>=worldMeadowDensity(d+1));
+    const int centers[]={-205,-1,0,1,205};
+    for(int center : centers) {
+        bool slots[576]{};
+        for(int z=center-11;z<=center+11;++z) for(int x=center-11;x<=center+11;++x) {
+            int slot=meadowTileSlot(x,z);
+            CHECK(slot>=0 && slot<576);
+            CHECK(!slots[slot]); slots[slot]=true;
+        }
+    }
+    int sparse=0, dense=0;
+    for(int z=-60;z<=60;z+=2) for(int x=-60;x<=60;x+=2) {
+        float g=lobbyGrowth((float)x,(float)z);
+        CHECK(g>=0 && g<=1);
+        sparse+=g<.15f; dense+=g>.8f;
+    }
+    CHECK(sparse>100 && dense>100);
+    CHECK(lobbyGrowthDensity(0)<.02f && lobbyGrowthDensity(1)==1);
     setMap(MAP_LOBBY);
     CHECK(lobbyMeadow(0,30) == 1);
     CHECK(lobbyMeadow(11,30) == 0 && lobbyMeadow(0,41) == 0);

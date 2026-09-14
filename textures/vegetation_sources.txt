@@ -1,2 +1,6 @@
 source: Yughues/Nobiax Branches pack 02 (#28), CC0, opengameart.org/content/branches-textures-pack-02
 bush_1: Yughues/Nobiax Branches pack 03 (#35), CC0, opengameart.org/content/branches-textures-pack-03
+
+meadow_atlas.png: original imagegen-generated three-column RGBA grass atlas, 2026-09-13. No Bohemia game assets used. Sparse green / olive / dry-seedhead variants.
+
+training_meadow_ground.png — generated original meadow-floor albedo using built-in imagegen, 2026-09-14. Full prompt and integration notes: docs/training-meadow-asset-2026-09-14.md. Training area only.

@@ -1,6 +1,7 @@
 #pragma once
 #include <glm/glm.hpp>
 #include <vector>
+#include <array>
 #include <climits>
 #include "gl_loader.h"
 #include "shader.h"
@@ -33,7 +34,7 @@ struct QualitySettings;
 // screen-door dither (see veg.frag) — every tree is visible at every distance
 // and never pops. LOD0 trees also render into the sun shadow map.
 struct Vegetation {
-    // Paldiski grass remains parked. The lobby trial explicitly uses prebuilt tiles.
+    // Legacy sparse grass toggle; Paldiski now uses the streamed meadow pool.
     static constexpr bool  GRASS_ENABLED = false;
     static constexpr float GRASS_TILE   = 16.0f;
     static constexpr int   GRASS_RING   = 6;                    // tiles each side
@@ -64,12 +65,22 @@ struct Vegetation {
 
     MeadowTimer meadowTimer[2];
     bool meadowEnabled = true; // FPS_NOMEADOW comparison aid
-    GrassTile meadowTiles[16];
-    float meadowRanks[16][900]{};
+    bool meadowCards = true; // FPS_GRASS_RIBBONS restores untextured meshes
+    GLuint meadowAtlas=0;
+    bool meadowFull = true; // FPS_MEADOW_PATCH restores the original comparison
+    int meadowSide = 24;
+    GrassTile meadowTiles[24*24];
+    std::vector<std::array<float,900>> meadowRanks;
     GLuint meadowVbo=0, meadowEbo=0;
-    GLsizei meadowIdx=0;
+    GLsizei meadowIdx=0, meadowFarIdx=0;
+    GLsizei trainingIdx=0, trainingFarIdx=0;
+    GLuint meadowFarVbo=0, meadowFarEbo=0;
+    GLuint meadowFarVao[24*24]{};
     GLint locMeadowEye=-1, locMeadowRange=-1;
+    void initMeadowAtlas(const char* base);
     void prepareMeadow();
+    void updateWorldGrass(const glm::vec3& eye);
+    void buildWorldGrassTile(int slot, int tx, int tz);
     void drawMeadow(const Frustum& fr, const glm::vec3& eye, bool shadow);
     void destroyMeadow();
 
@@ -132,6 +143,9 @@ struct Vegetation {
 };
 
 // veg_mesh.cpp — build-time helpers.
+void   vegBuildMeadowCards(std::vector<float>& v, std::vector<unsigned>& idx, bool far);
+void   vegBuildTrainingMeadow(std::vector<float>& v, std::vector<unsigned>& idx, bool far);
+void   vegBuildMeadowFar(std::vector<float>& v, std::vector<unsigned>& idx);
 void   vegBuildMeadow(std::vector<float>& v, std::vector<unsigned>& idx);
 void   vegBuildBlade(std::vector<float>& v, std::vector<unsigned>& idx);
 void   vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low);

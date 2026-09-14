@@ -28,7 +28,7 @@ void Vegetation::rebuildTile(GrassTile& t, int tx, int tz) {
         float keep = (1.0f - sstep(0.42f, 0.60f, region) * 0.9f)
                    * (1.0f - 0.65f * pineForestBiome(rx, rz));
         if (lobby) {
-            keep = (1-(meadowEnabled ? lobbyMeadow(rx,rz) : 0)) * (1-lobbyWear(rx,rz)) * (0.38f + 0.62f*vegFbm(rx*.23f,rz*.23f));
+            keep = (1-(meadowEnabled ? (meadowFull ? 1.0f : lobbyMeadow(rx,rz)) : 0)) * (1-lobbyWear(rx,rz)) * (0.38f + 0.62f*vegFbm(rx*.23f,rz*.23f));
             for (int j = 0; j < gMapBoxCount; ++j) {
                 const Box& b = gMapBoxes[j];
                 if (fabsf(rx-b.center.x)<b.half.x+.3f && fabsf(rz-b.center.z)<b.half.z+.3f) {
@@ -61,6 +61,8 @@ void Vegetation::rebuildTile(GrassTile& t, int tx, int tz) {
 // tiles or grows staging buffers. Paldiski grass remains disabled by quality.
 void Vegetation::prepareLobbyGrass() {
     meadowEnabled = getenv("FPS_NOMEADOW") == nullptr;
+    meadowFull = getenv("FPS_MEADOW_PATCH") == nullptr;
+    meadowSide = meadowFull ? 24 : 4;
     bufTile.reserve((size_t)(GRASS_TILE*GRASS_TILE*12)*8);
     int count = 0;
     for (int z=-4; z<4; ++z) for (int x=-4; x<4; ++x) {
@@ -73,6 +75,7 @@ void Vegetation::prepareLobbyGrass() {
 }
 
 void Vegetation::drawGrass(const Frustum& fr, const glm::vec3& eye) {
+    if(gMapId!=MAP_LOBBY) return; // Paldiski uses streamed meadow blades.
     // Grass: camera-centered tile ring; stale slots rebuilt within a budget (a
     // fresh slot's blades are still height-zero at the range edge, so a one-frame
     // delay is invisible).

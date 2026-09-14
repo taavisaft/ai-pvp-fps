@@ -1,4 +1,6 @@
 #version 330 core
+#include "grass_surface.glsl"
+#include "lobby_growth.glsl"
 in vec3 worldPos;
 in vec3 vNormal;
 in vec2 vUV;
@@ -215,8 +217,7 @@ float pineBiome(vec2 p) {
 // with a height bias (peaks rockier) and fbm-jittered band edges so the material
 // transitions look organic instead of contour-line clean. Erangel/Miramar look.
 vec3 splatTerrain(vec3 p, vec3 an) {
-    vec3 grassC = (grass == 1) ? grassColor(p.xz, time)
-                               : antiTile(diffuseMap, p, tileSize, an) * tint;
+    vec3 grassC = meadowGround(p.xz);
     vec3 dirtC  = antiTile(dirtMap, p, dirtTile, an);
     vec3 rockC  = antiTile(rockMap, p, rockTile, an);
     // Slope: steep faces -> rock. The heightfield is gentle (~few deg), so amplify
@@ -286,23 +287,20 @@ float lobbyWear(vec2 p) {
     return max(range, trail*.92);
 }
 vec3 lobbyTerrain(vec3 p, vec3 an) {
-    // Three scales break the repeated grass photograph into soil, moss and litter.
-    vec3 turf = antiTile(diffuseMap,p,1.8,an);
-    float lum = dot(turf,vec3(.299,.587,.114));
-    turf = mix(vec3(lum),turf,.35)*vec3(.66,.72,.44);
-    vec3 litter = antiTile(forestMap,p,1.25,an)*vec3(.66,.63,.49);
-    vec3 soil = mix(antiTile(dirtMap,p,.85,an)*vec3(.56,.47,.35),
-                    litter*vec3(.85,.78,.64),.65);
-    float patch = vnoise(p.xz*.27 + vec2(vnoise(p.xz*.09)*2.0));
-    vec3 meadow = mix(turf,litter,smoothstep(.42,.76,patch)*.64);
+    float growth=lobbyGrowth(p.xz);
+    // Training's dedicated straw/low-grass scan, with matching growth tint.
+    vec3 litter=antiTile(forestMap,p,1.35,an);
+    vec3 soil=antiTile(dirtMap,p,.85,an)*vec3(.65,.58,.46);
+    float fibre=dot(litter,vec3(.299,.587,.114));
+    vec3 dryGround=mix(litter*vec3(.83,.82,.66),soil,.18);
+    vec3 deepGround=lobbyGrowthColor(p.xz)*(.65+fibre*1.15);
+    vec3 meadow=mix(dryGround,deepGround,growth*.85);
     float wear = lobbyWear(p.xz);
     wear = clamp(wear+(vnoise(p.xz*2.4)-.5)*.20*wear,0.0,1.0);
     vec3 ground = mix(meadow,soil,wear);
     float rock = smoothstep(.16,.38,1.0-normalize(vNormal).y);
     ground = mix(ground,antiTile(rockMap,p,1.4,an)*.75,rock);
-    float meadowMask=(1.0-smoothstep(8.0,10.0,abs(p.x)))*(1.0-smoothstep(8.0,10.0,abs(p.z-30.0)));
-    ground=mix(ground,ground*.82,meadowMask*(1.0-wear));
-    return ground*(.87+.22*vnoise(p.xz*.075));
+    return ground;
 }
 
 void main() {

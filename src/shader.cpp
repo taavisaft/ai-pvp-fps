@@ -4,7 +4,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 // Startup-only file read; heap use here is fine (not in game loop).
-static bool readFile(const char* path, char* out, size_t outSize) {
+static bool readFile(const char* path, char* out, size_t outSize, int depth=0) {
     FILE* f = fopen(path, "rb");
     if (!f) {
         fprintf(stderr, "shader: cannot open %s\n", path);
@@ -15,7 +15,24 @@ static bool readFile(const char* path, char* out, size_t outSize) {
     out[n] = '\0';
     if (n == outSize - 1)
         fprintf(stderr, "shader: %s truncated at %zu bytes — grow the buffer\n", path, n);
-    return n > 0;
+    if (!n || depth > 3) return false;
+    // Small relative includes keep terrain/grass colour math identical.
+    while (char* at = strstr(out, "#include \"")) {
+        char* start=at+10;
+        char* end=strchr(start,'"');
+        if(!end) return false;
+        char includedPath[1024], included[8192];
+        const char* slash=strrchr(path,'/');
+        int dir=slash ? (int)(slash-path+1) : 0;
+        if(snprintf(includedPath,sizeof(includedPath),"%.*s%.*s",dir,path,
+                    (int)(end-start),start)>=(int)sizeof(includedPath)) return false;
+        if(!readFile(includedPath,included,sizeof(included),depth+1)) return false;
+        size_t prefix=(size_t)(at-out), tail=strlen(end+1), count=strlen(included);
+        if(prefix+count+tail+1>outSize) return false;
+        memmove(at+count,end+1,tail+1);
+        memcpy(at,included,count);
+    }
+    return true;
 }
 
 static GLuint compileStage(GLenum type, const char* src, const char* label) {

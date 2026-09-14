@@ -147,7 +147,12 @@ GLuint uploadTextureRGB(const unsigned char* px, int w, int h) {
     GLuint tex = 0;
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
+    // stb RGB rows are tightly packed, including images whose width is not /4.
+    GLint unpackAlignment = 4;
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpackAlignment);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, px);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
     glGenerateMipmap(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);

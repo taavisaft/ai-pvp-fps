@@ -34,7 +34,9 @@ set(CLIENT_SOURCES
     src/terrain_render.cpp
     src/vegetation.cpp
     src/meadow_mesh.cpp
+    src/training_meadow_mesh.cpp
     src/veg_meadow.cpp
+    src/veg_world_grass.cpp
     src/veg_grass.cpp
     src/veg_blade.cpp
     src/veg_mesh.cpp
@@ -70,10 +72,11 @@ add_custom_target(copy_shaders ALL
         ${CMAKE_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:game>/shaders)
 add_dependencies(copy_shaders game)
 
-# Copy image textures next to the binary (optional; procedural fallback if absent)
-add_custom_command(TARGET game POST_BUILD
+# Refresh textures on asset-only edits too, just like shaders.
+add_custom_target(copy_textures ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/textures $<TARGET_FILE_DIR:game>/textures)
+add_dependencies(copy_textures game)
 
 # Copy sound assets next to the binary (optional; synth fallback if absent)
 add_custom_command(TARGET game POST_BUILD

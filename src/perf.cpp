@@ -81,7 +81,7 @@ void applyQuality(Renderer& r, const QualitySettings& q) {
     r.setShadowMapSize(q.shadowSize);
     r.taigaTerrain.maxBuildsPerFrame = q.terrainBuildsPerFrame;
     r.veg.applyQuality(q);
-    printf("[quality] tier=%s shadow=%d treeImpEnd=%.0f grass=%s terrainBuilds=%d/frame\n",
+    printf("[quality] tier=%s shadow=%d treeImpEnd=%.0f legacyGrass=%s terrainBuilds=%d/frame\n",
            q.name, q.shadowSize, q.treeImpEnd, q.grassEnabled ? "on" : "off",
            q.terrainBuildsPerFrame);
 }
