@@ -222,7 +222,7 @@ GLuint vegMakeVAO(GLuint vbo, GLuint ebo, GLuint inst) {
 bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType) {
     const bool training=trainingType>=0;
     GLuint& texture=training ? veg.trainingSpruce[trainingType].impostor : veg.impTex;
-    const glm::vec2 size=training ? glm::vec2(TRAINING_SPRUCE_WIDTH,1.10f) : veg.impSize;
+    const glm::vec2 size=training ? glm::vec2(trainingTreeWidth(trainingType),1.10f) : veg.impSize;
     GLuint fbo = 0, depthRb = 0;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -262,7 +262,7 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType) {
         veg.vegSh.setMat4(veg.vegSh.locView, view);
         veg.vegSh.setMat4(veg.vegSh.locProj, proj);
         veg.vegSh.setInt(veg.locBake, 1);
-        veg.vegSh.setInt(veg.locTrainingTree,training ? 1 : 0);
+        veg.vegSh.setInt(veg.locTrainingTree,training ? (trainingType<4 ? 1 : trainingType-2) : 0);
         veg.vegSh.setFloat(veg.locWind, 0.0f);
         veg.vegSh.setFloat(veg.locRange, 0.0f);
         glUniform2f(veg.locFadeIn, 0.0f, 0.0f);
@@ -270,7 +270,7 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType) {
         veg.vegSh.setFloat(veg.vegSh.locTime, 0.0f);
         veg.vegSh.setVec3(veg.vegSh.locEye, glm::vec3(100.0f));
         glActiveTexture(GL_TEXTURE6);
-        glBindTexture(GL_TEXTURE_2D, training ? veg.trainingBranchTex : veg.branchTex);
+        glBindTexture(GL_TEXTURE_2D, training ? (trainingType<4 ? veg.trainingBranchTex : veg.trainingBroadleafTex) : veg.branchTex);
         if (veg.shadowTex) {
             glActiveTexture(GL_TEXTURE1);
             glBindTexture(GL_TEXTURE_2D, veg.shadowTex);

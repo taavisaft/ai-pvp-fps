@@ -6,6 +6,7 @@
 // two-sided normals (blades and cone skirts are drawn without face culling).
 in vec3  worldPos;
 in vec3 treeLocal;
+in vec3 treeUnit;
 uniform int trainingTree;
 in vec3 terrainNormal;
 flat in float trainingMeadow;
@@ -86,6 +87,18 @@ vec3 grade(vec3 c) {
     return clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0);
 }
 
+// Approximate canopy occlusion in undeformed tree space. Stable through wind,
+// instance scaling and impostor baking; no extra shadow pass or texture lookup.
+float canopyAccess() {
+    if(trainingTree==1) {
+        float radius=max(.025,.25*pow(max(0.0,1.0-treeUnit.y),.8));
+        return mix(.30,1.0,smoothstep(.12,1.0,length(treeUnit.xz)/radius));
+    }
+    float width=trainingTree==3 ? .23 : trainingTree==4 ? .43 : .34;
+    vec3 q=(treeUnit-vec3(0,.73,0))/vec3(width,.29,width);
+    return mix(.20,1.0,smoothstep(.22,1.05,length(q)));
+}
+
 void main() {
     // Branch cards: photo albedo, cut out by alpha. Trunk/blades (uv sentinel
     // -1) shade from the vertex color alone. vColor is the card's shade jitter.
@@ -107,10 +120,10 @@ void main() {
     }
     if (vUV.x >= 0.0) {
         vec4 t = texture(branchTex, vUV);
-        if (t.a < (trainingTree==1 ? 0.30 : 0.42)) discard;
+        if (t.a < (trainingTree>0 ? 0.30 : 0.42)) discard;
         albedo *= t.rgb;
     }
-    if(trainingTree==1 && vUV.x<0.0) {
+    if(trainingTree>0 && vUV.x<0.0) {
         // World-scale bark fissures and small grey lichen patches, filtered out
         // before they become sub-pixel. No displacement of the collision trunk.
         float a=atan(treeLocal.z,treeLocal.x);
@@ -121,10 +134,21 @@ void main() {
         albedo*=mix(1.0,.55+.65*crack,fine);
         float lichen=smoothstep(.65,.82,vnoise(vec2(a*4.0,treeLocal.y*9.0)));
         albedo=mix(albedo,vec3(.30,.315,.255),lichen*.32*fine);
+        if(trainingTree==3) {
+            // Broken horizontal lenticels and peeling patches on birch bark.
+            float scars=smoothstep(.63,.79,vnoise(vec2(a*2.5,treeLocal.y*28.0)));
+            albedo=mix(albedo,vec3(.12,.13,.115),scars*.80*fine);
+        }
     }
 
-    if (bake == 1) {   // impostor capture: raw albedo, lit later by the billboard
-        fragColor = vec4(albedo, 1.0);
+    float access=1.0;
+    bool crown=trainingTree>0 && vUV.x>=0.0;
+    if(crown) {
+        access=canopyAccess();
+        albedo*=trainingTree>1 ? .90 : .96;
+    }
+    if (bake == 1) {   // Retain canopy depth in the distant albedo capture.
+        fragColor = vec4(albedo*(crown ? mix(.36,.87,access) : 1.0), 1.0);
         return;
     }
 
@@ -133,7 +157,7 @@ void main() {
 
     vec3 V = normalize(eyePos - worldPos);
     vec3 n = normalize(vNormal);
-    if (vUV.x >= -1.5 && !(trainingTree==1 && vUV.x>=0.0) && dot(n, V) < 0.0) n = -n;
+    if (vUV.x >= -1.5 && !(trainingTree>0 && vUV.x>=0.0) && dot(n, V) < 0.0) n = -n;
     if(vUV.x < -7.5) n=normalize(mix(n,terrainNormal,cardDistance));
     vec3 L = normalize(sunDir);
 
@@ -141,13 +165,14 @@ void main() {
                  * sunVisibility(n, L) * cloudShadow(worldPos.xz, time);
     vec3 ambient = mix(groundAmbient, skyZenith, n.y * 0.5 + 0.5);
     vec3 lit3    = albedo * (sun + ambient);
-    if(trainingTree==1 && vUV.x>=0.0) {
+    if(trainingTree>0 && vUV.x>=0.0) {
         // A spray is a volume of needles, not a sheet that turns black from below.
         float diffuse=.55*max(dot(n,L),0.0)+.45*abs(dot(n,L));
-        float transmitted=pow(max(dot(-L,V),0.0),3.0)*.10;
-        vec3 needleSun=sunColor*(diffuse*sunVisibility(n,L)+transmitted)
+        float transmitted=pow(max(dot(-L,V),0.0),3.0)*.10*access;
+        vec3 needleSun=sunColor*(diffuse*sunVisibility(n,L)*mix(.35,1.0,access)+transmitted)
                        *cloudShadow(worldPos.xz,time);
-        lit3=albedo*(needleSun+mix(skyHorizon,skyZenith,.65)*.85);
+        // Interior foliage receives less sky fill and less direct/transmitted sun.
+        lit3=albedo*(needleSun+mix(skyHorizon,skyZenith,.65)*mix(.32,.72,access));
     }
     if (vUV.x < -1.5) {
         // Blade-only root occlusion and soft transmitted light; trees unchanged.

@@ -8,7 +8,7 @@
 #include "frustum.h"
 #include "spatial.h"
 #include "meadow_timer.h"
-#include "training_spruce.h"
+#include "training_woodland.h"
 
 struct Renderer;
 struct QualitySettings;
@@ -105,12 +105,12 @@ struct Vegetation {
     GLuint  vaoBush = 0, vaoBushShadow = 0;
     GLuint  impTex = 0;                           // baked spruce atlas
     GLuint  branchTex = 0;                        // needle-spray photo, alpha cutout
-    GLuint trainingBranchTex=0;
+    GLuint trainingBranchTex=0,trainingBroadleafTex=0;
     struct SpruceMesh {
         GLuint vbo=0,ebo=0,vao[3]{},impostor=0;
         GLsizei count=0;
     };
-    SpruceMesh trainingSpruce[TRAINING_SPRUCE_TYPES];
+    SpruceMesh trainingSpruce[TRAINING_TREE_TYPES];
     GLint locTrainingTree=-1, locTrainingTreeD=-1;
     bool initTrainingTrees(const char* base);
     void destroyTrainingTrees();

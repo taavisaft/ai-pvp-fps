@@ -19,3 +19,5 @@ Use dated reports for measurements and inspections; [TODO.md](TODO.md) owns curr
 - [Training spruce realism and fuller crown trial](docs/training-trees-2026-09-14.md) — 2026-09-14.
 
 - [Four spruce types mixed through training](docs/training-spruce-types-2026-09-15.md) — 2026-09-15.
+
+- [Mixed training woodland: ash, birch, oak and spruce](docs/training-mixed-woodland-2026-09-15.md) — 2026-09-15.

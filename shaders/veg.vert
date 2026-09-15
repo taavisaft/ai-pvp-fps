@@ -26,6 +26,7 @@ uniform vec2  fadeOut;    // this LOD dithers OUT across this band (0,0 = never)
 
 out vec3  worldPos;
 out vec3 treeLocal;
+out vec3 treeUnit;
 out vec3 terrainNormal;
 flat out float trainingMeadow;
 out vec3  vNormal;
@@ -40,6 +41,7 @@ void main() {
     float c = cos(iB.x), s = sin(iB.x);
     vec3 shaped=trainingTreeShape(aPos,aUV,iA);
     treeLocal=aPos*iA.w;
+    treeUnit=aPos;
     vec3 p = vec3(c * shaped.x - s * shaped.z, shaped.y, s * shaped.x + c * shaped.z);
     vec3 n = vec3(c * aNormal.x - s * aNormal.z, aNormal.y, s * aNormal.x + c * aNormal.z);
 

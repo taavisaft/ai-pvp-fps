@@ -1,5 +1,7 @@
 # Four training spruce types — 2026-09-15
 
+Extended by the [mixed woodland pass](training-mixed-woodland-2026-09-15.md).
+
 Four separately generated crown meshes share the existing needle texture and
 unchanged collision trunk. Training-only assignment hashes each tree's fixed
 world position, so the mix is stable on restart and identical for both mesh
