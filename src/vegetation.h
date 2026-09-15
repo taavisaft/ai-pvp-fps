@@ -8,6 +8,7 @@
 #include "frustum.h"
 #include "spatial.h"
 #include "meadow_timer.h"
+#include "training_spruce.h"
 
 struct Renderer;
 struct QualitySettings;
@@ -104,6 +105,17 @@ struct Vegetation {
     GLuint  vaoBush = 0, vaoBushShadow = 0;
     GLuint  impTex = 0;                           // baked spruce atlas
     GLuint  branchTex = 0;                        // needle-spray photo, alpha cutout
+    GLuint trainingBranchTex=0;
+    struct SpruceMesh {
+        GLuint vbo=0,ebo=0,vao[3]{},impostor=0;
+        GLsizei count=0;
+    };
+    SpruceMesh trainingSpruce[TRAINING_SPRUCE_TYPES];
+    GLint locTrainingTree=-1, locTrainingTreeD=-1;
+    bool initTrainingTrees(const char* base);
+    void destroyTrainingTrees();
+    void drawTrainingTreeStream(const std::vector<float>& buf,int pass);
+    void logTrainingTreeMix() const;
     GLuint  bushTex = 0;                          // berry-bush photo, alpha cutout
     GLuint  shadowTex = 0;                        // shadow map texture reference for impostor bake
     glm::vec2 impSize = {0.52f, 1.10f};           // world size of the bake, scale 1
@@ -151,7 +163,7 @@ void   vegBuildBlade(std::vector<float>& v, std::vector<unsigned>& idx);
 void   vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low);
 void   vegBuildBush(std::vector<float>& v, std::vector<unsigned>& idx);
 GLuint vegMakeVAO(GLuint vbo, GLuint ebo, GLuint inst);   // 10-float verts + stream
-bool   vegBakeImpostor(Vegetation& veg, int texW, int texH);
+bool   vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType = -1);
 // GLSL-mirror of basic.frag's fbm (same float math) so CPU placement masks agree
 // with the shader's dirt-field / dry-patch regions.
 float  vegFbm(float x, float y);

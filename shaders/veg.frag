@@ -5,6 +5,8 @@
 // minus the splat/triplanar machinery. Adds the screen-door LOD cross-fade and
 // two-sided normals (blades and cone skirts are drawn without face culling).
 in vec3  worldPos;
+in vec3 treeLocal;
+uniform int trainingTree;
 in vec3 terrainNormal;
 flat in float trainingMeadow;
 in vec3  vNormal;
@@ -105,8 +107,20 @@ void main() {
     }
     if (vUV.x >= 0.0) {
         vec4 t = texture(branchTex, vUV);
-        if (t.a < 0.42) discard;
+        if (t.a < (trainingTree==1 ? 0.30 : 0.42)) discard;
         albedo *= t.rgb;
+    }
+    if(trainingTree==1 && vUV.x<0.0) {
+        // World-scale bark fissures and small grey lichen patches, filtered out
+        // before they become sub-pixel. No displacement of the collision trunk.
+        float a=atan(treeLocal.z,treeLocal.x);
+        vec2 q=vec2(a*22.0,treeLocal.y*4.0);
+        float fine=1.0-smoothstep(.25,1.3,length(fwidth(q)));
+        float ridge=vnoise(q+vec2(vnoise(q*.3)*2.0,0));
+        float crack=smoothstep(.28,.46,ridge);
+        albedo*=mix(1.0,.55+.65*crack,fine);
+        float lichen=smoothstep(.65,.82,vnoise(vec2(a*4.0,treeLocal.y*9.0)));
+        albedo=mix(albedo,vec3(.30,.315,.255),lichen*.32*fine);
     }
 
     if (bake == 1) {   // impostor capture: raw albedo, lit later by the billboard
@@ -119,7 +133,7 @@ void main() {
 
     vec3 V = normalize(eyePos - worldPos);
     vec3 n = normalize(vNormal);
-    if (vUV.x >= -1.5 && dot(n, V) < 0.0) n = -n;   // two-sided: culling is off for vegetation
+    if (vUV.x >= -1.5 && !(trainingTree==1 && vUV.x>=0.0) && dot(n, V) < 0.0) n = -n;
     if(vUV.x < -7.5) n=normalize(mix(n,terrainNormal,cardDistance));
     vec3 L = normalize(sunDir);
 
@@ -127,6 +141,14 @@ void main() {
                  * sunVisibility(n, L) * cloudShadow(worldPos.xz, time);
     vec3 ambient = mix(groundAmbient, skyZenith, n.y * 0.5 + 0.5);
     vec3 lit3    = albedo * (sun + ambient);
+    if(trainingTree==1 && vUV.x>=0.0) {
+        // A spray is a volume of needles, not a sheet that turns black from below.
+        float diffuse=.55*max(dot(n,L),0.0)+.45*abs(dot(n,L));
+        float transmitted=pow(max(dot(-L,V),0.0),3.0)*.10;
+        vec3 needleSun=sunColor*(diffuse*sunVisibility(n,L)+transmitted)
+                       *cloudShadow(worldPos.xz,time);
+        lit3=albedo*(needleSun+mix(skyHorizon,skyZenith,.65)*.85);
+    }
     if (vUV.x < -1.5) {
         // Blade-only root occlusion and soft transmitted light; trees unchanged.
         float rootShade = mix(.68,1.0,smoothstep(0.0,.7,vUV.y));

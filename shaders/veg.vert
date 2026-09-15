@@ -1,4 +1,5 @@
 #version 330 core
+#include "training_tree.glsl"
 // Instanced vegetation (grass blades + spruce LOD meshes). Per-vertex: position,
 // normal, color, flex (0 root .. 1 tip, scales wind sway). Per-instance: two vec4s
 // A=(world x,y,z, uniform scale) B=(yaw, wind phase, brightness, dry factor).
@@ -24,6 +25,7 @@ uniform vec2  fadeIn;     // this LOD dithers IN across this band (0,0 = always 
 uniform vec2  fadeOut;    // this LOD dithers OUT across this band (0,0 = never)
 
 out vec3  worldPos;
+out vec3 treeLocal;
 out vec3 terrainNormal;
 flat out float trainingMeadow;
 out vec3  vNormal;
@@ -36,7 +38,9 @@ out float vCutFar;
 void main() {
     trainingMeadow=(grassRange>0.0 && grassRange<50.0 && aUV.x < -7.5) ? 1.0 : 0.0;
     float c = cos(iB.x), s = sin(iB.x);
-    vec3 p = vec3(c * aPos.x - s * aPos.z, aPos.y, s * aPos.x + c * aPos.z);
+    vec3 shaped=trainingTreeShape(aPos,aUV,iA);
+    treeLocal=aPos*iA.w;
+    vec3 p = vec3(c * shaped.x - s * shaped.z, shaped.y, s * shaped.x + c * shaped.z);
     vec3 n = vec3(c * aNormal.x - s * aNormal.z, aNormal.y, s * aNormal.x + c * aNormal.z);
 
     float dist = length(iA.xyz - eyePos);

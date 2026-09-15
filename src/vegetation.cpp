@@ -148,7 +148,7 @@ bool Vegetation::init(const char* base, GLuint shadow) {
     glVertexAttribDivisor(5, 1);
     glBindVertexArray(0);
 
-    return vegBakeImpostor(*this, 256, 512);   // caller restores the viewport
+    return initTrainingTrees(base) && vegBakeImpostor(*this, 256, 512);   // caller restores the viewport
 }
 
 // Deterministic spruce scatter: one candidate per ~7 m cell, kept by the pine
@@ -171,6 +171,7 @@ void Vegetation::buildTrees() {
     for (int i = 0; i < (int)trees.size(); i++)
         grid.insert(trees[i].pos.x, trees[i].pos.z, i);
     printf("[veg] %d trees (shared scatter)\n", (int)trees.size());
+    if(gMapId==MAP_LOBBY) logTrainingTreeMix();
 }
 
 // Deterministic bush scatter, forest-edge biased: b*(1-b) peaks where the pine
@@ -229,6 +230,7 @@ void Vegetation::buildBushes() {
 void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& eye) {
     if (!placed) { buildTrees(); buildBushes(); }
 
+    const bool training=gMapId==MAP_LOBBY;
     gVegStats.reset();
     // Bucket visible trees by distance. Buckets OVERLAP across the fade bands —
     // both LODs of a transitioning tree draw, split per-pixel by the dither.
@@ -267,7 +269,8 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     vegSh.setFloat(vegSh.locExposure, r.exposure);
     vegSh.setFloat(vegSh.locSaturation, r.saturation);
     glActiveTexture(GL_TEXTURE6);
-    glBindTexture(GL_TEXTURE_2D, branchTex);
+    glBindTexture(GL_TEXTURE_2D, training ? trainingBranchTex : branchTex);
+    vegSh.setInt(locTrainingTree,training ? 1 : 0);
     glActiveTexture(GL_TEXTURE0);
 
     // Tree LOD0: full mesh, dithers out across the first band.
@@ -275,12 +278,15 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     vegSh.setFloat(locRange, 0.0f);
     glUniform2f(locFadeIn, 0.0f, 0.0f);
     glUniform2f(locFadeOut, treeFade0_, treeL0End_);
-    drawStream(vaoL0, streamL0, l0Idx, bufL0);
+    if(training) drawTrainingTreeStream(bufL0,0);
+    else drawStream(vaoL0,streamL0,l0Idx,bufL0);
     // Tree LOD1: dithers in against LOD0, out against the impostors.
     glUniform2f(locFadeIn, treeFade0_, treeL0End_);
     glUniform2f(locFadeOut, treeFade1_, treeL1End_);
-    drawStream(vaoL1, streamL1, l1Idx, bufL1);
+    if(training) drawTrainingTreeStream(bufL1,1);
+    else drawStream(vaoL1,streamL1,l1Idx,bufL1);
 
+    vegSh.setInt(locTrainingTree,0);
     // Bushes: same shader, own photo on the shared sampler unit; dither fully
     // out by bushEnd_ (nothing fades in behind them — undergrowth just ends).
     glActiveTexture(GL_TEXTURE6);
@@ -312,9 +318,10 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
         impSh.setFloat(impSh.locCloud, r.cloudAmount);
         impSh.setFloat(impSh.locExposure, r.exposure);
         impSh.setFloat(impSh.locSaturation, r.saturation);
-        glUniform2f(locImpSize, impSize.x, impSize.y);
+        glUniform2f(locImpSize, training ? TRAINING_SPRUCE_WIDTH : impSize.x, impSize.y);
         glUniform2f(locImpFadeIn, treeFade1_, treeL1End_);
         glUniform2f(locImpFadeOut, treeImpFade_, treeImpEnd_);
+        if(training) { drawTrainingTreeStream(bufImp,3); return; }
         glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D, impTex);
         glActiveTexture(GL_TEXTURE0);
@@ -330,6 +337,7 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
 void Vegetation::drawShadow(const Frustum& sunFr, const glm::vec3& focus, float time,
                             const glm::mat4& lightSpace) {
     if (!placed) { buildTrees(); buildBushes(); }
+    const bool training=gMapId==MAP_LOBBY;
     bufShadow.clear();
     bufBushShadow.clear();
     grid.forEachVisible(sunFr, [&](int i) {
@@ -351,8 +359,11 @@ void Vegetation::drawShadow(const Frustum& sunFr, const glm::vec3& focus, float 
     glUniform1f(locWindD, 0.05f);
     vegDepthSh.setFloat(locMeadowRange,0);
     glActiveTexture(GL_TEXTURE6);
-    glBindTexture(GL_TEXTURE_2D, branchTex);
-    drawStream(vaoShadow, streamShadow, l0Idx, bufShadow);
+    glBindTexture(GL_TEXTURE_2D, training ? trainingBranchTex : branchTex);
+    vegDepthSh.setInt(locTrainingTreeD,training ? 1 : 0);
+    if(training) drawTrainingTreeStream(bufShadow,2);
+    else drawStream(vaoShadow,streamShadow,l0Idx,bufShadow);
+    vegDepthSh.setInt(locTrainingTreeD,0);
     glBindTexture(GL_TEXTURE_2D, bushTex);
     glActiveTexture(GL_TEXTURE0);
     drawStream(vaoBushShadow, streamBushShadow, bushIdx, bufBushShadow);
@@ -371,6 +382,7 @@ void Vegetation::invalidate() {
 
 void Vegetation::destroy() {
     destroyMeadow();
+    destroyTrainingTrees();
     for (auto& row : tiles)
         for (auto& t : row) {
             if (t.vao) glDeleteVertexArrays(1, &t.vao);

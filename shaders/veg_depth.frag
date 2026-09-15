@@ -3,6 +3,7 @@
 // without this test every card would cast a solid rectangular shadow.
 in vec2 vUV;
 uniform sampler2D branchTex;
+uniform int trainingTree;
 void main() {
-    if (vUV.x >= 0.0 && texture(branchTex, vUV).a < 0.42) discard;
+    if (vUV.x >= 0.0 && texture(branchTex, vUV).a < (trainingTree==1 ? 0.30 : 0.42)) discard;
 }

@@ -15,3 +15,7 @@ Use dated reports for measurements and inspections; [TODO.md](TODO.md) owns curr
 - [2026-09-06: Retina/standard-DPI switching](docs/display-scaling-2026-09-06.md) — refresh backing dimensions after events; tests pass, but the user still reproduces the display-transition problem.
 
 - [Training meadow reference pass and generated ground texture](docs/training-meadow-asset-2026-09-14.md) — 2026-09-14.
+
+- [Training spruce realism and fuller crown trial](docs/training-trees-2026-09-14.md) — 2026-09-14.
+
+- [Four spruce types mixed through training](docs/training-spruce-types-2026-09-15.md) — 2026-09-15.

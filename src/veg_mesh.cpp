@@ -219,10 +219,13 @@ GLuint vegMakeVAO(GLuint vbo, GLuint ebo, GLuint inst) {
 
 // Render the LOD0 spruce once into a texture — the far-tree billboard. Bake is
 // raw albedo (veg.frag bake=1); the impostor shader lights it at draw time.
-bool vegBakeImpostor(Vegetation& veg, int texW, int texH) {
+bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType) {
+    const bool training=trainingType>=0;
+    GLuint& texture=training ? veg.trainingSpruce[trainingType].impostor : veg.impTex;
+    const glm::vec2 size=training ? glm::vec2(TRAINING_SPRUCE_WIDTH,1.10f) : veg.impSize;
     GLuint fbo = 0, depthRb = 0;
-    glGenTextures(1, &veg.impTex);
-    glBindTexture(GL_TEXTURE_2D, veg.impTex);
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, texW, texH, 0, GL_RGBA,
                  GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
@@ -238,7 +241,7 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH) {
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, texW, texH);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                           veg.impTex, 0);
+                           texture, 0);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER,
                               depthRb);
     bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
@@ -251,15 +254,15 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH) {
         glDisable(GL_CULL_FACE);
 
         veg.vegSh.use();
-        // Ortho box matching impSize: x in +-0.42, y in 0..1.10, viewed from +X.
         glm::mat4 view = glm::lookAt(glm::vec3(4, 0.55f, 0), glm::vec3(0, 0.55f, 0),
                                      glm::vec3(0, 1, 0));
-        glm::mat4 proj = glm::ortho(-veg.impSize.x * 0.5f, veg.impSize.x * 0.5f,
-                                    -veg.impSize.y * 0.5f, veg.impSize.y * 0.5f,
+        glm::mat4 proj = glm::ortho(-size.x * 0.5f, size.x * 0.5f,
+                                    -size.y * 0.5f, size.y * 0.5f,
                                     0.1f, 10.0f);
         veg.vegSh.setMat4(veg.vegSh.locView, view);
         veg.vegSh.setMat4(veg.vegSh.locProj, proj);
         veg.vegSh.setInt(veg.locBake, 1);
+        veg.vegSh.setInt(veg.locTrainingTree,training ? 1 : 0);
         veg.vegSh.setFloat(veg.locWind, 0.0f);
         veg.vegSh.setFloat(veg.locRange, 0.0f);
         glUniform2f(veg.locFadeIn, 0.0f, 0.0f);
@@ -267,7 +270,7 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH) {
         veg.vegSh.setFloat(veg.vegSh.locTime, 0.0f);
         veg.vegSh.setVec3(veg.vegSh.locEye, glm::vec3(100.0f));
         glActiveTexture(GL_TEXTURE6);
-        glBindTexture(GL_TEXTURE_2D, veg.branchTex);
+        glBindTexture(GL_TEXTURE_2D, training ? veg.trainingBranchTex : veg.branchTex);
         if (veg.shadowTex) {
             glActiveTexture(GL_TEXTURE1);
             glBindTexture(GL_TEXTURE_2D, veg.shadowTex);
@@ -277,13 +280,14 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH) {
         const float inst[8] = {0, 0, 0, 1, 0, 0, 1, 0};
         glBindBuffer(GL_ARRAY_BUFFER, veg.streamL0);
         glBufferData(GL_ARRAY_BUFFER, sizeof(inst), inst, GL_STREAM_DRAW);
-        glBindVertexArray(veg.vaoL0);
-        glDrawElementsInstanced(GL_TRIANGLES, veg.l0Idx, GL_UNSIGNED_INT, nullptr, 1);
+        glBindVertexArray(training ? veg.trainingSpruce[trainingType].vao[0] : veg.vaoL0);
+        glDrawElementsInstanced(GL_TRIANGLES, training ? veg.trainingSpruce[trainingType].count : veg.l0Idx, GL_UNSIGNED_INT, nullptr, 1);
         glBindVertexArray(0);
 
         veg.vegSh.setInt(veg.locBake, 0);
+        veg.vegSh.setInt(veg.locTrainingTree,0);
         glEnable(GL_CULL_FACE);
-        glBindTexture(GL_TEXTURE_2D, veg.impTex);
+        glBindTexture(GL_TEXTURE_2D, texture);
         glGenerateMipmap(GL_TEXTURE_2D);
     }
     glBindTexture(GL_TEXTURE_2D, 0);

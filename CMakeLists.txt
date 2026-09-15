@@ -35,6 +35,8 @@ set(CLIENT_SOURCES
     src/vegetation.cpp
     src/meadow_mesh.cpp
     src/training_meadow_mesh.cpp
+    src/training_tree.cpp
+    src/training_spruce_mesh.cpp
     src/veg_meadow.cpp
     src/veg_world_grass.cpp
     src/veg_grass.cpp
@@ -113,6 +115,10 @@ if(BUILD_TESTING)
     target_include_directories(lobby_ground_tests PRIVATE src)
     target_link_libraries(lobby_ground_tests PRIVATE glm::glm)
     add_test(NAME lobby_ground COMMAND lobby_ground_tests)
+    add_executable(training_spruce_tests tests/training_spruce_tests.cpp src/training_spruce_mesh.cpp)
+    target_include_directories(training_spruce_tests PRIVATE src)
+    target_link_libraries(training_spruce_tests PRIVATE glm::glm)
+    add_test(NAME training_spruce COMMAND training_spruce_tests)
     # Window/GL mock symbols cannot override Windows dllimport declarations.
     if(NOT WIN32)
         add_executable(renderer_size_tests tests/renderer_size_tests.cpp src/renderer_window.cpp)
