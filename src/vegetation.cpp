@@ -181,22 +181,9 @@ void Vegetation::buildTrees() {
 void Vegetation::buildBushes() {
     bushes.clear();
     if (gMapId == MAP_LOBBY) {
-        // Lobby counterpart: a few bushes among the ring trees, lane kept clear.
-        for (int i = 0; i < 14; i++) {
-            float a  = (i / 14.0f + (mapRand(i, 1, 81) - 0.5f) * 0.05f) * 6.2831853f;
-            float rr = 30.0f + mapRand(i, 2, 82) * 24.0f;
-            float x = cosf(a) * rr, z = sinf(a) * rr;
-            if (x > 8.0f && fabsf(z) < 16.0f) continue;
-            Tree t;
-            t.pos   = {x, terrainHeight(x, z) - 0.04f, z};
-            t.scale = 0.55f + mapRand(i, 3, 83) * 0.6f;
-            t.yaw   = mapRand(i, 4, 84) * 6.2831853f;
-            t.tint  = 0.85f + mapRand(i, 5, 85) * 0.35f;
-            bushes.push_back(t);
-        }
+        // Training keeps the meadow and trees without standalone berry bushes.
+        // Keep a valid empty grid for the lit and shadow visibility traversals.
         bushGrid.init(LOBBY_HALF, 16, 0.0f, 2.0f);
-        for (int i = 0; i < (int)bushes.size(); i++)
-            bushGrid.insert(bushes[i].pos.x, bushes[i].pos.z, i);
         return;
     }
     const float STEP = 7.0f;
