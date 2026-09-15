@@ -46,6 +46,7 @@ set(CLIENT_SOURCES
     src/renderer.cpp
     src/renderer_window.cpp
     src/hud.cpp
+    src/hud_panels.cpp
     src/perf.cpp
     src/camera.cpp
     src/input.cpp

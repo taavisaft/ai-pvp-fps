@@ -1,6 +1,4 @@
 #include "hud.h"
-#include "connect_prompt.h"
-#include "lobby.h"
 #include "map.h"
 #include "perf.h"
 #include <cstdio>
@@ -8,7 +6,6 @@
 #include <cmath>
 
 static constexpr float FEED_TTL  = 4.0f;
-static constexpr float TEXT_H    = 0.05f;   // standard char height in NDC
 
 void KillFeed::push(int killer, int victim) {
     if (count == 4) {
@@ -61,32 +58,7 @@ static void drawBar(Renderer& r, glm::vec2 center, glm::vec2 size, float frac,
     r.drawRect(fillCenter, {size.x * frac, size.y * 0.7f}, fillColor, 0.9f);
 }
 
-static void drawScoreboard(Renderer& r, const GameState& gs, int localID) {
-    int order[MAX_PLAYERS], n = 0;
-    for (int i = 0; i < MAX_PLAYERS; i++)
-        if (gs.usedMask & (1u << i)) order[n++] = i;
-    for (int i = 1; i < n; i++) {            // insertion sort by kills desc
-        int v = order[i], j = i - 1;
-        while (j >= 0 && gs.players[order[j]].kills < gs.players[v].kills) {
-            order[j + 1] = order[j];
-            j--;
-        }
-        order[j + 1] = v;
-    }
-
-    float rowH = 0.07f, top = 0.55f;
-    r.drawRect({0, top - rowH * (n + 1) * 0.5f + rowH * 0.75f},
-               {0.85f, rowH * (n + 1) + 0.06f}, {0, 0, 0}, 0.6f);
-    r.drawText("PLAYER   K   D", -0.35f, top, TEXT_H, {0.7f, 0.7f, 0.7f}, 0.9f);
-    char line[32];
-    for (int i = 0; i < n; i++) {
-        const Player& p = gs.players[order[i]];
-        snprintf(line, sizeof(line), "P%-6d %3d %3d", order[i], p.kills, p.deaths);
-        glm::vec3 c = order[i] == localID ? glm::vec3(1.0f, 0.9f, 0.3f)
-                                          : glm::vec3(0.9f, 0.9f, 0.9f);
-        r.drawText(line, -0.35f, top - rowH * (i + 1), TEXT_H, c, 0.9f);
-    }
-}
+void drawScoreboard(Renderer& r, const GameState& gs, int localID);
 
 // Top-down map view, north (+Z) up. Two callers:
 //   corner minimap  -> playerCentric: local player fixed at panel center c, the
@@ -162,6 +134,30 @@ static void drawMapView(Renderer& r, const GameState& gs, int localID,
     r.drawRect(mp, {dot * 1.2f * ia, dot * 1.2f}, {1.0f, 0.9f, 0.3f}, 1.0f);
 }
 
+static void drawCompass(Renderer& r, float yaw) {
+    // Gameplay yaw is 0 at east and 90 at north; map north is +Z.
+    float heading = fmodf(90.0f - yaw, 360.0f);
+    if (heading < 0.0f) heading += 360.0f;
+    r.drawRect({0, 0.925f}, {1.10f, 0.12f}, {0.02f, 0.03f, 0.04f}, 0.38f);
+    for (int bearing = 0; bearing < 360; bearing += 15) {
+        float delta = fmodf((float)bearing - heading + 540.0f, 360.0f) - 180.0f;
+        if (fabsf(delta) > 85.0f) continue;
+        float x = delta * (0.52f / 85.0f);
+        bool major = bearing % 45 == 0;
+        r.drawRect({x, 0.955f}, {0.003f, major ? 0.025f : 0.012f},
+                   {0.92f, 0.94f, 0.95f}, major ? 0.9f : 0.55f);
+        if (major) {
+            char label[8];
+            const char* cardinals[] = {"N", "E", "S", "W"};
+            if (bearing % 90 == 0) snprintf(label, sizeof(label), "%s", cardinals[bearing / 90]);
+            else                   snprintf(label, sizeof(label), "%d", bearing);
+            r.drawText(label, x - r.textWidth(label, 0.036f) * 0.5f,
+                       0.88f, 0.036f, {0.9f, 0.92f, 0.94f}, 0.9f);
+        }
+    }
+    r.drawRect({0, 0.985f}, {0.010f, 0.018f}, {1.0f, 0.9f, 0.36f}, 1.0f);
+}
+
 void drawHUD(Renderer& r, const GameState& gs, int localID,
              const HudState& hud, bool scoreboard, bool online, bool fullMap) {
     float ia = 1.0f / r.aspect();
@@ -173,18 +169,17 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
         r.drawRect({0, 0}, {2, 2}, {0.9f, 0.1f, 0.1f}, 0.35f * hud.flashTimer / 0.4f);
 
     float hpFrac = own.hp / (float)PLAYER_HP;
-    glm::vec3 hpColor = glm::mix(glm::vec3(0.9f, 0.2f, 0.1f),
-                                 glm::vec3(0.2f, 0.85f, 0.2f), hpFrac);
-    drawBar(r, {-0.6f, -0.86f}, {0.5f, 0.05f}, hpFrac, hpColor);
+    glm::vec3 hpColor = hpFrac < 0.3f ? glm::vec3(0.95f, 0.35f, 0.25f)
+                                       : glm::vec3(0.94f, 0.95f, 0.94f);
+    drawBar(r, {0.02f, -0.945f}, {0.48f, 0.035f}, hpFrac, hpColor);
     snprintf(buf, sizeof(buf), "%d", own.hp);
-    r.drawText(buf, -0.33f, -0.885f, TEXT_H, hpColor, 0.9f);
+    r.drawText(buf, -0.31f, -0.94f, 0.045f, hpColor, 0.95f);
 
     const WeaponDef& lw = weaponDef(gWeaponId);   // local player's selected weapon
-    glm::vec3 ammoCol = {0.95f, 0.85f, 0.25f};
-    drawBar(r, {-0.6f, -0.94f}, {0.5f, 0.03f}, own.mag / (float)lw.magSize, ammoCol);
-    if (own.reloading) snprintf(buf, sizeof(buf), "RELOADING");
-    else               snprintf(buf, sizeof(buf), "%d / %d", own.mag, own.reserve);
-    r.drawText(buf, -0.33f, -0.96f, 0.04f, ammoCol, 0.9f);
+    if (own.reloading) snprintf(buf, sizeof(buf), "%s  RELOADING", lw.name);
+    else               snprintf(buf, sizeof(buf), "%s  %d / %d", lw.name, own.mag, own.reserve);
+    r.drawText(buf, -r.textWidth(buf, 0.058f) * 0.5f, -0.88f, 0.058f,
+               {0.96f, 0.96f, 0.94f}, 0.95f);
 
     // Fire mode shown only briefly after a change (B), centered low.
     if (hud.fireModeTimer > 0.0f) {
@@ -232,6 +227,7 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
                    {1, 1, 1}, 0.95f);
     }
 
+    drawCompass(r, own.yaw);
     snprintf(buf, sizeof(buf), "%d FPS", (int)(hud.fps + 0.5f));
     r.drawText(buf, -0.98f, 0.93f, 0.04f, {0.6f, 0.9f, 0.6f}, 0.8f);
     snprintf(buf, sizeof(buf), "FRAME %.2fMS  RENDER CPU %.2fMS", hud.frameMs, hud.renderCpuMs);
@@ -251,9 +247,17 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
     }
 
     if (!online)
-        r.drawText("OFFLINE PRACTICE - PRESS C TO CONNECT",
+        r.drawText("PRACTICE - C TO CONNECT",
                    -0.98f, gProfiler.showHud ? 0.56f : 0.83f, 0.04f,
                    {0.8f, 0.8f, 0.8f}, 0.8f);
+
+    int alive = 0;
+    for (int i = 0; i < MAX_PLAYERS; i++)
+        if ((gs.usedMask & (1u << i)) && gs.players[i].alive) alive++;
+    snprintf(buf, sizeof(buf), "%d ALIVE", alive);
+    r.drawRect({0.875f, 0.93f}, {0.21f, 0.075f}, {0.02f, 0.03f, 0.04f}, 0.6f);
+    r.drawText(buf, 0.875f - r.textWidth(buf, 0.048f) * 0.5f,
+               0.905f, 0.048f, {0.96f, 0.96f, 0.94f}, 0.95f);
 
     for (int i = 0; i < hud.feed.count; i++) {
         const KillFeed::Entry& e = hud.feed.entries[i];
@@ -274,71 +278,9 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
         float ia = 1.0f / r.aspect();
         float halfY = 0.16f, halfX = halfY * ia, margin = 0.035f;
         glm::vec2 c = { 1.0f - margin - halfX, -1.0f + margin + halfY };
-        drawMapView(r, gs, localID, c, halfY, 10.0f, true, satTex, satHalf);
+        drawMapView(r, gs, localID, c, halfY, 100.0f, true, satTex, satHalf);
     }
 
     if (scoreboard) drawScoreboard(r, gs, localID);
-    r.endHUD();
-}
-
-// Stage 1: type the host address. Enter starts the lobby scan.
-static void drawIpEntry(Renderer& r, const ConnectPrompt& prompt) {
-    r.drawRect({0, 0.02f}, {1.1f, 0.42f}, {0.08f, 0.08f, 0.10f}, 0.92f);
-    r.drawText("SERVER IP", -0.48f, 0.16f, 0.055f, {0.75f, 0.75f, 0.75f}, 1.0f);
-    r.drawRect({0, -0.02f}, {0.92f, 0.12f}, {0.18f, 0.18f, 0.22f}, 1.0f);
-    if (prompt.ip[0] == '\0')
-        // dim hint — not real content; typing builds the IP from scratch
-        r.drawText("127.0.0.1", -0.43f, -0.05f, 0.065f, {0.40f, 0.40f, 0.45f}, 1.0f);
-    else
-        r.drawText(prompt.ip, -0.43f, -0.05f, 0.065f, {1, 1, 1}, 1.0f);
-    r.drawText("ENTER SCAN   ESC CANCEL", -0.48f, -0.16f, 0.04f,
-               {0.55f, 0.55f, 0.55f}, 0.95f);
-}
-
-// Stage 2: list every map server the probe answered for. Up/Down + Enter to join.
-static void drawServerBrowser(Renderer& r, const ConnectPrompt& prompt, const Lobby& lobby) {
-    const float rowH = 0.11f, top = 0.24f;
-    int   n     = lobby.count;
-    float panelH = 0.34f + rowH * (n > 0 ? n : 1);
-    r.drawRect({0, 0.02f}, {1.3f, panelH}, {0.08f, 0.08f, 0.10f}, 0.94f);
-
-    char head[80];
-    snprintf(head, sizeof(head), "GAMES ON %s", lobby.host);
-    r.drawText(head, -0.6f, top + 0.07f, 0.05f, {0.75f, 0.78f, 0.82f}, 1.0f);
-
-    if (n == 0) {
-        r.drawText("scanning...", -0.6f, top - rowH, 0.05f, {0.55f, 0.55f, 0.6f}, 1.0f);
-    }
-    for (int i = 0; i < n; i++) {
-        const ServerEntry& e = lobby.entries[i];
-        float y   = top - rowH * (i + 1);
-        bool  hot = (i == prompt.sel);
-        if (hot) {
-            r.drawRect({0, y + 0.018f}, {1.22f, rowH * 0.92f}, {0.20f, 0.30f, 0.42f}, 0.9f);
-            r.drawText(">", -0.62f, y, 0.05f, {1, 1, 0.4f}, 1.0f);
-        }
-        glm::vec3 col = hot ? glm::vec3{1, 1, 1} : glm::vec3{0.78f, 0.78f, 0.82f};
-        r.drawText(e.name, -0.56f, y, 0.05f, col, 1.0f);
-
-        char pop[16];
-        snprintf(pop, sizeof(pop), "%d/%d", e.players, e.maxPlayers);
-        r.drawText(pop, 0.18f, y, 0.05f, col, 1.0f);
-
-        char ping[16];
-        if (e.pingMs >= 0.0f) snprintf(ping, sizeof(ping), "%dMS", (int)(e.pingMs + 0.5f));
-        else                  snprintf(ping, sizeof(ping), "--");
-        r.drawText(ping, 0.46f, y, 0.05f, {0.55f, 0.7f, 0.55f}, 1.0f);
-    }
-    r.drawText("UP/DOWN SELECT   ENTER JOIN   ESC CANCEL",
-               -0.6f, top - rowH * (n > 0 ? n : 1) - 0.06f, 0.035f,
-               {0.55f, 0.55f, 0.55f}, 0.95f);
-}
-
-void drawConnectPrompt(Renderer& r, const ConnectPrompt& prompt, const Lobby& lobby) {
-    if (!prompt.open) return;
-    r.beginHUD();
-    r.drawRect({0, 0}, {2, 2}, {0, 0, 0}, 0.55f);
-    if (prompt.mode == PM_BROWSE) drawServerBrowser(r, prompt, lobby);
-    else                          drawIpEntry(r, prompt);
     r.endHUD();
 }
