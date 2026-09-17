@@ -1,5 +1,13 @@
 #version 330 core
 #include "training_tree.glsl"
+#include "meadow_surface.glsl"
+#include "lobby_growth.glsl"
+uniform float cloudAmount;
+uniform vec3  sunDir;
+uniform vec3  skyZenith;
+uniform vec3  skyHorizon;
+#include "atmosphere.glsl"
+#include "cloud_shadow.glsl"
 // Instanced vegetation (grass blades + spruce LOD meshes). Per-vertex: position,
 // normal, color, flex (0 root .. 1 tip, scales wind sway). Per-instance: two vec4s
 // A=(world x,y,z, uniform scale) B=(yaw, wind phase, brightness, dry factor).
@@ -35,9 +43,12 @@ out vec2  vUV;
 out vec4  lightSpacePos;
 out float vCutNear;
 out float vCutFar;
+out vec4  meadowField;
+out float meadowCloud;
+out vec3  meadowFog;
 
 void main() {
-    trainingMeadow=(grassRange>0.0 && grassRange<50.0 && aUV.x < -7.5) ? 1.0 : 0.0;
+    trainingMeadow=(grassRange>0.0 && grassRange>64.0 && aUV.x < -7.5) ? 1.0 : 0.0;
     float c = cos(iB.x), s = sin(iB.x);
     vec3 shaped=trainingTreeShape(aPos,aUV,iA);
     treeLocal=aPos*iA.w;
@@ -112,11 +123,23 @@ void main() {
         blade=mix(blade,vec3(.27,.225,.125),dry*.65);
         if(trainingMeadow>0.5) {
             float straw=aColor.z==2.0 || aColor.z==3.0 ? 1.0 : 0.0;
-            blade=mix(vec3(.13,.18,.06),vec3(.32,.39,.17),aUV.y);
-            blade=mix(blade,mix(vec3(.24,.21,.115),vec3(.49,.44,.285),aUV.y),straw);
+            float tip=pow(aUV.y,1.5);
+            blade=mix(vec3(.085,.155,.045),vec3(.47,.47,.17),tip);
+            blade=mix(blade,mix(vec3(.14,.17,.06),vec3(.74,.60,.30),tip),straw);
             if(aColor.z==4.0) blade*=vec3(.75,.94,.75);
         }
         vColor=blade*(.82+.3*aColor.y)*iB.z;
+    }
+    meadowField = vec4(0.0);
+    meadowCloud = 1.0;
+    if(aUV.x < -7.5) {
+        meadowField = trainingMeadow>0.5 ? vec4(lobbyGrowthColor(iA.xz),lobbyGrowth(iA.xz))
+                                         : vec4(meadowSurface(iA.xz),1.0);
+    }
+    meadowFog = vec3(0.0);
+    if(grassRange > 0.0) {
+        meadowCloud = cloudShadow(iA.xz,time);
+        meadowFog = fogColor(iA.xyz - eyePos);
     }
     lightSpacePos = lightSpace * vec4(wp, 1.0);
     vUV = aUV;

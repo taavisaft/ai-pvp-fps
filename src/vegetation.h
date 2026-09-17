@@ -35,14 +35,6 @@ struct QualitySettings;
 // screen-door dither (see veg.frag) — every tree is visible at every distance
 // and never pops. LOD0 trees also render into the sun shadow map.
 struct Vegetation {
-    // Legacy sparse grass toggle; Paldiski now uses the streamed meadow pool.
-    static constexpr bool  GRASS_ENABLED = false;
-    static constexpr float GRASS_TILE   = 16.0f;
-    static constexpr int   GRASS_RING   = 6;                    // tiles each side
-    static constexpr int   GRASS_SLOTS  = 2 * GRASS_RING + 1;   // 13x13 slot pool
-    static constexpr float GRASS_RANGE  = 90.0f;                // blades exist to here
-    static constexpr float GRASS_PER_M2 = 5.5f;   // tuft candidates (x3 blades each)
-
     static constexpr float TREE_FADE0 = 58.0f,  TREE_L0_END = 72.0f;
     static constexpr float TREE_FADE1 = 280.0f, TREE_L1_END = 320.0f;
     // Impostor far cap: past ~1.35 km a spruce billboard is a fog-dimmed speck, and
@@ -56,9 +48,14 @@ struct Vegetation {
     static constexpr float BUSH_FADE = 120.0f, BUSH_END = 150.0f;
     static constexpr float BUSH_SHADOW_RANGE = 40.0f;
 
-    struct Tree { glm::vec3 pos; float scale, yaw, tint; };
+    struct Tree { glm::vec3 pos; float scale, yaw, tint; uint8_t type=0; };
+    static constexpr int MEADOW_DECORATED = 96;
+    static constexpr int TRAINING_BLADE_INDICES = 24 * 3 * 6;
+    static constexpr float MEADOW_DECORATED_PHASE = .88f;
     struct GrassTile {
         GLuint vao = 0, vbo = 0;
+        GLuint decoratedVao = 0, decoratedVbo = 0;
+        int    decoratedCount = 0;
         int    count = 0;
         int    tx = INT_MIN, tz = INT_MIN;   // world tile held (INT_MIN = stale)
         float  minY = 0.0f, maxY = 0.0f;
@@ -68,21 +65,28 @@ struct Vegetation {
     bool meadowEnabled = true; // FPS_NOMEADOW comparison aid
     bool meadowCards = true; // FPS_GRASS_RIBBONS restores untextured meshes
     GLuint meadowAtlas=0;
-    bool meadowFull = true; // FPS_MEADOW_PATCH restores the original comparison
     int meadowSide = 24;
     GrassTile meadowTiles[24*24];
     std::vector<std::array<float,900>> meadowRanks;
+    std::vector<std::array<float,MEADOW_DECORATED>> meadowDecoratedRanks;
     GLuint meadowVbo=0, meadowEbo=0;
     GLsizei meadowIdx=0, meadowFarIdx=0;
     GLsizei trainingIdx=0, trainingFarIdx=0;
     GLuint meadowFarVbo=0, meadowFarEbo=0;
     GLuint meadowFarVao[24*24]{};
     GLint locMeadowEye=-1, locMeadowRange=-1;
+    GLuint landscapeTex=0;
+    glm::vec3 landscapeSun{0};
+    std::vector<uint8_t> landscapePixels;
+    void bakeLandscape(const glm::vec3& sunDir);
+    void destroyLandscape();
+    Shader meadowSh;
+    GLint locGrassWind=-1, locGrassRange=-1;
     void initMeadowAtlas(const char* base);
     void prepareMeadow();
     void updateWorldGrass(const glm::vec3& eye);
     void buildWorldGrassTile(int slot, int tx, int tz);
-    void drawMeadow(const Frustum& fr, const glm::vec3& eye, bool shadow);
+    void drawMeadow(const Renderer& r, const Frustum& fr, const glm::vec3& eye);
     void destroyMeadow();
 
     Shader vegSh;        // instanced mesh vegetation (grass + tree LOD0/LOD1)
@@ -94,7 +98,6 @@ struct Vegetation {
     GLint locImpSize = -1, locImpFadeIn = -1, locImpFadeOut = -1;  // impSh
 
     // Geometry: shared vertex/index buffers; one VAO per (mesh, instance stream).
-    GLuint  bladeVbo = 0, bladeEbo = 0; GLsizei bladeIdx = 0;
     GLuint  l0Vbo = 0, l0Ebo = 0;       GLsizei l0Idx = 0;
     GLuint  l1Vbo = 0, l1Ebo = 0;       GLsizei l1Idx = 0;
     GLuint  bushVbo = 0, bushEbo = 0;   GLsizei bushIdx = 0;
@@ -107,14 +110,20 @@ struct Vegetation {
     GLuint  branchTex = 0;                        // needle-spray photo, alpha cutout
     GLuint trainingBranchTex=0,trainingBroadleafTex=0;
     struct SpruceMesh {
-        GLuint vbo=0,ebo=0,vao[3]{},impostor=0;
-        GLsizei count=0;
+        GLuint vbo=0,ebo=0,lowVbo=0,lowEbo=0,vao[4]{},impostor=0;
+        GLsizei count=0,lowCount=0;
     };
     SpruceMesh trainingSpruce[TRAINING_TREE_TYPES];
     GLint locTrainingTree=-1, locTrainingTreeD=-1;
+    GLint locCoverage=-1, locImpCoverage=-1;
     bool initTrainingTrees(const char* base);
     void destroyTrainingTrees();
-    void drawTrainingTreeStream(const std::vector<float>& buf,int pass);
+    enum TrainingPass { TRAINING_L0, TRAINING_L1, TRAINING_SHADOW, TRAINING_SHADOW_LOW, TRAINING_IMPOSTOR };
+    using SpeciesStaging=std::array<std::vector<float>,TRAINING_TREE_TYPES>;
+    SpeciesStaging speciesL0, speciesL1, speciesImp, speciesShadow, speciesShadowLow, speciesShrub;
+    static constexpr float SHRUB_SCALE = 6.5f;
+    void reserveTrainingStaging();
+    void drawTrainingTreeStream(const SpeciesStaging& staging,TrainingPass pass);
     void logTrainingTreeMix() const;
     GLuint  bushTex = 0;                          // berry-bush photo, alpha cutout
     GLuint  shadowTex = 0;                        // shadow map texture reference for impostor bake
@@ -125,9 +134,8 @@ struct Vegetation {
     SpatialGrid       grid;
     SpatialGrid       bushGrid;
     bool              placed = false;
-    GrassTile         tiles[GRASS_SLOTS][GRASS_SLOTS];
     // Instance staging, reused every frame (capacity settles, no steady-state allocs)
-    std::vector<float> bufL0, bufL1, bufImp, bufShadow, bufTile;
+    std::vector<float> bufL0, bufL1, bufImp, bufShadow;
     std::vector<float> bufBush, bufBushShadow;
 
     // Runtime LOD distances (defaults mirror the constexprs; overridden by quality tier).
@@ -137,7 +145,6 @@ struct Vegetation {
     float treeShadowRange_ = TREE_SHADOW_RANGE;
     float bushFade_ = BUSH_FADE, bushEnd_ = BUSH_END;
     float bushShadowRange_ = BUSH_SHADOW_RANGE;
-    bool  grassEnabled_ = GRASS_ENABLED;
 
     bool init(const char* basePath, GLuint shadowTex = 0);   // shaders + meshes + impostor bake (GL ready)
     void applyQuality(const QualitySettings& q);  // runtime LOD distances (FPS_QUALITY)
@@ -149,9 +156,6 @@ struct Vegetation {
 
     void buildTrees();
     void buildBushes();
-    void prepareLobbyGrass();
-    void drawGrass(const Frustum& fr, const glm::vec3& eye);
-    void rebuildTile(GrassTile& t, int tx, int tz);
 };
 
 // veg_mesh.cpp — build-time helpers.
@@ -159,7 +163,6 @@ void   vegBuildMeadowCards(std::vector<float>& v, std::vector<unsigned>& idx, bo
 void   vegBuildTrainingMeadow(std::vector<float>& v, std::vector<unsigned>& idx, bool far);
 void   vegBuildMeadowFar(std::vector<float>& v, std::vector<unsigned>& idx);
 void   vegBuildMeadow(std::vector<float>& v, std::vector<unsigned>& idx);
-void   vegBuildBlade(std::vector<float>& v, std::vector<unsigned>& idx);
 void   vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low);
 void   vegBuildBush(std::vector<float>& v, std::vector<unsigned>& idx);
 GLuint vegMakeVAO(GLuint vbo, GLuint ebo, GLuint inst);   // 10-float verts + stream

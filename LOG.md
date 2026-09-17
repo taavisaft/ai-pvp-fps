@@ -21,3 +21,5 @@ Use dated reports for measurements and inspections; [TODO.md](TODO.md) owns curr
 - [Four spruce types mixed through training](docs/training-spruce-types-2026-09-15.md) — 2026-09-15.
 
 - [Mixed training woodland: ash, birch, oak and spruce](docs/training-mixed-woodland-2026-09-15.md) — 2026-09-15.
+
+- [Training landscape: meadow, pond, wooded hills](docs/training-landscape-2026-09-17.md) — 2026-09-17.

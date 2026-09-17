@@ -37,6 +37,7 @@ For payload policy, follow [RFC 8085 message-size guidance](https://www.rfc-edit
 | P2 | Surface-aware movement audio | Distinguish ground/wood/metal steps and landings; improve distance and obstruction cues. | Another player can locate movement without hearing through every wall at full strength; audio work stays bounded. |
 | P2 | Per-weapon recoil and motion | Separate weapon tuning, modest sway/bob and animation; preserve sticky recoil and clear aim response. | Uzi/Glock feel distinct without making camera movement nauseating; behavior remains consistent across frame rates. |
 | P2 | Grass scale test | Current meadow blades and matching terrain material enabled on Paldiski with a fixed streaming tile pool; no grass cast shadows. See [scale test](docs/paldiski-grass-2026-09-14.md). | Test traversal, teleport recovery and multiple viewpoints; measure streaming hitches and GPU cost before claiming large-scale readiness. |
+| P2 | Training landscape follow-up | Meadow/pond/woodland reference area built; see [record](docs/training-landscape-2026-09-17.md). | Walk it: LOD pops, shimmer without AA, streaming hitches, K preset cycle, wading. Then port tree crowns, stands and haze to Paldiski; evaluate post-process AA. |
 
 ## Usability and portability
 

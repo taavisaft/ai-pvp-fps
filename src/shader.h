@@ -4,6 +4,7 @@
 
 struct Shader {
     GLuint program  = 0;
+    GLint  locClipWater = -1;
     GLint  locModel = -1;
     GLint  locView  = -1;
     GLint  locProj  = -1;
@@ -31,6 +32,7 @@ struct Shader {
     GLint  locCloud     = -1;  // cloud-shadow strength 0..1 (drifting noise)
     GLint  locExposure  = -1;  // pre-tonemap exposure
     GLint  locSaturation= -1;  // color-grade saturation
+    GLint  locHazeCool  = -1;
     GLint  locInvVP     = -1;  // sky program only
     GLint  locLightSpace= -1;  // basic + depth programs
     GLint  locShadowMap = -1;  // basic program; sampler on texture unit 1

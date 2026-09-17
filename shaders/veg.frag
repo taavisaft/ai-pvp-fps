@@ -1,6 +1,4 @@
 #version 330 core
-#include "grass_surface.glsl"
-#include "lobby_growth.glsl"
 // Vegetation lighting: same 3-term daylight + shadow + fog + grade as basic.frag,
 // minus the splat/triplanar machinery. Adds the screen-door LOD cross-fade and
 // two-sided normals (blades and cone skirts are drawn without face culling).
@@ -8,8 +6,6 @@ in vec3  worldPos;
 in vec3 treeLocal;
 in vec3 treeUnit;
 uniform int trainingTree;
-in vec3 terrainNormal;
-flat in float trainingMeadow;
 in vec3  vNormal;
 in vec3  vColor;
 in vec2  vUV;
@@ -35,8 +31,10 @@ uniform float saturation;
 uniform sampler2D shadowMap;
 uniform sampler2D branchTex;   // needle-spray photo, alpha cutout
 uniform int       useShadow;
+uniform int       alphaToCoverage;
 
 out vec4 fragColor;
+#include "atmosphere.glsl"
 
 float bayer(vec2 p) {
     // 4x4 ordered-dither threshold, stable per screen pixel: complementary LOD
@@ -47,13 +45,20 @@ float bayer(vec2 p) {
     return (float(m[y * 4 + x]) + 0.5) / 16.0;
 }
 
-float sunVisibility(vec3 n, vec3 L) {
+float sunVisibility(vec3 n, vec3 L, bool foliage) {
     if (useShadow == 0) return 1.0;
     vec3 p = lightSpacePos.xyz / lightSpacePos.w;
     p = p * 0.5 + 0.5;
     if (p.z > 1.0 || p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) return 1.0;
     float bias = max(0.0025 * (1.0 - dot(n, L)), 0.0006);
     vec2 texel = 1.0 / vec2(textureSize(shadowMap, 0));
+    if (foliage) {
+        float lit = 0.0;
+        for (int x = 0; x <= 1; x++)
+            for (int y = 0; y <= 1; y++)
+                lit += (p.z - bias > texture(shadowMap, p.xy + (vec2(x, y) - 0.5) * texel).r) ? 0.0 : 1.0;
+        return lit * 0.25;
+    }
     float vis = 0.0;
     for (int x = -1; x <= 1; x++)
         for (int y = -1; y <= 1; y++) {
@@ -63,23 +68,7 @@ float sunVisibility(vec3 n, vec3 L) {
     return vis / 9.0;
 }
 
-float hash(vec2 p) {
-    p = fract(p * vec2(123.34, 456.21));
-    p += dot(p, p + 45.32);
-    return fract(p.x * p.y);
-}
-float vnoise(vec2 p) {
-    vec2 i = floor(p), f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x),
-               mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
-}
-float cloudShadow(vec2 xz, float t) {
-    if (cloudAmount <= 0.0) return 1.0;
-    float cl = vnoise(xz * 0.010 + t * 0.010) * 0.65
-             + vnoise(xz * 0.027 - t * 0.013) * 0.35;
-    return 1.0 - cloudAmount * (1.0 - smoothstep(0.35, 0.72, cl));
-}
+#include "cloud_shadow.glsl"
 
 vec3 grade(vec3 c) {
     c *= exposure;
@@ -94,33 +83,23 @@ float canopyAccess() {
         float radius=max(.025,.25*pow(max(0.0,1.0-treeUnit.y),.8));
         return mix(.30,1.0,smoothstep(.12,1.0,length(treeUnit.xz)/radius));
     }
-    float width=trainingTree==3 ? .23 : trainingTree==4 ? .43 : .34;
-    vec3 q=(treeUnit-vec3(0,.73,0))/vec3(width,.29,width);
+    float width=trainingTree==3 ? .29 : trainingTree==4 ? .48 : .41;
+    vec3 q=(treeUnit-vec3(0,.58,0))/vec3(width,.46,width);
     return mix(.20,1.0,smoothstep(.22,1.05,length(q)));
 }
 
+uniform float clipWater;
 void main() {
-    // Branch cards: photo albedo, cut out by alpha. Trunk/blades (uv sentinel
+    if(clipWater>0.0 && worldPos.y<clipWater) discard;
+    // Branch cards: photo albedo, cut out by alpha. Trunks (uv sentinel
     // -1) shade from the vertex color alone. vColor is the card's shade jitter.
     vec3 albedo = vColor;
-    float cardDistance=smoothstep(12.0,42.0,length(worldPos.xz-eyePos.xz));
-    if(vUV.x < -7.5) {
-        vec4 plant=texture(branchTex,vec2(-vUV.x-8.0,vUV.y));
-        // Geometry supplies the blade silhouette; photographed intensity is
-        // subtle surface detail only, avoiding ragged atlas-edge artifacts.
-        float detail=clamp(dot(plant.rgb,vec3(.299,.587,.114)),.15,.65);
-        vec3 photograph=vColor*(.90+.3*detail);
-        vec3 field=meadowSurface(worldPos.xz);
-        if(trainingMeadow>0.5) {
-            float growth=lobbyGrowth(worldPos.xz);
-            photograph=mix(photograph*vec3(1.25,1.08,.85),photograph,growth);
-            field=lobbyGrowthColor(worldPos.xz);
-        }
-        albedo=mix(photograph,field,smoothstep(18.0,48.0,length(worldPos.xz-eyePos.xz))*.92);
-    }
+    float coverage = 1.0;
     if (vUV.x >= 0.0) {
         vec4 t = texture(branchTex, vUV);
-        if (t.a < (trainingTree>0 ? 0.30 : 0.42)) discard;
+        float cut = trainingTree>0 ? 0.30 : 0.42;
+        coverage = clamp((t.a - cut) / max(fwidth(t.a), 0.0001) + 0.5, 0.0, 1.0);
+        if (coverage < (alphaToCoverage == 1 ? 0.004 : 0.5)) discard;
         albedo *= t.rgb;
     }
     if(trainingTree>0 && vUV.x<0.0) {
@@ -145,7 +124,7 @@ void main() {
     bool crown=trainingTree>0 && vUV.x>=0.0;
     if(crown) {
         access=canopyAccess();
-        albedo*=trainingTree>1 ? .90 : .96;
+        albedo*=trainingTree>1 ? vec3(.74,.93,.66) : vec3(.96);
     }
     if (bake == 1) {   // Retain canopy depth in the distant albedo capture.
         fragColor = vec4(albedo*(crown ? mix(.36,.87,access) : 1.0), 1.0);
@@ -158,33 +137,22 @@ void main() {
     vec3 V = normalize(eyePos - worldPos);
     vec3 n = normalize(vNormal);
     if (vUV.x >= -1.5 && !(trainingTree>0 && vUV.x>=0.0) && dot(n, V) < 0.0) n = -n;
-    if(vUV.x < -7.5) n=normalize(mix(n,terrainNormal,cardDistance));
     vec3 L = normalize(sunDir);
 
-    vec3 sun     = sunColor * max(dot(n, L), 0.0)
-                 * sunVisibility(n, L) * cloudShadow(worldPos.xz, time);
+    float cloud = cloudShadow(worldPos.xz, time);
+    float visible = sunVisibility(n, L, crown);
+    vec3 sun     = sunColor * max(dot(n, L), 0.0) * visible * cloud;
     vec3 ambient = mix(groundAmbient, skyZenith, n.y * 0.5 + 0.5);
     vec3 lit3    = albedo * (sun + ambient);
     if(trainingTree>0 && vUV.x>=0.0) {
         // A spray is a volume of needles, not a sheet that turns black from below.
         float diffuse=.55*max(dot(n,L),0.0)+.45*abs(dot(n,L));
         float transmitted=pow(max(dot(-L,V),0.0),3.0)*.10*access;
-        vec3 needleSun=sunColor*(diffuse*sunVisibility(n,L)*mix(.35,1.0,access)+transmitted)
-                       *cloudShadow(worldPos.xz,time);
+        vec3 needleSun=sunColor*(diffuse*visible*mix(.35,1.0,access)+transmitted)*cloud;
         // Interior foliage receives less sky fill and less direct/transmitted sun.
         lit3=albedo*(needleSun+mix(skyHorizon,skyZenith,.65)*mix(.32,.72,access));
     }
-    if (vUV.x < -1.5) {
-        // Blade-only root occlusion and soft transmitted light; trees unchanged.
-        float rootShade = mix(.68,1.0,smoothstep(0.0,.7,vUV.y));
-        if (vUV.x < -2.5)
-            rootShade=mix(rootShade,1.0,smoothstep(16.0,44.0,length(worldPos.xz-eyePos.xz)));
-        float through = pow(max(dot(-L,V),0.0),3.0)*.22;
-        if(vUV.x < -7.5) { rootShade=mix(.88,1.0,cardDistance); through*=1.0-cardDistance; }
-        lit3 = albedo*(sun+ambient+sunColor*through)*rootShade;
-    }
-
     float dens = 1.0 + fogHeightAmt * exp(-max(worldPos.y, 0.0) / 12.0);
     float fog  = clamp(length(worldPos - eyePos) * dens / fogDist, 0.0, 1.0);
-    fragColor = vec4(grade(mix(lit3, skyHorizon, fog * fog)), 1.0);
+    fragColor = vec4(grade(mix(lit3, fogColor(worldPos - eyePos), fog * fog)), coverage);
 }

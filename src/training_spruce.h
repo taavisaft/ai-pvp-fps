@@ -26,4 +26,4 @@ inline constexpr TrainingSpruceProfile TRAINING_SPRUCE_PROFILES[] = {
     {"high-crown",11,4,2,.43f,.175f,.80f,1.1f,.90f},
 };
 
-void vegBuildTrainingSpruce(std::vector<float>& v,std::vector<unsigned>& idx,int type);
+void vegBuildTrainingSpruce(std::vector<float>& v,std::vector<unsigned>& idx,int type,bool low=false);

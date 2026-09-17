@@ -9,6 +9,8 @@ layout(location = 5) in vec4 iB;       // yaw, phase, brightness, unused
 uniform mat4  view;
 uniform mat4  proj;
 uniform vec3  eyePos;
+uniform sampler2D landscapeMap;
+uniform vec3  sunDir;
 uniform vec2  impSize;   // world width/height of the baked box at scale 1
 uniform vec2  fadeIn;    // dither-in band (complements mesh LOD1's fade-out)
 uniform vec2  fadeOut;   // far dither-out band toward the impostor cap (x<y = active)
@@ -17,6 +19,9 @@ out vec3  worldPos;
 out vec2  vUV;
 out float vTint;
 out float vCutNear;
+out float vSide;
+out float vShade;
+out float vHue;
 
 void main() {
     vec3 toEye = eyePos - iA.xyz;
@@ -28,6 +33,9 @@ void main() {
     worldPos = wp;
     vUV      = aUV;
     vTint    = iB.z;
+    vSide    = dot(right, normalize(vec3(sunDir.x, 0.0, sunDir.z)));
+    vShade   = texture(landscapeMap, iA.xz / 2048.0 + 0.5).g;
+    vHue     = fract(iB.x * 3.7);
     float dist = length(iA.xyz - eyePos);
     float cutNear = (fadeIn.y > fadeIn.x) ? 1.0 - smoothstep(fadeIn.x, fadeIn.y, dist) : 0.0;
     float cutFar  = (fadeOut.y > fadeOut.x) ? smoothstep(fadeOut.x, fadeOut.y, dist) : 0.0;

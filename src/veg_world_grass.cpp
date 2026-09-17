@@ -1,6 +1,7 @@
 #include "vegetation.h"
 #include "map.h"
 #include "meadow_density.h"
+#include "lobby_growth.h"
 #include <algorithm>
 #include <array>
 
@@ -22,7 +23,9 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
         float x=x0+mapRand(key,tz,211)*5, z=z0+mapRand(key,tz,212)*5;
         if(fabsf(x)>gArenaHalf || fabsf(z)>gArenaHalf) continue;
         float h=terrainHeight(x,z);
-        if(h<1.25f || h>115.0f) continue;
+        if(gMapId==MAP_LOBBY) {
+            if(trainingPondRadius(x,z)<1.8f && h<TRAINING_POND_Y+.12f) continue;
+        } else if(h<1.25f || h>115.0f) continue;
         bool blocked=false;
         for(int k=0;k<boxCount;++k) {
             const Box& b=gMapBoxes[boxes[k]];
@@ -38,13 +41,23 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
         float rock=lobbySmooth(.30f,.55f,slope);
         float dirt=lobbySmooth(.52f,.70f,vegFbm(x*.004f,z*.004f))*.35f;
         float keep=(1-rock)*(1-dirt)*(1-.8f*pineForestBiome(x,z));
+        float growth=lobbyGrowth(x,z);
+        if(gMapId==MAP_LOBBY) {
+            keep=(.32f+.68f*growth)*(1-lobbyWear(x,z))*(1-.7f*trainingForest(x,z));
+            keep=fmaxf(keep,trainingReeds(x,z));
+        }
         if(mapRand(key,tz,213)>=keep) continue;
         float dry=.12f+.5f*vegFbm(x*.19f,z*.19f);
         if(meadowCards) {
             int nx=(int)((n.x*.5f+.5f)*255+.5f), nz=(int)((n.z*.5f+.5f)*255+.5f);
             dry=(float)(nx+256*nz);
         }
-        plants[count++]={x,h-.025f,z,.65f+.5f*mapRand(key,tz,214),
+        float scale=.65f+.5f*mapRand(key,tz,214);
+        if(gMapId==MAP_LOBBY) {
+            scale=(.70f+.45f*growth)*(.8f+.4f*mapRand(key,tz,214));
+            scale*=1+.9f*trainingReeds(x,z);
+        }
+        plants[count++]={x,h-.025f,z,scale,
                          mapRand(key,tz,215)*6.2831853f,mapRand(key,tz,216),
                          .85f+.25f*mapRand(key,tz,217),dry};
         tile.minY=fminf(tile.minY,h); tile.maxY=fmaxf(tile.maxY,h);
@@ -55,6 +68,16 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
     for(int i=0;i<count;++i) meadowRanks[slot][i]=meadowRank(plants[i][5]);
     glBindBuffer(GL_ARRAY_BUFFER,tile.vbo);
     if(count) glBufferSubData(GL_ARRAY_BUFFER,0,count*8*sizeof(float),plants.data());
+    std::array<std::array<float,8>,MEADOW_DECORATED> decorated;
+    int decoratedCount=0;
+    for(int i=0;i<count && decoratedCount<MEADOW_DECORATED;++i) {
+        if(plants[i][5]<MEADOW_DECORATED_PHASE) continue;
+        meadowDecoratedRanks[slot][decoratedCount]=meadowRank(plants[i][5]);
+        decorated[decoratedCount++]=plants[i];
+    }
+    glBindBuffer(GL_ARRAY_BUFFER,tile.decoratedVbo);
+    if(decoratedCount) glBufferSubData(GL_ARRAY_BUFFER,0,decoratedCount*8*sizeof(float),decorated.data());
+    tile.decoratedCount=decoratedCount;
     tile.count=count; tile.tx=tx; tile.tz=tz;
 }
 

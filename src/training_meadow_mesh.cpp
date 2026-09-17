@@ -22,16 +22,16 @@ void vegBuildTrainingMeadow(std::vector<float>& v, std::vector<unsigned>& idx, b
             idx.insert(idx.end(),{a,a+1,a+3,a,a+3,a+2});
         }
     };
-    for(int b=0;b<(far ? 10 : 34);++b) {
+    for(int b=0;b<(far ? 10 : 24);++b) {
         float a=b*2.39996323f, c=cosf(a), s=sinf(a);
         bool dry=b%3==0;
         float radius=.04f+.23f*random(b+21);
-        float height=dry ? .18f+.28f*random(b+1) : .32f+.44f*random(b+1);
-        float reach=dry ? .24f+.23f*random(b+41) : .06f+.20f*random(b+41);
+        float height=dry ? .45f+.42f*random(b+1) : .32f+.44f*random(b+1);
+        float reach=dry ? .08f+.18f*random(b+41) : .06f+.20f*random(b+41);
         glm::vec3 root(c*radius,-.02f,s*radius);
         glm::vec3 end=root+glm::vec3(-s*reach,height,c*reach);
         glm::vec3 bow(-s*.055f,dry ? .075f : .035f,c*.055f);
-        strip(root,end,bow,dry ? .0045f : .005f+.006f*random(b+81),dry ? 2 : 1,b,far ? 2 : 4);
+        strip(root,end,bow,dry ? .0045f : .005f+.006f*random(b+81),dry ? 2 : 1,b,far ? 2 : 3);
     }
     if(far) return;
     // A branched, airy seed head rather than a wide opaque billboard.

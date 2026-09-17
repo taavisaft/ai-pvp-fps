@@ -1,5 +1,6 @@
 #include "map.h"
 #include "physics.h"
+#include "tree_scatter.h"
 #include "meadow_density.h"
 #include "lobby_growth.h"
 #include <cstdio>
@@ -58,6 +59,33 @@ int main() {
         CHECK(fabsf(mid-mesh) < .06f);
     }
     CHECK(maximum-minimum > .3f);
+    glm::vec3 spawn = gMapSpawns[0];
+    CHECK(spawn.x*spawn.x+spawn.z*spawn.z > 120*120);
+    float spawnEye = terrainHeight(spawn.x,spawn.z)+1.7f;
+    CHECK(terrainHeight(0,195) < TRAINING_POND_Y);
+    for (int i=1; i<100; ++i) {
+        float t = i/100.0f, z = spawn.z+(195-spawn.z)*t;
+        float sight = spawnEye+(TRAINING_POND_Y-spawnEye)*t;
+        if (terrainHeight(0,z) > TRAINING_POND_Y) CHECK(sight-terrainHeight(0,z) > 1.0f);
+    }
+    for (int a=0; a<360; a+=3) for (float r=56; r<142; r+=1) {
+        float c=cosf(a*.0174533f), s=sinf(a*.0174533f);
+        float x0=c*r, z0=s*r, x1=c*(r+1), z1=s*(r+1);
+        float range=fabsf(trainingRangeHeight(x1,z1)-trainingRangeHeight(x0,z0));
+        float land=fabsf(trainingLandscapeHeight(x1,z1)-trainingLandscapeHeight(x0,z0));
+        CHECK(fabsf(terrainHeight(x1,z1)-terrainHeight(x0,z0)) < fmaxf(range,land)+.55f);
+    }
+    CHECK(gTrees.size() > 30000 && gTrees.size() < 64000);
+    std::vector<TreeInstance> first = gTrees;
+    buildTreeColliders();
+    CHECK(first.size() == gTrees.size());
+    for (size_t i=0; i<first.size() && i<gTrees.size(); i+=97)
+        CHECK(first[i].x==gTrees[i].x && first[i].z==gTrees[i].z && first[i].scale==gTrees[i].scale);
+    for (const TreeInstance& tree : gTrees) {
+        CHECK(trainingPondRadius(tree.x,tree.z) > 1.1f);
+        float dx=tree.x-spawn.x, dz=tree.z-spawn.z;
+        CHECK(dx*dx+dz*dz > 6*6);
+    }
     Player p{}; p.pos = {5,terrainHeight(5,17),17};
     InputState in{}; in.w = true; in.yaw = 90;
     for (int i=0; i<240; ++i) {

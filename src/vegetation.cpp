@@ -27,7 +27,6 @@ void Vegetation::applyQuality(const QualitySettings& q) {
     bushFade_         = q.bushFade;
     bushEnd_          = q.bushEnd;
     bushShadowRange_  = q.bushShadowRange;
-    grassEnabled_     = q.grassEnabled;
 }
 
 static void uploadMesh(GLuint& vbo, GLuint& ebo, GLsizei& count,
@@ -42,27 +41,11 @@ static void uploadMesh(GLuint& vbo, GLuint& ebo, GLsizei& count,
     count = (GLsizei)idx.size();
 }
 
-static void pushTree(std::vector<float>& b, const Vegetation::Tree& t) {
-    b.insert(b.end(), {t.pos.x, t.pos.y, t.pos.z, t.scale,
-                       t.yaw, t.yaw * 0.159f, t.tint, 0.0f});
-}
-
-static void drawStream(GLuint vao, GLuint stream, GLsizei idxCount,
-                       const std::vector<float>& buf) {
-    if (buf.empty()) return;
-    glBindBuffer(GL_ARRAY_BUFFER, stream);
-    glBufferData(GL_ARRAY_BUFFER, buf.size() * sizeof(float), buf.data(),
-                 GL_STREAM_DRAW);
-    glBindVertexArray(vao);
-    glDrawElementsInstanced(GL_TRIANGLES, idxCount, GL_UNSIGNED_INT, nullptr,
-                            (GLsizei)(buf.size() / 8));
-    glBindVertexArray(0);
-}
-
 bool Vegetation::init(const char* base, GLuint shadow) {
     shadowTex = shadow;
     initMeadowAtlas(base);
     if (!loadPair(vegSh, base, "veg.vert", "veg.frag")) return false;
+    if (!loadPair(meadowSh, base, "veg.vert", "meadow.frag")) return false;
     if (!loadPair(impSh, base, "veg_imp.vert", "veg_imp.frag")) return false;
     if (!loadPair(vegDepthSh, base, "veg_depth.vert", "veg_depth.frag")) return false;
 
@@ -90,22 +73,27 @@ bool Vegetation::init(const char* base, GLuint shadow) {
     locWindD   = glGetUniformLocation(vegDepthSh.program, "windAmp");
     locMeadowEye = glGetUniformLocation(vegDepthSh.program,"grassEye");
     locMeadowRange = glGetUniformLocation(vegDepthSh.program,"grassRange");
+    locCoverage    = glGetUniformLocation(vegSh.program, "alphaToCoverage");
+    locImpCoverage = glGetUniformLocation(impSh.program, "alphaToCoverage");
     locImpSize    = glGetUniformLocation(impSh.program, "impSize");
     locImpFadeIn  = glGetUniformLocation(impSh.program, "fadeIn");
     locImpFadeOut = glGetUniformLocation(impSh.program, "fadeOut");
     impSh.use();
+    glUniform1i(glGetUniformLocation(impSh.program, "landscapeMap"), 8);
     glUniform1i(glGetUniformLocation(impSh.program, "impTex"), 5);   // atlas unit
     vegSh.use();
     glUniform1i(glGetUniformLocation(vegSh.program, "branchTex"), 6);
     glUniform1i(glGetUniformLocation(vegSh.program, "shadowMap"), 1); // shadow depth unit
+    meadowSh.use();
+    glUniform1i(glGetUniformLocation(meadowSh.program, "branchTex"), 6);
+    glUniform1i(glGetUniformLocation(meadowSh.program, "shadowMap"), 1);
+    locGrassWind  = glGetUniformLocation(meadowSh.program, "windAmp");
+    locGrassRange = glGetUniformLocation(meadowSh.program, "grassRange");
     vegDepthSh.use();
     glUniform1i(glGetUniformLocation(vegDepthSh.program, "branchTex"), 6);
 
     std::vector<float> v;
     std::vector<unsigned> idx;
-    vegBuildBlade(v, idx);
-    uploadMesh(bladeVbo, bladeEbo, bladeIdx, v, idx);
-    v.clear(); idx.clear();
     vegBuildSpruce(v, idx, /*low=*/false);
     uploadMesh(l0Vbo, l0Ebo, l0Idx, v, idx);
     v.clear(); idx.clear();
@@ -161,12 +149,18 @@ void Vegetation::buildTrees() {
     // matches). setMap() fills gTrees; consume it here for the rendered instances.
     if (gTrees.empty()) buildTreeColliders();   // safety if drawn before a setMap
     trees.reserve(gTrees.size());
+    bufL0.reserve(gTrees.size()*8); bufL1.reserve(gTrees.size()*8);
+    bufImp.reserve(gTrees.size()*8); bufShadow.reserve(gTrees.size()*8);
+    const bool training = gMapId == MAP_LOBBY;
     for (const TreeInstance& g : gTrees)
-        trees.push_back({{g.x, g.y, g.z}, g.scale, g.yaw, g.tint});
+        trees.push_back({{g.x, g.y, g.z}, g.scale, g.yaw, g.tint,
+                         training ? (uint8_t)trainingTreeType(g.x, g.z) : (uint8_t)0});
+    if (training) reserveTrainingStaging();
 
     float half  = (gMapId == MAP_LOBBY) ? LOBBY_HALF : PALDISKI_HALF;
-    int   cells = (gMapId == MAP_LOBBY) ? 16 : 32;
-    float yMax  = (gMapId == MAP_LOBBY) ? 40.0f : 110.0f;
+    int   cells = (gMapId == MAP_LOBBY) ? 64 : 32;
+    float yMax  = 110.0f;
+    for (const Tree& t : trees) yMax = fmaxf(yMax, t.pos.y + t.scale * 1.1f + 1.0f);
     grid.init(half, cells, 0.0f, yMax);
     for (int i = 0; i < (int)trees.size(); i++)
         grid.insert(trees[i].pos.x, trees[i].pos.z, i);
@@ -214,177 +208,28 @@ void Vegetation::buildBushes() {
     printf("[veg] scattered %d bushes\n", (int)bushes.size());
 }
 
-void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& eye) {
-    if (!placed) { buildTrees(); buildBushes(); }
-
-    const bool training=gMapId==MAP_LOBBY;
-    gVegStats.reset();
-    // Bucket visible trees by distance. Buckets OVERLAP across the fade bands —
-    // both LODs of a transitioning tree draw, split per-pixel by the dither.
-    bufL0.clear(); bufL1.clear(); bufImp.clear(); bufBush.clear();
-    grid.forEachVisibleWithin(fr, eye, treeImpEnd_, [&](int i) {
-        const Tree& t = trees[i];
-        glm::vec3 d = t.pos - eye;
-        float dist = sqrtf(glm::dot(d, d));
-        if (dist < treeL0End_) { pushTree(bufL0, t); gVegStats.treesL0++; }
-        if (dist > treeFade0_ && dist < treeL1End_) { pushTree(bufL1, t); gVegStats.treesL1++; }
-        if (dist > treeFade1_ && dist < treeImpEnd_) { pushTree(bufImp, t); gVegStats.treesImp++; }
-    });
-    bushGrid.forEachVisible(fr, [&](int i) {
-        const Tree& t = bushes[i];
-        glm::vec3 d = t.pos - eye;
-        if (glm::dot(d, d) < bushEnd_ * bushEnd_) { pushTree(bufBush, t); gVegStats.bushes++; }
-    });
-
-    vegSh.use();
-    vegSh.setMat4(vegSh.locView, r.curView);
-    vegSh.setMat4(vegSh.locProj, r.curProj);
-    vegSh.setVec3(vegSh.locEye, eye);
-    vegSh.setFloat(vegSh.locTime, r.frameTime);
-    vegSh.setMat4(vegSh.locLightSpace, r.lightSpace);
-    vegSh.setInt(vegSh.locShadowMap, 1);
-    vegSh.setInt(vegSh.locUseShadow, 1);
-    vegSh.setInt(locBake, 0);
-    vegSh.setVec3(vegSh.locSunDir, r.sunDir);
-    vegSh.setVec3(vegSh.locSunColor, r.sunColor);
-    vegSh.setVec3(vegSh.locSkyZenith, r.skyZenith);
-    vegSh.setVec3(vegSh.locSkyHorizon, r.skyHorizon);
-    vegSh.setVec3(vegSh.locGroundAmb, r.groundAmbient);
-    vegSh.setFloat(vegSh.locFogDist, r.fogDist);
-    vegSh.setFloat(vegSh.locFogHeight, r.fogHeightAmt);
-    vegSh.setFloat(vegSh.locCloud, r.cloudAmount);
-    vegSh.setFloat(vegSh.locExposure, r.exposure);
-    vegSh.setFloat(vegSh.locSaturation, r.saturation);
-    glActiveTexture(GL_TEXTURE6);
-    glBindTexture(GL_TEXTURE_2D, training ? trainingBranchTex : branchTex);
-    vegSh.setInt(locTrainingTree,training ? 1 : 0);
-    glActiveTexture(GL_TEXTURE0);
-
-    // Tree LOD0: full mesh, dithers out across the first band.
-    vegSh.setFloat(locWind, 0.05f);
-    vegSh.setFloat(locRange, 0.0f);
-    glUniform2f(locFadeIn, 0.0f, 0.0f);
-    glUniform2f(locFadeOut, treeFade0_, treeL0End_);
-    if(training) drawTrainingTreeStream(bufL0,0);
-    else drawStream(vaoL0,streamL0,l0Idx,bufL0);
-    // Tree LOD1: dithers in against LOD0, out against the impostors.
-    glUniform2f(locFadeIn, treeFade0_, treeL0End_);
-    glUniform2f(locFadeOut, treeFade1_, treeL1End_);
-    if(training) drawTrainingTreeStream(bufL1,1);
-    else drawStream(vaoL1,streamL1,l1Idx,bufL1);
-
-    vegSh.setInt(locTrainingTree,0);
-    // Bushes: same shader, own photo on the shared sampler unit; dither fully
-    // out by bushEnd_ (nothing fades in behind them — undergrowth just ends).
-    glActiveTexture(GL_TEXTURE6);
-    glBindTexture(GL_TEXTURE_2D, bushTex);
-    glActiveTexture(GL_TEXTURE0);
-    vegSh.setFloat(locWind, 0.06f);
-    glUniform2f(locFadeIn, 0.0f, 0.0f);
-    glUniform2f(locFadeOut, bushFade_, bushEnd_);
-    drawStream(vaoBush, streamBush, bushIdx, bufBush);
-
-    drawGrass(fr, eye);
-    drawMeadow(fr,eye,false);
-    glBindVertexArray(0);
-
-    // Far trees: baked billboard per tree, out to the map edge — every tree is
-    // always drawn somewhere, nothing appears out of thin air.
-    if (!bufImp.empty()) {
-        impSh.use();
-        impSh.setMat4(impSh.locView, r.curView);
-        impSh.setMat4(impSh.locProj, r.curProj);
-        impSh.setVec3(impSh.locEye, eye);
-        impSh.setFloat(impSh.locTime, r.frameTime);
-        impSh.setVec3(impSh.locSunColor, r.sunColor);
-        impSh.setVec3(impSh.locSkyZenith, r.skyZenith);
-        impSh.setVec3(impSh.locSkyHorizon, r.skyHorizon);
-        impSh.setVec3(impSh.locGroundAmb, r.groundAmbient);
-        impSh.setFloat(impSh.locFogDist, r.fogDist);
-        impSh.setFloat(impSh.locFogHeight, r.fogHeightAmt);
-        impSh.setFloat(impSh.locCloud, r.cloudAmount);
-        impSh.setFloat(impSh.locExposure, r.exposure);
-        impSh.setFloat(impSh.locSaturation, r.saturation);
-        glUniform2f(locImpSize, training ? TRAINING_SPRUCE_WIDTH : impSize.x, impSize.y);
-        glUniform2f(locImpFadeIn, treeFade1_, treeL1End_);
-        glUniform2f(locImpFadeOut, treeImpFade_, treeImpEnd_);
-        if(training) { drawTrainingTreeStream(bufImp,3); return; }
-        glActiveTexture(GL_TEXTURE5);
-        glBindTexture(GL_TEXTURE_2D, impTex);
-        glActiveTexture(GL_TEXTURE0);
-        glBindBuffer(GL_ARRAY_BUFFER, streamImp);
-        glBufferData(GL_ARRAY_BUFFER, bufImp.size() * sizeof(float), bufImp.data(),
-                     GL_STREAM_DRAW);
-        glBindVertexArray(vaoImp);
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, (GLsizei)(bufImp.size() / 8));
-        glBindVertexArray(0);
-    }
-}
-
-void Vegetation::drawShadow(const Frustum& sunFr, const glm::vec3& focus, float time,
-                            const glm::mat4& lightSpace) {
-    if (!placed) { buildTrees(); buildBushes(); }
-    const bool training=gMapId==MAP_LOBBY;
-    bufShadow.clear();
-    bufBushShadow.clear();
-    grid.forEachVisible(sunFr, [&](int i) {
-        const Tree& t = trees[i];
-        glm::vec3 d = t.pos - focus;
-        if (glm::dot(d, d) < treeShadowRange_ * treeShadowRange_)
-            pushTree(bufShadow, t);
-    });
-    bushGrid.forEachVisible(sunFr, [&](int i) {
-        const Tree& t = bushes[i];
-        glm::vec3 d = t.pos - focus;
-        if (glm::dot(d, d) < bushShadowRange_ * bushShadowRange_)
-            pushTree(bufBushShadow, t);
-    });
-    if (bufShadow.empty() && bufBushShadow.empty()) return;
-    vegDepthSh.use();
-    vegDepthSh.setMat4(vegDepthSh.locLightSpace, lightSpace);
-    vegDepthSh.setFloat(vegDepthSh.locTime, time);
-    glUniform1f(locWindD, 0.05f);
-    vegDepthSh.setFloat(locMeadowRange,0);
-    glActiveTexture(GL_TEXTURE6);
-    glBindTexture(GL_TEXTURE_2D, training ? trainingBranchTex : branchTex);
-    vegDepthSh.setInt(locTrainingTreeD,training ? 1 : 0);
-    if(training) drawTrainingTreeStream(bufShadow,2);
-    else drawStream(vaoShadow,streamShadow,l0Idx,bufShadow);
-    vegDepthSh.setInt(locTrainingTreeD,0);
-    glBindTexture(GL_TEXTURE_2D, bushTex);
-    glActiveTexture(GL_TEXTURE0);
-    drawStream(vaoBushShadow, streamBushShadow, bushIdx, bufBushShadow);
-    // Grass receives world shadows in the lit pass, but does not cast them.
-}
-
 void Vegetation::invalidate() {
     placed = false;
+    landscapeSun = glm::vec3(0);
     trees.clear();
     grid.clear();
     bushes.clear();
     bushGrid.clear();
-    for (auto& row : tiles)
-        for (auto& t : row) { t.tx = INT_MIN; t.tz = INT_MIN; t.count = 0; }
 }
 
 void Vegetation::destroy() {
     destroyMeadow();
+    destroyLandscape();
     destroyTrainingTrees();
-    for (auto& row : tiles)
-        for (auto& t : row) {
-            if (t.vao) glDeleteVertexArrays(1, &t.vao);
-            if (t.vbo) glDeleteBuffers(1, &t.vbo);
-            t = GrassTile{};
-        }
     GLuint vaos[] = {vaoL0, vaoL1, vaoImp, vaoShadow, vaoBush, vaoBushShadow};
     for (GLuint v : vaos) if (v) glDeleteVertexArrays(1, &v);
-    GLuint bufs[] = {bladeVbo, bladeEbo, l0Vbo, l0Ebo, l1Vbo, l1Ebo, quadVbo,
+    GLuint bufs[] = {l0Vbo, l0Ebo, l1Vbo, l1Ebo, quadVbo,
                      bushVbo, bushEbo,
                      streamL0, streamL1, streamImp, streamShadow,
                      streamBush, streamBushShadow};
     for (GLuint b : bufs) if (b) glDeleteBuffers(1, &b);
     vaoL0 = vaoL1 = vaoImp = vaoShadow = vaoBush = vaoBushShadow = 0;
-    bladeVbo = bladeEbo = l0Vbo = l0Ebo = l1Vbo = l1Ebo = quadVbo = 0;
+    l0Vbo = l0Ebo = l1Vbo = l1Ebo = quadVbo = 0;
     bushVbo = bushEbo = 0;
     streamL0 = streamL1 = streamImp = streamShadow = 0;
     streamBush = streamBushShadow = 0;
@@ -395,6 +240,7 @@ void Vegetation::destroy() {
     if (bushTex) glDeleteTextures(1, &bushTex);
     bushTex = 0;
     vegSh.destroy();
+    meadowSh.destroy();
     impSh.destroy();
     vegDepthSh.destroy();
     trees.clear();

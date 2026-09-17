@@ -6,11 +6,15 @@ in vec3  worldPos;
 in vec2  vUV;
 in float vTint;
 in float vCutNear;
+in float vSide;
+in float vShade;
+in float vHue;
 
 uniform sampler2D impTex;
 uniform vec3  eyePos;
 uniform float time;
 
+uniform vec3  sunDir;
 uniform vec3  sunColor;
 uniform vec3  skyZenith;
 uniform vec3  skyHorizon;
@@ -22,6 +26,7 @@ uniform float exposure;
 uniform float saturation;
 
 out vec4 fragColor;
+#include "atmosphere.glsl"
 
 float bayer(vec2 p) {
     int x = int(mod(p.x, 4.0));
@@ -54,18 +59,26 @@ vec3 grade(vec3 c) {
     return clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0);
 }
 
+uniform float clipWater;
+uniform int alphaToCoverage;
 void main() {
+    if(clipWater>0.0 && worldPos.y<clipWater) discard;
     if (bayer(gl_FragCoord.xy) < vCutNear) discard;
     vec4 texel = texture(impTex, vUV);
-    if (texel.a < 0.3) discard;
+    float coverage = clamp((texel.a - 0.3) / max(fwidth(texel.a), 0.0001) + 0.5, 0.0, 1.0);
+    if (coverage < (alphaToCoverage == 1 ? 0.004 : 0.5)) discard;
 
     // Flat light: averaged sun + hemispheric ambient, tuned to sit level with the
     // mesh LODs' per-normal lighting so the dither band doesn't shift brightness.
-    vec3 lit3 = texel.rgb * vTint
-              * (sunColor * 0.62 * cloudShadow(worldPos.xz, time)
-                 + mix(groundAmbient, skyZenith, 0.72));
+    float side = clamp(0.5 + (vUV.x - 0.5) * 1.6 * vSide, 0.0, 1.0);
+    float crownLight = mix(0.22, 0.95, side) * mix(0.70, 1.10, vUV.y);
+    float neighbours = 1.0 - 0.8 * vShade * (1.0 - 0.75 * vUV.y);
+    vec3 hue = mix(vec3(0.94, 1.0, 0.92), vec3(1.06, 1.0, 0.90), vHue);
+    vec3 lit3 = texel.rgb * vTint * hue
+              * (sunColor * crownLight * neighbours * cloudShadow(worldPos.xz, time)
+                 + mix(groundAmbient, skyZenith, 0.72) * mix(0.72, 1.0, vUV.y));
 
     float dens = 1.0 + fogHeightAmt * exp(-max(worldPos.y, 0.0) / 12.0);
     float fog  = clamp(length(worldPos - eyePos) * dens / fogDist, 0.0, 1.0);
-    fragColor = vec4(grade(mix(lit3, skyHorizon, fog * fog)), 1.0);
+    fragColor = vec4(grade(mix(lit3, fogColor(worldPos - eyePos), fog * fog)), coverage);
 }

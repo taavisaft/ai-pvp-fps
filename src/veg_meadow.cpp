@@ -1,4 +1,5 @@
 #include "vegetation.h"
+#include "renderer.h"
 #include "map.h"
 #include "texture.h"
 #include <cstdio>
@@ -46,125 +47,86 @@ void Vegetation::prepareMeadow() {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,meadowFarEbo);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER,indices.size()*sizeof(unsigned),indices.data(),GL_STATIC_DRAW);
     }
-    if(gMapId!=MAP_LOBBY) {
-        meadowEnabled=getenv("FPS_NOMEADOW")==nullptr;
-        meadowSide=24;
-    }
-    meadowRanks.resize(meadowSide*meadowSide);
-    bufTile.reserve(5*5*36*8);
-    if(gMapId!=MAP_LOBBY) {
-        for(int i=0;i<24*24;++i) {
-            GrassTile& t=meadowTiles[i];
-            t.tx=t.tz=INT_MIN; t.count=0;
-            if(!t.vbo) glGenBuffers(1,&t.vbo);
-            glBindBuffer(GL_ARRAY_BUFFER,t.vbo);
-            glBufferData(GL_ARRAY_BUFFER,900*8*sizeof(float),nullptr,GL_DYNAMIC_DRAW);
-            if(!t.vao) t.vao=vegMakeVAO(meadowVbo,meadowEbo,t.vbo);
-            if(!meadowFarVao[i]) meadowFarVao[i]=vegMakeVAO(meadowFarVbo,meadowFarEbo,t.vbo);
-        }
-        printf("[meadow] Paldiski streaming: 576 reserved tiles, 50 m draw / 55 m preload\n");
-        return;
-    }
-    int total=0;
-    for (int iz=0;iz<meadowSide;++iz) for(int ix=0;ix<meadowSide;++ix) {
-        GrassTile& t=meadowTiles[iz*meadowSide+ix];
-        bufTile.clear(); t.minY=1e9f; t.maxY=-1e9f;
-        for (int i=0;i<(meadowCards ? 450 : 900);++i) {
-            int key=(iz*meadowSide+ix)*1024+i;
-            float x=(meadowFull ? -60 : -10)+ix*5+mapRand(key,0,211)*5;
-            float z=(meadowFull ? -60 : 20)+iz*5+mapRand(key,0,212)*5;
-            float growth=lobbyGrowth(x,z);
-            float keep=lobbyGrowthDensity(growth)*(meadowFull ? 1.0f : lobbyMeadow(x,z))*(1-lobbyWear(x,z));
-            if (mapRand(key,0,213)>keep) continue;
-            float h=terrainHeight(x,z);
-            bool blocked=false;
-            for (int j=0;j<gMapBoxCount;++j) {
-                const Box& b=gMapBoxes[j];
-                if(fabsf(x-b.center.x)<b.half.x+.3f && fabsf(z-b.center.z)<b.half.z+.3f) blocked=true;
-            }
-            if(blocked) continue;
-            float scale=(.25f+.90f*growth)*(.8f+.4f*mapRand(key,0,214));
-            float dry=.12f+.5f*vegFbm(x*.19f,z*.19f);
-            if(meadowCards) {
-                glm::vec3 n=glm::normalize(glm::vec3(terrainHeight(x-.25f,z)-terrainHeight(x+.25f,z),
-                                                    .5f,terrainHeight(x,z-.25f)-terrainHeight(x,z+.25f)));
-                int nx=(int)((n.x*.5f+.5f)*255+.5f), nz=(int)((n.z*.5f+.5f)*255+.5f);
-                dry=(float)(nx+256*nz); // exact packed terrain normal in instance B.w
-            }
-            bufTile.insert(bufTile.end(),{x,h-.025f,z,scale,mapRand(key,0,215)*6.2831853f,
-                                         mapRand(key,0,216),.85f+.25f*mapRand(key,0,217),dry});
-            t.minY=fminf(t.minY,h); t.maxY=fmaxf(t.maxY,h);
-        }
-        // Fixed random ordering lets a distant draw submit only a prefix.
-        // Build once; camera movement never uploads or reorders instance buffers.
-        std::vector<std::array<float,8>> ordered(bufTile.size()/8);
-        for(size_t i=0;i<ordered.size();++i)
-            std::copy_n(bufTile.data()+i*8,8,ordered[i].begin());
-        std::sort(ordered.begin(),ordered.end(),[](const auto& a,const auto& b) {
-            return meadowRank(a[5]) < meadowRank(b[5]);
-        });
-        for(size_t i=0;i<ordered.size();++i) {
-            std::copy_n(ordered[i].begin(),8,bufTile.data()+i*8);
-            meadowRanks[iz*meadowSide+ix][i]=meadowRank(ordered[i][5]);
-        }
+    meadowEnabled=getenv("FPS_NOMEADOW")==nullptr;
+    meadowSide=24;
+    meadowRanks.resize(24*24);
+    meadowDecoratedRanks.resize(24*24);
+    for(int i=0;i<24*24;++i) {
+        GrassTile& t=meadowTiles[i];
+        t.tx=t.tz=INT_MIN; t.count=0;
         if(!t.vbo) glGenBuffers(1,&t.vbo);
         glBindBuffer(GL_ARRAY_BUFFER,t.vbo);
-        glBufferData(GL_ARRAY_BUFFER,bufTile.size()*sizeof(float),bufTile.data(),GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER,900*8*sizeof(float),nullptr,GL_DYNAMIC_DRAW);
         if(!t.vao) t.vao=vegMakeVAO(meadowVbo,meadowEbo,t.vbo);
-        GLuint& farVao=meadowFarVao[iz*meadowSide+ix];
-        if(!farVao) farVao=vegMakeVAO(meadowFarVbo,meadowFarEbo,t.vbo);
-        t.count=(int)bufTile.size()/8; total+=t.count;
+        t.decoratedCount=0;
+        if(!t.decoratedVbo) glGenBuffers(1,&t.decoratedVbo);
+        glBindBuffer(GL_ARRAY_BUFFER,t.decoratedVbo);
+        glBufferData(GL_ARRAY_BUFFER,MEADOW_DECORATED*8*sizeof(float),nullptr,GL_DYNAMIC_DRAW);
+        if(!t.decoratedVao) t.decoratedVao=vegMakeVAO(meadowVbo,meadowEbo,t.decoratedVbo);
+        if(!meadowFarVao[i]) meadowFarVao[i]=vegMakeVAO(meadowFarVbo,meadowFarEbo,t.vbo);
     }
-    printf("[meadow] %d mixed plants, %dx%d m, %d static tiles\n",
-           total,meadowSide*5,meadowSide*5,meadowSide*meadowSide);
-    printf("[meadow] %s, near %d / far %d triangles per clump\n",
-           meadowCards ? "tapered meadow blades" : "ribbons",(meadowCards ? trainingIdx : meadowIdx)/3,(meadowCards ? trainingFarIdx : meadowFarIdx)/3);
+    printf("[meadow] 576 reserved tiles, 50 m draw / 55 m preload\n");
 }
 
-void Vegetation::drawMeadow(const Frustum& fr, const glm::vec3& eye, bool shadow) {
-    if(!meadowEnabled || shadow) return;
-    const bool world=gMapId!=MAP_LOBBY;
-    if(world) updateWorldGrass(eye);
-    vegSh.setFloat(locWind,.045f);
-    vegSh.setFloat(locRange,world ? 60.0f : 38.0f);
-    glUniform2f(locFadeIn,0,0); glUniform2f(locFadeOut,0,0);
+void Vegetation::drawMeadow(const Renderer& r, const Frustum& fr, const glm::vec3& eye) {
+    if(!meadowEnabled) return;
+    updateWorldGrass(eye);
+    meadowSh.use();
+    meadowSh.setMat4(meadowSh.locView, r.curView);
+    meadowSh.setMat4(meadowSh.locProj, r.curProj);
+    meadowSh.setVec3(meadowSh.locEye, eye);
+    meadowSh.setFloat(meadowSh.locTime, r.frameTime);
+    meadowSh.setMat4(meadowSh.locLightSpace, r.lightSpace);
+    meadowSh.setVec3(meadowSh.locSunDir, r.sunDir);
+    meadowSh.setVec3(meadowSh.locSunColor, r.sunColor);
+    meadowSh.setVec3(meadowSh.locSkyZenith, r.skyZenith);
+    meadowSh.setVec3(meadowSh.locSkyHorizon, r.skyHorizon);
+    meadowSh.setVec3(meadowSh.locGroundAmb, r.groundAmbient);
+    meadowSh.setFloat(meadowSh.locFogDist, r.fogDist);
+    meadowSh.setFloat(meadowSh.locFogHeight, r.fogHeightAmt);
+    meadowSh.setFloat(meadowSh.locCloud, r.cloudAmount);
+    meadowSh.setFloat(meadowSh.locExposure, r.exposure);
+    meadowSh.setFloat(meadowSh.locSaturation, r.saturation);
+    meadowSh.setFloat(meadowSh.locHazeCool, r.hazeCool);
+    meadowSh.setFloat(locGrassWind,.045f);
+    meadowSh.setFloat(locGrassRange,gMapId==MAP_LOBBY ? 65.0f : 60.0f);
     if(meadowCards) {
         glActiveTexture(GL_TEXTURE6); glBindTexture(GL_TEXTURE_2D,meadowAtlas);
         glActiveTexture(GL_TEXTURE0);
     }
-    if(shadow) {
-        vegDepthSh.setFloat(locWindD,.045f);
-        vegDepthSh.setVec3(locMeadowEye,eye);
-        vegDepthSh.setFloat(locMeadowRange,38);
-    }
-    MeadowTimer& timer=meadowTimer[shadow ? 1 : 0];
+    MeadowTimer& timer=meadowTimer[0];
     timer.begin();
     for(int iz=0;iz<meadowSide;++iz) for(int ix=0;ix<meadowSide;++ix) {
         const GrassTile& t=meadowTiles[iz*meadowSide+ix];
-        if(!t.count || (world && t.tx==INT_MIN)) continue;
-        glm::vec3 center((meadowFull ? -57.5f : -7.5f)+ix*5,
-                         (t.minY+t.maxY)*.5f,(meadowFull ? -57.5f : 22.5f)+iz*5);
-        if(world) center=glm::vec3(t.tx*5+2.5f,(t.minY+t.maxY)*.5f,t.tz*5+2.5f);
+        if(!t.count || t.tx==INT_MIN) continue;
+        glm::vec3 center(t.tx*5+2.5f,(t.minY+t.maxY)*.5f,t.tz*5+2.5f);
         float dx=fmaxf(fabsf(eye.x-center.x)-2.5f,0), dz=fmaxf(fabsf(eye.z-center.z)-2.5f,0);
-        float plantHeight=world ? 1.0f : 1.5f; // include the training seed stalks
+        float plantHeight=gMapId==MAP_LOBBY ? 1.8f : 1.0f; // include the training seed stalks
         if(!fr.aabbVisible(center,{4.0f,(t.maxY-t.minY)*.5f+plantHeight,4.0f})) continue;
         const float* ranks=meadowRanks[iz*meadowSide+ix].data();
         // Nearest tile point is conservative: per-plant shader thinning handles the
         // rest, identically in visible and shadow passes.
         float distance=sqrtf(dx*dx+dz*dz);
-        float density=world ? worldMeadowDensity(distance) : meadowDensity(distance);
+        float density=worldMeadowDensity(distance);
         int count=(int)(std::lower_bound(ranks,ranks+t.count,density)-ranks);
         if(!count) continue;
         if(dx*dx+dz*dz < 32*32) {
             glBindVertexArray(t.vao);
-            const bool training=!world && meadowCards;
-            glDrawElementsInstanced(GL_TRIANGLES,training ? trainingIdx : meadowIdx,GL_UNSIGNED_INT,
+            const bool training=gMapId==MAP_LOBBY && meadowCards;
+            glDrawElementsInstanced(GL_TRIANGLES,training ? TRAINING_BLADE_INDICES : meadowIdx,GL_UNSIGNED_INT,
                 training ? reinterpret_cast<const void*>(size_t(meadowIdx)*sizeof(unsigned)) : nullptr,count);
+            const float* decoratedRanks=meadowDecoratedRanks[iz*meadowSide+ix].data();
+            int decorated=(int)(std::lower_bound(decoratedRanks,decoratedRanks+t.decoratedCount,density)-decoratedRanks);
+            if(training && decorated) {
+                glBindVertexArray(t.decoratedVao);
+                glDrawElementsInstanced(GL_TRIANGLES,trainingIdx-TRAINING_BLADE_INDICES,GL_UNSIGNED_INT,
+                    reinterpret_cast<const void*>(size_t(meadowIdx+TRAINING_BLADE_INDICES)*sizeof(unsigned)),decorated);
+            }
         }
         float farX=fabsf(eye.x-center.x)+2.5f, farZ=fabsf(eye.z-center.z)+2.5f;
         if(farX*farX+farZ*farZ > 18*18) {
             glBindVertexArray(meadowFarVao[iz*meadowSide+ix]);
-            const bool training=!world && meadowCards;
+            const bool training=gMapId==MAP_LOBBY && meadowCards;
             glDrawElementsInstanced(GL_TRIANGLES,training ? trainingFarIdx : meadowFarIdx,GL_UNSIGNED_INT,
                 training ? reinterpret_cast<const void*>(size_t(meadowFarIdx)*sizeof(unsigned)) : nullptr,count);
         }
@@ -180,6 +142,8 @@ void Vegetation::destroyMeadow() {
     for(auto& t:meadowTiles) {
         if(t.vao) glDeleteVertexArrays(1,&t.vao);
         if(t.vbo) glDeleteBuffers(1,&t.vbo);
+        if(t.decoratedVao) glDeleteVertexArrays(1,&t.decoratedVao);
+        if(t.decoratedVbo) glDeleteBuffers(1,&t.decoratedVbo);
         t=GrassTile{};
     }
     for(auto& vao:meadowFarVao) { if(vao) glDeleteVertexArrays(1,&vao); vao=0; }

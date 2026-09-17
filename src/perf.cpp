@@ -29,7 +29,6 @@ static QualitySettings makeQuality(QualityTier tier) {
         q.bushFade              = 80.0f;
         q.bushEnd               = 110.0f;
         q.bushShadowRange       = 28.0f;
-        q.grassEnabled          = false;
         q.terrainBuildsPerFrame = 0;   // coarse-only upgrades, no hitches
         break;
     case QUALITY_HIGH:
@@ -45,8 +44,8 @@ static QualitySettings makeQuality(QualityTier tier) {
         q.bushFade              = 130.0f;
         q.bushEnd               = 180.0f;
         q.bushShadowRange       = 50.0f;
-        q.grassEnabled          = false;  // still parked until blade pass is reworked
         q.terrainBuildsPerFrame = 2;
+        q.msaaSamples           = 4;
         break;
     default:
         q.name                  = "medium";
@@ -61,14 +60,24 @@ static QualitySettings makeQuality(QualityTier tier) {
         q.bushFade              = 120.0f;
         q.bushEnd               = 150.0f;
         q.bushShadowRange       = 40.0f;
-        q.grassEnabled          = false;
         q.terrainBuildsPerFrame = 1;
         break;
     }
     return q;
 }
 
+static QualitySettings qualityTierFromEnv();
+
 QualitySettings qualityFromEnv() {
+    QualitySettings q = qualityTierFromEnv();
+    if (const char* samples = getenv("FPS_MSAA")) {
+        int n = atoi(samples);
+        q.msaaSamples = n >= 4 ? 4 : n >= 2 ? 2 : 0;
+    }
+    return q;
+}
+
+static QualitySettings qualityTierFromEnv() {
     const char* q = getenv("FPS_QUALITY");
     if (!q) return makeQuality(QUALITY_MED);
     if (strcmp(q, "low") == 0 || strcmp(q, "0") == 0) return makeQuality(QUALITY_LOW);
@@ -81,8 +90,8 @@ void applyQuality(Renderer& r, const QualitySettings& q) {
     r.setShadowMapSize(q.shadowSize);
     r.taigaTerrain.maxBuildsPerFrame = q.terrainBuildsPerFrame;
     r.veg.applyQuality(q);
-    printf("[quality] tier=%s shadow=%d treeImpEnd=%.0f legacyGrass=%s terrainBuilds=%d/frame\n",
-           q.name, q.shadowSize, q.treeImpEnd, q.grassEnabled ? "on" : "off",
+    printf("[quality] tier=%s shadow=%d msaa=%d treeImpEnd=%.0f terrainBuilds=%d/frame\n",
+           q.name, q.shadowSize, q.msaaSamples, q.treeImpEnd,
            q.terrainBuildsPerFrame);
 }
 
@@ -129,6 +138,10 @@ static const RefCameraPreset kRefCameras[] = {
     {"ridge",   {-80.0f, 0.0f, 640.0f},   55.0f,  -6.0f,  Renderer::ATMO_CLEAR},
     // Golden hour: same ridge, warm light.
     {"golden",  {-80.0f, 0.0f, 640.0f},   55.0f,  -6.0f,  Renderer::ATMO_GOLDEN},
+    {"meadow",  {0.0f, 0.0f, 136.0f},     90.0f,  -8.0f,  Renderer::ATMO_GOLDEN, true},
+    {"pond",    {-46.0f, 0.0f, 140.0f},   48.0f,  -6.0f,  Renderer::ATMO_GOLDEN, true},
+    {"canopy",  {0.0f, 0.0f, 620.0f},    270.0f,  -6.0f,  Renderer::ATMO_GOLDEN, true},
+    {"range",   {10.0f, 0.0f, 30.0f},     90.0f,   5.0f,  Renderer::ATMO_GOLDEN, true},
 };
 
 int refCameraCount() { return (int)(sizeof(kRefCameras) / sizeof(kRefCameras[0])); }
@@ -150,7 +163,7 @@ const RefCameraPreset* refCameraFromEnv() {
     long idx = strtol(v, &end, 10);
     if (end != v && idx >= 0 && idx < refCameraCount())
         return &kRefCameras[(int)idx];
-    fprintf(stderr, "[ref] unknown FPS_REF=%s (try shore|bog|forest|ridge|golden)\n", v);
+    fprintf(stderr, "[ref] unknown FPS_REF=%s (try shore|bog|forest|ridge|golden|meadow|pond|canopy|range)\n", v);
     return nullptr;
 }
 

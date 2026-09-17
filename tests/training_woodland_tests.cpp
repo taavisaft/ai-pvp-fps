@@ -34,11 +34,18 @@ int main() {
     }
     CHECK(radius[1]<radius[0] && radius[0]<radius[2]);
     int counts[TRAINING_TREE_TYPES]{};
-    for(int x=-60;x<=60;x+=3) for(int z=-60;z<=60;z+=3) {
+    int sameNeighbour=0, samples=0, farSpruce=0, farSamples=0;
+    for(int x=-900;x<=900;x+=7) for(int z=-900;z<=900;z+=7) {
         int type=trainingTreeType(float(x),float(z));
         CHECK(type>=0 && type<TRAINING_TREE_TYPES);
         if(type>=0 && type<TRAINING_TREE_TYPES) ++counts[type];
+        sameNeighbour+=type==trainingTreeType(x+5.0f,z+3.0f); ++samples;
+        if(abs(z)>600) { farSpruce+=type<4; ++farSamples; }
     }
-    for(int n:counts) CHECK(n>100);
+    for(int n:counts) CHECK(n>1000);
+    CHECK(sameNeighbour*2>samples);
+    CHECK(farSpruce*10>farSamples*7);
+    for(int z=80;z<200;z+=5) CHECK(trainingTreeType(-50,float(z))==0);
+    for(int z=80;z<300;z+=5) CHECK(trainingTreeType(40,float(z))>=4);
     return failures ? 1 : 0;
 }

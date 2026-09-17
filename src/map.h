@@ -81,7 +81,7 @@ inline void generatePaldiski() {
 // (front face at x=25.4, matching the aim cross drawn client-side), a little test
 // cover, and the practice dummy's yard. Reuses the shared box/spawn arrays so
 // collision, materials, and the minimap bake all work unchanged.
-inline constexpr float LOBBY_HALF        = 60.0f;
+inline constexpr float LOBBY_HALF        = 1024.0f;
 inline constexpr float LOBBY_WALL_FACE   = 25.4f;  // target wall front plane (x)
 inline constexpr float LOBBY_BULLSEYE_Y  = 1.7f;   // aim-cross height (standing eyes)
 inline constexpr float LOBBY_STAND_X     = -6.0f;
@@ -109,7 +109,7 @@ inline void generateLobby() {
                   {c[3], c[4], c[5]}}, SURF_WOOD);
     }
     gStandBoxCount = gTownBoxCount - gStandBoxFirst;
-    gMapSpawns[gMapSpawnCount++] = {12.0f, 0.0f, 0.0f};   // firing line, faces the wall
+    gMapSpawns[gMapSpawnCount++] = {0.0f, 0.0f, 136.0f};
 }
 
 // --- active map (runtime-selected) -----------------------------------------

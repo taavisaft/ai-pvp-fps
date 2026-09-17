@@ -33,6 +33,14 @@ Test the current grass and terrain material across Paldiski offline with
 `FPS_MAP=paldiski ./build/game`. Grass streams around the camera and does not cast
 shadows. `FPS_NOMEADOW=1` disables the new grass for performance comparisons.
 
+Offline practice spawns in a 2×2 km training landscape: shooting range at the origin, meadow, pond and wooded hills to the north.
+
+```sh
+FPS_REF=meadow ./build/game          # fixed cameras: meadow|pond|canopy|range (training), shore|bog|forest|ridge|golden (Paldiski)
+FPS_MSAA=4 ./build/game              # 0|2|4; default 0 on low/medium, 4 on high (~+3 ms at 1440p)
+FPS_NOREFLECT=1 ./build/game         # pond mirror off, for comparisons
+```
+
 You can also press **C** in-game to find and join a server. Multi-config builds place binaries under `build/Release/`.
 
 ## Controls

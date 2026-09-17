@@ -33,6 +33,8 @@ set(CLIENT_SOURCES
     src/material.cpp
     src/terrain_render.cpp
     src/vegetation.cpp
+    src/vegetation_draw.cpp
+    src/landscape_map.cpp
     src/meadow_mesh.cpp
     src/training_meadow_mesh.cpp
     src/training_tree.cpp
@@ -40,10 +42,12 @@ set(CLIENT_SOURCES
     src/training_broadleaf_mesh.cpp
     src/veg_meadow.cpp
     src/veg_world_grass.cpp
-    src/veg_grass.cpp
-    src/veg_blade.cpp
     src/veg_mesh.cpp
     src/renderer.cpp
+    src/renderer_passes.cpp
+    src/renderer_draw.cpp
+    src/renderer_world.cpp
+    src/renderer_landscape.cpp
     src/renderer_window.cpp
     src/hud.cpp
     src/hud_panels.cpp

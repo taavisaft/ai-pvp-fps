@@ -27,6 +27,68 @@ static void scatterTrees(std::vector<TreeInstance>& out) {
             t.tint  = 0.82f + mapRand(i, 6, 66) * 0.36f;
             out.push_back(t);
         }
+        auto open=[](float x,float z) {
+            if(fabsf(x)>1016 || fabsf(z)>1016) return false;
+            if(x*x+z*z<75*75 || trainingPondRadius(x,z)<1.15f) return false;
+            return !(fabsf(x)<30 && z>95 && z<166);
+        };
+        const int side=340;
+        for(int iz=0;iz<side;++iz) for(int ix=0;ix<side;++ix) {
+            float x=-1020+(ix+.5f)*6+(mapRand(ix,iz,301)-.5f)*5;
+            float z=-1020+(iz+.5f)*6+(mapRand(ix,iz,302)-.5f)*5;
+            if(!open(x,z)) continue;
+            float forest=trainingForest(x,z);
+            if(mapRand(ix,iz,303)>forest*.92f) {
+                if(forest>.03f && forest<.55f && mapRand(ix,iz,308)<.40f)
+                    out.push_back({x,terrainHeight(x,z)-.10f,z,2.4f+mapRand(ix,iz,309)*3.2f,
+                                   mapRand(ix,iz,305)*6.2831853f,.80f+mapRand(ix,iz,306)*.25f});
+                continue;
+            }
+            float scale=9+mapRand(ix,iz,304)*10;
+            if(forest<.5f) scale*=1.15f;
+            if(mapRand(ix,iz,307)<.12f) scale*=.45f;
+            out.push_back({x,terrainHeight(x,z)-.15f,z,scale,
+                           mapRand(ix,iz,305)*6.2831853f,.78f+mapRand(ix,iz,306)*.30f});
+        }
+        for(int cz=-3;cz<5;++cz) for(int cx=-4;cx<4;++cx) {
+            if(mapRand(cx,cz,321)>.60f) continue;
+            float centerX=(cx+.2f+.6f*mapRand(cx,cz,322))*120, centerZ=(cz+.2f+.6f*mapRand(cx,cz,323))*120;
+            if(centerX*centerX+centerZ*centerZ<150*150 || trainingPondRadius(centerX,centerZ)<2.4f) continue;
+            if(fabsf(centerX)<45 && centerZ>80 && centerZ<185) continue;
+            if(trainingForest(centerX,centerZ)>.10f) continue;
+            int count=5+int(mapRand(cx,cz,324)*8);
+            for(int k=0;k<count;++k) {
+                float angle=k*2.39996323f+mapRand(cx,cz,325)*6.2831853f;
+                float reach=sqrtf((k+.35f)/count)*14;
+                float x=centerX+cosf(angle)*reach, z=centerZ+sinf(angle)*reach;
+                if(!open(x,z)) continue;
+                int key=cx*64+k;
+                float scale=(20-9.0f*k/count)*(.85f+.30f*mapRand(key,cz,326));
+                out.push_back({x,terrainHeight(x,z)-.15f,z,scale,
+                               mapRand(key,cz,327)*6.2831853f,.80f+mapRand(key,cz,328)*.25f});
+            }
+            for(int k=0;k<6;++k) {
+                int key=cx*64+32+k;
+                float angle=mapRand(key,cz,331)*6.2831853f, reach=11+8*mapRand(key,cz,332);
+                float x=centerX+cosf(angle)*reach, z=centerZ+sinf(angle)*reach;
+                if(!open(x,z)) continue;
+                out.push_back({x,terrainHeight(x,z)-.10f,z,2.2f+3.0f*mapRand(key,cz,333),
+                               mapRand(key,cz,334)*6.2831853f,.82f+mapRand(key,cz,335)*.22f});
+            }
+        }
+        for(int k=0;k<56;++k) {
+            float angle=k*2.39996323f, ring=1.17f+.40f*mapRand(k,7,341);
+            float x=cosf(angle)*TRAINING_POND_RADIUS_X*ring, z=TRAINING_POND_Z+sinf(angle)*TRAINING_POND_RADIUS_Z*ring;
+            if(!open(x,z) || (z<172 && fabsf(x)<42) || mapRand(k,7,342)>.75f) continue;
+            out.push_back({x,terrainHeight(x,z)-.10f,z,2.0f+3.6f*mapRand(k,7,343),
+                           mapRand(k,7,344)*6.2831853f,.84f+mapRand(k,7,345)*.20f});
+        }
+        // Landmark trees frame the water; all use the same collision scatter.
+        const float landmarks[][3]={{62,170,24},{56,191,19},{73,195,17},{51,151,12},
+            {14,227,16},{-8,233,18},{-24,225,13},{-57,172,26},{-69,193,15},{-73,160,12}};
+        for(const auto& p:landmarks)
+            out.push_back({p[0],terrainHeight(p[0],p[1])-.15f,p[1],p[2],
+                           mapRand(int(p[0]),int(p[1]),310)*6.2831853f,.91f});
         return;
     }
     const float STEP = 5.0f;
@@ -70,7 +132,7 @@ void buildTreeColliders() {
 
     // XZ grid matching the render cull grid's resolution, so cell queries are cheap.
     float half  = (gMapId == MAP_LOBBY) ? LOBBY_HALF : PALDISKI_HALF;
-    int   cells = (gMapId == MAP_LOBBY) ? 16 : 32;
+    int   cells = (gMapId == MAP_LOBBY) ? 64 : 32;
     gTreeColGrid.init(half, cells, 0.0f, 1.0f);
     for (int i = 0; i < (int)gTreeCols.size(); i++)
         gTreeColGrid.insert(gTreeCols[i].x, gTreeCols[i].z, i);

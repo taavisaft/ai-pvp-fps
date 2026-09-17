@@ -54,11 +54,16 @@ out vec4 fragColor;
 
 // Fraction of the sun reaching this fragment (0 = full shadow, 1 = lit). 3x3 PCF
 // with a slope-scaled bias. Anything outside the light frustum is treated as lit.
+#include "atmosphere.glsl"
+uniform sampler2D landscapeMap;
+float farSun = 1.0;
+float canopy = 0.0;
+
 float sunVisibility(vec3 n, vec3 L) {
-    if (useShadow == 0) return 1.0;
+    if (useShadow == 0) return farSun;
     vec3 p = lightSpacePos.xyz / lightSpacePos.w;
     p = p * 0.5 + 0.5;
-    if (p.z > 1.0 || p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) return 1.0;
+    if (p.z > 1.0 || p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) return farSun;
     float bias = max(0.0025 * (1.0 - dot(n, L)), 0.0006);
     vec2 texel = 1.0 / vec2(textureSize(shadowMap, 0));
     float vis = 0.0;
@@ -67,7 +72,8 @@ float sunVisibility(vec3 n, vec3 L) {
             float d = texture(shadowMap, p.xy + vec2(x, y) * texel).r;
             vis += (p.z - bias > d) ? 0.0 : 1.0;
         }
-    return vis / 9.0;
+    float edge = max(abs(p.x - 0.5), abs(p.y - 0.5)) * 2.0;
+    return mix(vis / 9.0, farSun, smoothstep(0.8, 1.0, edge));
 }
 
 float hash(vec2 p) {
@@ -295,6 +301,14 @@ vec3 lobbyTerrain(vec3 p, vec3 an) {
     vec3 dryGround=mix(litter*vec3(.83,.82,.66),soil,.18);
     vec3 deepGround=lobbyGrowthColor(p.xz)*(.65+fibre*1.15);
     vec3 meadow=mix(dryGround,deepGround,growth*.85);
+    float distance=length(p.xz-eyePos.xz);
+    float macro=growthNoise(p.xz*.018+vec2(4,9));
+    float patches=growthNoise(p.xz*.11+vec2(31,-7));
+    vec3 toEye=normalize(eyePos-p);
+    float grazing=1.0-smoothstep(.04,.42,dot(normalize(vNormal),toEye));
+    vec3 tips=mix(vec3(.43,.41,.17),vec3(.30,.37,.13),growth);
+    vec3 field=mix(lobbyGrowthColor(p.xz),tips,grazing*.85)*(.80+.26*macro+.14*patches);
+    meadow=mix(meadow,field,smoothstep(12.0,55.0,distance)*.94);
     float wear = lobbyWear(p.xz);
     wear = clamp(wear+(vnoise(p.xz*2.4)-.5)*.20*wear,0.0,1.0);
     vec3 ground = mix(meadow,soil,wear);
@@ -303,7 +317,9 @@ vec3 lobbyTerrain(vec3 p, vec3 an) {
     return ground;
 }
 
+uniform float clipWater;
 void main() {
+    if(clipWater>0.0 && worldPos.y<clipWater) discard;
     float camDist = length(worldPos - eyePos);
     gFar  = (lit == 1) ? smoothstep(150.0, 550.0, camDist) : 0.0;
     gProc = (lit == 1) ? smoothstep(30.0, 140.0, camDist) : 0.0;
@@ -322,7 +338,12 @@ void main() {
         if (texel.a < 0.03) discard;
         c = texel.rgb * tint;   // UV facade or transparent environment decal
     } else if (lit == 1 && splat == 2) {
-        c = lobbyTerrain(worldPos, axisBlend(worldPos));
+        vec3 smoothAxis = pow(abs(normalize(vNormal)), vec3(8.0));
+        c = lobbyTerrain(worldPos, smoothAxis / (smoothAxis.x + smoothAxis.y + smoothAxis.z));
+        vec2 cover = texture(landscapeMap, worldPos.xz / 2048.0 + 0.5).rg;
+        c *= mix(vec3(1.0), vec3(.74,.78,.70), cover.r);
+        canopy = cover.r;
+        farSun = 1.0 - .85 * cover.g;
     } else if (lit == 1 && splat == 1) {
         c = splatTerrain(worldPos, axisBlend(worldPos));
     } else if (lit == 1 && grass == 1) {
@@ -350,6 +371,7 @@ void main() {
                      * sunVisibility(n, L) * cloudShadow(worldPos.xz, time);
         vec3 ambient = mix(groundAmbient, skyZenith, n.y * 0.5 + 0.5);
         ambient     += groundAmbient * 0.25 * max(-n.y, 0.0);   // upward bounce
+        ambient     *= 1.0 - .25 * canopy;
         vec3 lit3    = c * (sun + ambient);
 
         float surfaceSpec = authoredMaterial == 1 ? abs(vMaterial.a) : specular;
@@ -368,8 +390,8 @@ void main() {
         // authored lighting, then converge to the same legacy fog color at distance.
         if (authoredMaterial == 1) {
             vec3 encoded = pow(max(grade(lit3), vec3(0.0)), vec3(1.0 / 2.2));
-            c = mix(encoded, grade(skyHorizon), fog * fog);
-        } else c = grade(mix(lit3, skyHorizon, fog * fog));
+            c = mix(encoded, grade(fogColor(worldPos - eyePos)), fog * fog);
+        } else c = grade(mix(lit3, fogColor(worldPos - eyePos), fog * fog));
     }
     float outAlpha = alpha;
     if (lit == 1 && useFacade == 1) outAlpha *= texture(diffuseMap, vUV).a;

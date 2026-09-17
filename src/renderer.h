@@ -22,6 +22,19 @@ struct Renderer {
                                       // (the future vegetation rewrite reads this too)
 
     Shader shader;
+    bool reflectionPass=false;
+    Shader pondShader;
+    GLuint meadowSky=0, pondFBO=0, pondTexture=0, pondDepth=0;
+    GLint skyPanoramaLoc=-1, skyUsePanoramaLoc=-1;
+    GLint landscapeMapLoc=-1, skyPanoramaTurnLoc=-1;
+    float hazeCool=0;
+    GLint pondReflectionLoc=-1, pondTimeLoc=-1, pondReflectionMixLoc=-1;
+    float pondReflectionMix=0;
+    unsigned pondFrame=0;
+    bool initLandscape(const char* base);
+    void destroyLandscape();
+    void drawPondReflection(const glm::mat4& view,const glm::mat4& proj,const glm::vec3& eye);
+    void drawPond();
     Shader skyShader;    // fullscreen gradient sky + sun disk
     Shader depthShader;  // sun-POV depth pass for shadow mapping
     Shader texShader;    // textured HUD quad (satellite minimap)
@@ -82,7 +95,8 @@ struct Renderer {
 
     int    worldBuiltFor = -1;   // MapId the lazy caches (town/trees/props) were built for
 
-    bool  init(const char* title, int w, int h);
+    bool  init(const char* title, int w, int h, int msaaSamples = 0);
+    int   msaa = 0;
     float aspect() const;
     void  setTime(float t) { frameTime = t; }
     void  beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye);

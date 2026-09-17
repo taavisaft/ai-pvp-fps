@@ -81,6 +81,7 @@ bool Shader::load(const char* vertPath, const char* fragPath) {
         return false;
     }
 
+    locClipWater = glGetUniformLocation(program, "clipWater");
     locModel = glGetUniformLocation(program, "model");
     locView  = glGetUniformLocation(program, "view");
     locProj  = glGetUniformLocation(program, "proj");
@@ -106,6 +107,7 @@ bool Shader::load(const char* vertPath, const char* fragPath) {
     locCloud      = glGetUniformLocation(program, "cloudAmount");
     locExposure   = glGetUniformLocation(program, "exposure");
     locSaturation = glGetUniformLocation(program, "saturation");
+    locHazeCool   = glGetUniformLocation(program, "hazeCool");
     locInvVP      = glGetUniformLocation(program, "invViewProj");
     locLightSpace = glGetUniformLocation(program, "lightSpace");
     locShadowMap  = glGetUniformLocation(program, "shadowMap");

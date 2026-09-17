@@ -4,7 +4,7 @@
 
 // Species 0 ash, 1 birch, 2 oak. The collision trunk is shared; branching and
 // leaf-cluster silhouettes are cosmetic. Each atlas column is a different leaf.
-void vegBuildBroadleaf(std::vector<float>& v,std::vector<unsigned>& idx,int species) {
+void vegBuildBroadleaf(std::vector<float>& v,std::vector<unsigned>& idx,int species,bool low) {
     auto rand=[species](int k) { float x=sinf((k+species*719)*127.1f+19.7f)*43758.5453f; return x-floorf(x); };
     glm::vec3 bark=species==1 ? glm::vec3(.59f,.61f,.55f) : species==0 ? glm::vec3(.32f,.31f,.26f) : glm::vec3(.27f,.23f,.18f);
     auto vertex=[&](glm::vec3 p,glm::vec3 n,glm::vec3 col,float flex,glm::vec2 uv) {
@@ -35,7 +35,8 @@ void vegBuildBroadleaf(std::vector<float>& v,std::vector<unsigned>& idx,int spec
     wood({0,0,0},{0,TREE_TRUNK_HEIGHT,0},TREE_TRUNK_BASE,TREE_TRUNK_TOP,true);
     auto cluster=[&](glm::vec3 center,float size,int key) {
         // Many small, bent sprays form an irregular volume; no single giant plane.
-        int sprays=species==1 ? 20 : 28;
+        int sprays=low ? (species==1 ? 7 : 9) : (species==1 ? 20 : 28);
+        float cover=low ? 1.75f : 1.0f;
         for(int b=0;b<sprays;++b) {
             float a=b*2.399963f+rand(key)*6.28f, c=cosf(a),s=sinf(a);
             float y=rand(key+b+21)*2-1;
@@ -49,7 +50,7 @@ void vegBuildBroadleaf(std::vector<float>& v,std::vector<unsigned>& idx,int spec
             glm::vec3 across=glm::normalize(glm::cross(up,glm::vec3(0,1,0)));
             float roll=(rand(key+b+211)-.5f)*2.8f;
             glm::vec3 side=across*cosf(roll)+glm::cross(up,across)*sinf(roll);
-            float w=size*(.36f+.17f*rand(key+b+31)),h=size*(.46f+.24f*rand(key+b+41));
+            float w=size*cover*(.36f+.17f*rand(key+b+31)),h=size*cover*(.46f+.24f*rand(key+b+41));
             glm::vec3 root=center+offset-up*h*.45f;
             unsigned rows[3][2];
             for(int r=0;r<3;++r) for(int edge=0;edge<2;++edge) {
@@ -70,26 +71,32 @@ void vegBuildBroadleaf(std::vector<float>& v,std::vector<unsigned>& idx,int spec
         }
     };
     int limbs=species==1 ? 9 : 10;
-    float radius=species==1 ? .18f : species==0 ? .29f : .39f;
-    float crownSize=species==1 ? .115f : .155f;
+    float radius=species==1 ? .20f : species==0 ? .30f : .37f;
+    float crownSize=species==1 ? .135f : .185f;
     for(int b=0;b<limbs;++b) {
         float t=float(b)/(limbs-1),a=b*2.399963f+rand(b+1)*.8f;
         glm::vec3 dir(cosf(a),0,sinf(a)),side(-sinf(a),0,cosf(a));
-        float spread=radius*(.48f+.52f*sinf(t*3.14159265f))*(.76f+.30f*rand(b+81));
+        float spread=radius*(.58f+.42f*sinf((t*.85f+.12f)*3.14159265f))*(.80f+.26f*rand(b+81));
         float rise=(rand(b+91)-.5f)*.11f;
-        glm::vec3 root(0,.30f+t*.34f,0);
-        glm::vec3 elbow=dir*spread*.47f+side*((rand(b+101)-.5f)*.045f)+glm::vec3(0,.43f+t*.31f,0);
-        glm::vec3 tip=dir*spread+glm::vec3(0,.55f+t*.32f+rise,0);
+        glm::vec3 root(0,.11f+t*.50f,0);
+        glm::vec3 elbow=dir*spread*.47f+side*((rand(b+101)-.5f)*.045f)+glm::vec3(0,.20f+t*.58f,0);
+        glm::vec3 tip=dir*spread+glm::vec3(0,.25f+t*.62f+rise,0);
         wood(root,elbow,.009f*(1-t)+.003f,.005f,false);
-        wood(elbow,tip,.005f,.0012f,false);
+        if(!low) wood(elbow,tip,.005f,.0012f,false);
         for(int j=0;j<3;++j) {
             float sign=j==0 ? -1.0f : 1.0f;
             float jitter=rand(b*31+j+301);
             glm::vec3 start=glm::mix(elbow,tip,.18f+j*.35f);
             glm::vec3 end=start+side*(sign*crownSize*(.20f+.38f*jitter))+dir*(crownSize*.12f)+glm::vec3(0,(jitter-.3f)*.09f,0);
-            wood(start,end,.0025f,.0005f,false);
+            if(!low) wood(start,end,.0025f,.0005f,false);
             cluster(end,crownSize*(.92f+.27f*rand(b*17+j+61)),b*113+j*19);
         }
     }
     cluster({0,.90f,0},crownSize*.8f,1007);
+    cluster({0,.62f,0},crownSize*1.15f,1013);
+    for(int b=0;b<6;++b) {
+        float a=b*1.0471976f+rand(b+401)*.7f;
+        float reach=radius*(.62f+.30f*rand(b+411));
+        cluster({cosf(a)*reach,.19f+.07f*rand(b+421),sinf(a)*reach},crownSize*(.85f+.25f*rand(b+431)),2003+b*29);
+    }
 }

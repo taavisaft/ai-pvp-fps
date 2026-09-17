@@ -14,6 +14,9 @@ uniform float time;
 uniform float cloudAmount;  // 0..1, same as ground cloud-shadow strength
 uniform float exposure;
 uniform float saturation;
+uniform sampler2D panorama;
+uniform int usePanorama;
+uniform float panoramaTurn;
 out vec4 fragColor;
 
 vec3 grade(vec3 c) {
@@ -57,11 +60,24 @@ vec2 cloudSampleXZ(vec3 eye, vec3 dir) {
     return eye.xz + dir.xz * 5000.0;
 }
 
+#include "atmosphere.glsl"
+
 void main() {
     vec4 nearP = invViewProj * vec4(vNdc, -1.0, 1.0);
     vec4 farP  = invViewProj * vec4(vNdc,  1.0, 1.0);
     vec3 dir   = normalize(farP.xyz / farP.w - nearP.xyz / nearP.w);
 
+    if(usePanorama==1) {
+        vec2 uv=vec2(atan(dir.z,dir.x)/6.2831853+panoramaTurn,
+                     .5+asin(clamp(dir.y,-1.0,1.0))/3.14159265);
+        vec3 photograph=texture(panorama,uv).rgb;
+        // The panorama is display encoded; avoid applying the filmic curve twice.
+        float luminance=dot(photograph,vec3(.299,.587,.114));
+        photograph=mix(vec3(luminance),photograph,.78)*mix(vec3(1.0),vec3(1.05,.99,.90),hazeCool);
+        vec3 horizon=grade(fogColor(dir));
+        photograph=mix(horizon,photograph,smoothstep(-.02,.24,dir.y)*.92+.08*step(.0,dir.y));
+        fragColor=vec4(photograph,1); return;
+    }
     float sunElev = clamp(normalize(sunDir).y, 0.0, 1.0);
     float up      = clamp(dir.y, 0.0, 1.0);
 

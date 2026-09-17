@@ -158,6 +158,8 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     r.endShadowPass();
     gProfiler.endPass(PASS_SHADOW);
 
+    r.drawPondReflection(cam.view(),cam.proj(r.aspect()),cam.eye);
+
     // Pass 2: lit main view, sampling the shadow map built above.
     if (!diagOnce) printf("[diag] pass 2: sky\n");
     gProfiler.beginPass(PASS_SKY);
@@ -270,12 +272,13 @@ int main(int argc, char** argv) {
     MapId offlineMap = mapFromName(getenv("FPS_MAP"), MAP_LOBBY);
 
     Renderer renderer;
-    if (!renderer.init("pvp_shooter", 1280, 720)) {
+    const QualitySettings quality = qualityFromEnv();
+    if (!renderer.init("pvp_shooter", 1280, 720, quality.msaaSamples)) {
         fprintf(stderr, "renderer init failed\n");
         return 1;
     }
     gProfiler.configureFromEnv();
-    applyQuality(renderer, qualityFromEnv());
+    applyQuality(renderer, quality);
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
     Audio audio;
@@ -314,7 +317,7 @@ int main(int argc, char** argv) {
         spawn0 = gMapSpawnCount > 0 ? gMapSpawns[0] : glm::vec3(0.0f);
         glm::vec3 off = (gMapId == MAP_LOBBY) ? glm::vec3(8.0f, 0.0f, 7.0f)
                                               : glm::vec3(14.0f, 0.0f, 5.0f);
-        dummyPos   = spawn0 + off;
+        dummyPos   = gMapId==MAP_LOBBY ? glm::vec3(20,0,7) : spawn0+off;
         spawn0.y   = terrainHeight(spawn0.x, spawn0.z);
         dummyPos.y = terrainHeight(dummyPos.x, dummyPos.z);
         offline.players[0] = Player{};
@@ -322,7 +325,8 @@ int main(int argc, char** argv) {
         offline.players[0].pos = spawn0;
         offline.players[1].pos = dummyPos;
         predicted.pos = spawn0;
-        cam.yaw = glm::degrees(atan2f(dummyPos.z - spawn0.z, dummyPos.x - spawn0.x));
+        cam.yaw = gMapId==MAP_LOBBY ? 90.0f : glm::degrees(atan2f(dummyPos.z-spawn0.z,dummyPos.x-spawn0.x));
+        if(gMapId==MAP_LOBBY) { cam.pitch=-8; renderer.setAtmosphere(Renderer::ATMO_GOLDEN); }
     };
     setupOffline();
     if (const char* w = getenv("FPS_WEAPON")) {
@@ -345,8 +349,8 @@ int main(int argc, char** argv) {
     if (const char* pv = getenv("FPS_PITCH")) cam.pitch = (float)atof(pv);
     const RefCameraPreset* refCam = refCameraFromEnv();
     if (refCam) {
-        offlineMap = MAP_PALDISKI;
-        setMap(MAP_PALDISKI);
+        offlineMap = refCam->training ? MAP_LOBBY : MAP_PALDISKI;
+        setMap(offlineMap);
         renderer.setAtmosphere(refCam->atmo);
         applyRefCamera(cam, *refCam);
         glm::vec3 p = {refCam->feet.x,
@@ -434,7 +438,7 @@ int main(int argc, char** argv) {
 
     printf("controls: WASD move, mouse look, LMB shoot, Q/E lean, 1/2 or scroll weapon "
            "(Uzi/Glock), C connect, V third-person, K atmosphere, F wireframe, H hitboxes, J toggle HUD, ESC quit\n");
-    printf("lobby: shooting range + dummy; press C to join a server (Paldiski)\n");
+    printf("lobby: shooting range + meadow landscape; press C to join a server (Paldiski)\n");
 
     const char* shotFrameEnv = getenv("FPS_SHOT_FRAME");
     const int shotFrame = shotFrameEnv ? std::max(1, atoi(shotFrameEnv)) : 60;

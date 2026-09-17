@@ -9,7 +9,7 @@
 #include <cstdio>
 #include <glm/gtc/matrix_transform.hpp>
 
-bool Renderer::init(const char* title, int w, int h) {
+bool Renderer::init(const char* title, int w, int h, int msaaSamples) {
     width = w;
     height = h;
 
@@ -20,9 +20,20 @@ bool Renderer::init(const char* title, int w, int h) {
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);   // planar mirror reflection mask
 
+    msaa = msaaSamples;
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, msaa > 0 ? 1 : 0);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, msaa);
     window = SDL_CreateWindow(title,
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h,
         SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI);
+    if (!window && msaa > 0) {
+        msaa = 0;
+        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
+        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
+        window = SDL_CreateWindow(title,
+            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h,
+            SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI);
+    }
     if (!window) {
         fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError());
         return false;
@@ -41,6 +52,7 @@ bool Renderer::init(const char* title, int w, int h) {
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
+    if (msaa > 0) glEnable(GL_MULTISAMPLE);
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
 
     char base[512];
@@ -98,8 +110,9 @@ bool Renderer::init(const char* title, int w, int h) {
     // mesh matches the ground the server simulates.
     // The 2 km taiga ground is chunk-built lazily (taigaTerrain); this single mesh
     // only serves the small lobby heightfield, rebuilt on map switch below.
-    if (!createTerrainMesh(terrain, LOBBY_HALF, terrainHeight)) return false;
+    // Training terrain is prepared on map entry.
     if (!createQuad2D(quad2d)) return false;
+    if (!initLandscape(base)) return false;
     if (!font.init()) return false;
     if (!materials.init()) return false;
 
@@ -155,401 +168,6 @@ void Renderer::setShadowMapSize(int size) {
     }
 }
 
-float Renderer::aspect() const {
-    return (float)width / (float)height;
-}
-
-void Renderer::setAtmosphere(int preset) {
-    atmoPreset = ((preset % ATMO_COUNT) + ATMO_COUNT) % ATMO_COUNT;
-    switch (atmoPreset) {
-    case ATMO_OVERCAST:   // DayZ gloom: weak grey sun, flat light, close haze
-        sunDir        = glm::normalize(glm::vec3(0.35f, 0.75f, 0.30f));
-        sunColor      = {0.38f, 0.40f, 0.43f};
-        skyZenith     = {0.44f, 0.48f, 0.53f};
-        skyHorizon    = {0.63f, 0.66f, 0.69f};
-        groundAmbient = {0.33f, 0.34f, 0.35f};
-        fogDist = 1300.0f; fogHeightAmt = 1.30f; cloudAmount = 0.55f;
-        exposure = 1.05f; saturation = 0.80f;
-        break;
-    case ATMO_GOLDEN:     // golden hour: low warm sun, long shadows, amber horizon
-        sunDir        = glm::normalize(glm::vec3(0.75f, 0.28f, 0.42f));
-        sunColor      = {1.25f, 0.85f, 0.52f};
-        skyZenith     = {0.34f, 0.44f, 0.66f};
-        skyHorizon    = {0.94f, 0.78f, 0.58f};
-        groundAmbient = {0.30f, 0.26f, 0.22f};
-        fogDist = 2800.0f; fogHeightAmt = 0.60f; cloudAmount = 0.25f;
-        exposure = 1.10f; saturation = 1.06f;
-        break;
-    default:              // ATMO_CLEAR: PUBG bright midday (original palette)
-        sunDir        = glm::normalize(glm::vec3(0.50f, 0.65f, 0.25f));
-        sunColor      = {1.00f, 0.96f, 0.88f};
-        skyZenith     = {0.30f, 0.50f, 0.78f};
-        skyHorizon    = {0.74f, 0.82f, 0.90f};
-        groundAmbient = {0.26f, 0.27f, 0.24f};
-        fogDist = 4500.0f; fogHeightAmt = 0.35f; cloudAmount = 0.20f;
-        exposure = 0.82f; saturation = 1.12f;
-        break;
-    }
-}
-
-void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye) {
-    active = &shader;
-    curView = view;
-    curProj = proj;
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-    shader.use();
-    shader.setMat4(shader.locView, view);
-    shader.setMat4(shader.locProj, proj);
-    shader.setFloat(shader.locAlpha, 1.0f);
-    shader.setInt(shader.locLit, 1);
-    shader.setVec3(shader.locEye, eye);
-    shader.setInt(shader.locDiffuse, 0);
-    shader.setInt(shader.locUseFacade, 0);   // facade UV sampling off except for buildings
-    shader.setFloat(shader.locTime, frameTime);
-    shader.setInt(shader.locGrass, 0);
-    shader.setVec3(shader.locSunDir, sunDir);
-    shader.setVec3(shader.locSkyZenith, skyZenith);
-    shader.setVec3(shader.locSkyHorizon, skyHorizon);
-    shader.setVec3(shader.locGroundAmb, groundAmbient);
-    shader.setVec3(shader.locSunColor, sunColor);
-    shader.setFloat(shader.locFogDist, fogDist);
-    shader.setFloat(shader.locFogHeight, fogHeightAmt);
-    shader.setFloat(shader.locCloud, cloudAmount);
-    shader.setFloat(shader.locExposure, exposure);
-    shader.setFloat(shader.locSaturation, saturation);
-    shader.setInt(shader.locHasNormal, 0);   // boxes/ground use derivative normals
-    // Terrain splat off by default; rock/dirt samplers live on units 2 and 3.
-    shader.setInt(shader.locSplat, 0);
-    shader.setInt(shader.locRockMap, 2);
-    shader.setInt(shader.locDirtMap, 3);
-    shader.setInt(shader.locForestMap, 4);
-    // Shadow map (built this frame in the shadow pass) on texture unit 1.
-    shader.setMat4(shader.locLightSpace, lightSpace);
-    shader.setInt(shader.locShadowMap, 1);
-    shader.setInt(shader.locUseShadow, 1);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, shadowTex);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, materials.mats[MAT_GROUND].tex);
-}
-
-void Renderer::drawSky(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye) {
-    // Fullscreen gradient + clouds, drawn before world geometry. Depth off so it
-    // never occludes (and is never occluded by) the scene; world draws over it.
-    glm::mat4 invVP = glm::inverse(proj * view);
-    glDisable(GL_DEPTH_TEST);
-    skyShader.use();
-    skyShader.setMat4(skyShader.locInvVP, invVP);
-    skyShader.setVec3(skyShader.locEye, eye);
-    skyShader.setVec3(skyShader.locSunDir, sunDir);
-    skyShader.setVec3(skyShader.locSkyZenith, skyZenith);
-    skyShader.setVec3(skyShader.locSkyHorizon, skyHorizon);
-    skyShader.setVec3(skyShader.locSunColor, sunColor);
-    skyShader.setFloat(skyShader.locTime, frameTime);
-    skyShader.setFloat(skyShader.locCloud, cloudAmount);
-    skyShader.setFloat(skyShader.locExposure, exposure);
-    skyShader.setFloat(skyShader.locSaturation, saturation);
-    quad2d.draw();
-    glEnable(GL_DEPTH_TEST);
-    shader.use();   // restore the world program for the geometry that follows
-}
-
-void Renderer::beginShadowPass(const glm::vec3& focus) {
-    const float R = 60.0f;          // half-extent of the shadowed region around focus
-    const float backDist = 120.0f;  // how far up the sun-ray the light camera sits
-    glm::vec3 dir = glm::normalize(sunDir);
-    glm::vec3 leye = focus + dir * backDist;
-    glm::vec3 up = (dir.y > 0.99f || dir.y < -0.99f) ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
-    glm::mat4 lview = glm::lookAt(leye, focus, up);
-    glm::mat4 lproj = glm::ortho(-R, R, -R, R, 1.0f, backDist + R + 50.0f);
-    lightSpace = lproj * lview;
-    shadowFocus = focus;
-
-    glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
-    glViewport(0, 0, shadowSize, shadowSize);
-    glClear(GL_DEPTH_BUFFER_BIT);
-    glDisable(GL_CULL_FACE);   // single-sided ground/terrain must cast; bias handles acne
-    depthShader.use();
-    depthShader.setMat4(depthShader.locLightSpace, lightSpace);
-    active = &depthShader;
-}
-
-void Renderer::endShadowPass() {
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, fbW, fbH);
-    glEnable(GL_CULL_FACE);
-    active = &shader;
-    shader.use();
-}
-
-static void bindFlatColor(Shader& sh) {
-    sh.setInt(sh.locUseTex, 0);
-}
-
-static void bindMaterial(Shader& sh, const MaterialLib& lib, MaterialId id) {
-    const Material& m = lib.mats[(int)id];
-    lib.bind(id);
-    sh.setInt(sh.locUseTex, 1);
-    sh.setFloat(sh.locTile, m.tile);
-    sh.setFloat(sh.locSpec, m.spec);
-    sh.setVec3(sh.locTint, m.tint);
-}
-
-void Renderer::beginHUD() {
-    glDisable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    shader.setMat4(shader.locView, glm::mat4(1.0f));
-    shader.setMat4(shader.locProj, glm::mat4(1.0f));
-    shader.setInt(shader.locLit, 0);
-}
-
-void Renderer::drawRect(const glm::vec2& center, const glm::vec2& size,
-                        const glm::vec3& color, float alpha) {
-    shader.use();  // drawText may have bound the text program
-    bindFlatColor(shader);
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(center, 0.0f));
-    model = glm::scale(model, glm::vec3(size, 1.0f));
-    shader.setMat4(shader.locModel, model);
-    shader.setVec3(shader.locColor, color);
-    shader.setFloat(shader.locAlpha, alpha);
-    quad2d.draw();
-}
-
-void Renderer::drawRectRot(const glm::vec2& center, const glm::vec2& size,
-                           const glm::vec3& color, float alpha, float angle) {
-    shader.use();
-    bindFlatColor(shader);
-    float ia = 1.0f / aspect();
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(center, 0.0f));
-    model = glm::scale(model, glm::vec3(ia, 1.0f, 1.0f));            // square space -> NDC
-    model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));  // rotate in square space
-    model = glm::scale(model, glm::vec3(size, 1.0f));
-    shader.setMat4(shader.locModel, model);
-    shader.setVec3(shader.locColor, color);
-    shader.setFloat(shader.locAlpha, alpha);
-    quad2d.draw();
-}
-
-void Renderer::drawTexQuad(const glm::vec2& center, const glm::vec2& size, unsigned int tex,
-                           float alpha, const glm::vec2& uvCenter, const glm::vec2& uvHalf,
-                           const glm::vec3& tint) {
-    texShader.use();
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, (GLuint)tex);
-    texShader.setInt(texShader.locDiffuse, 0);
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(center, 0.0f));
-    model = glm::scale(model, glm::vec3(size, 1.0f));
-    texShader.setMat4(texShader.locModel, model);
-    texShader.setFloat(texShader.locAlpha, alpha);
-    texShader.setVec3(texShader.locTint, tint);
-    glUniform2f(texUvCenterLoc, uvCenter.x, uvCenter.y);
-    glUniform2f(texUvHalfLoc, uvHalf.x, uvHalf.y);
-    quad2d.draw();
-    shader.use();   // restore flat program for following drawRect/drawText
-}
-
-unsigned int Renderer::mapTexture(int mapId, const Box* boxes, int count, float worldHalf) {
-    if (mapId < 0 || mapId > 2) return 0;
-    if (!mapTexTried[mapId]) {
-        mapTexTried[mapId] = true;
-        static const char* names[3] = {"training", "warehouse", "field"};
-        char path[64];
-        snprintf(path, sizeof(path), "textures/map_%s.png", names[mapId]);
-        GLuint t = loadTexture(path);                       // hand-made art if present
-        if (!t) t = makeMapTexture(boxes, count, worldHalf); // else procedural bake
-        if (t) {   // clamp so corner-minimap sub-rect sampling doesn't wrap at edges
-            glBindTexture(GL_TEXTURE_2D, t);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glBindTexture(GL_TEXTURE_2D, 0);
-        }
-        mapTex[mapId] = t;
-    }
-    return mapTex[mapId];
-}
-
-void Renderer::drawText(const char* s, float x, float y, float h,
-                        const glm::vec3& color, float alpha) {
-    font.draw(s, x, y, h, 1.0f / aspect(), color, alpha);
-}
-
-float Renderer::textWidth(const char* s, float h) const {
-    return font.width(s, h, (float)height / (float)width);
-}
-
-void Renderer::endHUD() {
-    glDisable(GL_BLEND);
-    glEnable(GL_DEPTH_TEST);
-    shader.use();
-    shader.setFloat(shader.locAlpha, 1.0f);
-}
-
-void Renderer::drawCube(const glm::vec3& center, const glm::vec3& scale, const glm::vec3& color) {
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), center);
-    model = glm::scale(model, scale);
-    bindFlatColor(*active);
-    active->setMat4(active->locModel, model);
-    active->setVec3(active->locColor, color);
-    cube.draw();
-}
-
-void Renderer::drawCube(const glm::vec3& center, const glm::vec3& scale, MaterialId mat) {
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), center);
-    model = glm::scale(model, scale);
-    bindMaterial(*active, materials, mat);
-    active->setMat4(active->locModel, model);
-    active->setVec3(active->locColor, glm::vec3(1.0f));
-    cube.draw();
-}
-
-void Renderer::drawMesh(const Mesh& m, const glm::vec3& pos, MaterialId mat) {
-    bindMaterial(*active, materials, mat);
-    active->setMat4(active->locModel, glm::translate(glm::mat4(1.0f), pos));
-    active->setVec3(active->locColor, glm::vec3(1.0f));
-    m.draw();
-}
-
-void Renderer::drawCubeModel(const glm::mat4& model, const glm::vec3& color) {
-    bindFlatColor(*active);
-    active->setMat4(active->locModel, model);
-    active->setVec3(active->locColor, color);
-    cube.draw();
-}
-void Renderer::drawMeshModel(const Mesh& m, const glm::mat4& model, const glm::vec3& color) {
-    bindFlatColor(*active);
-    active->setMat4(active->locModel, model);
-    active->setVec3(active->locColor, color);
-    if (m.authoredMaterial) {
-        active->setInt(active->locHasNormal, 1);
-        active->setInt(active->locAuthoredMaterial, 1);
-    }
-    m.draw();
-    if (m.authoredMaterial) {
-        active->setInt(active->locAuthoredMaterial, 0);
-        active->setInt(active->locHasNormal, 0);
-    }
-}
-
-void Renderer::drawCubeModelTranslucent(const glm::mat4& model, const glm::vec3& color,
-                                        float alpha) {
-    bindFlatColor(*active);
-    active->setMat4(active->locModel, model);
-    active->setVec3(active->locColor, color);
-    active->setFloat(active->locAlpha, alpha);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDepthMask(GL_FALSE);
-    cube.draw();
-    glDepthMask(GL_TRUE);
-    glDisable(GL_BLEND);
-    active->setFloat(active->locAlpha, 1.0f);
-}
-
-
-void Renderer::invalidateWorldOnMapChange() {
-    if (worldBuiltFor == (int)gMapId) return;
-    worldBuiltFor = (int)gMapId;
-    veg.invalidate();                   // placements re-scatter for the new map
-    if (gMapId == MAP_LOBBY) {          // small static lobby heightfield
-        terrain.destroy();
-        createTerrainPatch(terrain, -gArenaHalf, -gArenaHalf, 2*gArenaHalf, 2*gArenaHalf,
-                           0.5f, 0.0f, terrainHeight);
-        veg.prepareLobbyGrass();
-    } else {
-        taigaTerrain.destroy();         // chunks rebuild lazily from the new map
-        veg.prepareMeadow();
-    }
-}
-
-void Renderer::drawVegetation(const Frustum& fr, const glm::vec3& eye) {
-    if (gTerrainMode == TERRAIN_OFF) return;   // lobby gets its miniature ring too
-    static bool noVeg = getenv("FPS_NOVEG") != nullptr;   // perf-isolation debug
-    if (noVeg) return;
-    if (active == &depthShader) {
-        // Sun pass (culling already off): near LOD0 trees cast shadows.
-        veg.drawShadow(fr, shadowFocus, frameTime, lightSpace);
-        depthShader.use();
-    } else {
-        glDisable(GL_CULL_FACE);   // blades and cone skirts are two-sided
-        veg.drawLit(*this, fr, eye);
-        glEnable(GL_CULL_FACE);
-        shader.use();
-    }
-}
-
-void Renderer::drawGround() {
-    // Flat lobby pad: the 100 m base quad scaled to the arena clamp.
-    bindMaterial(*active, materials, MAT_GROUND);
-    float s = (gArenaHalf + 5.0f) / 50.0f;
-    glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(s, 1.0f, s));
-    active->setMat4(active->locModel, model);
-    active->setVec3(active->locColor, glm::vec3(1.0f));
-    active->setInt(active->locGrass, materials.groundHasImage ? 0 : 1);
-    ground.draw();
-    active->setInt(active->locGrass, 0);
-}
-
-void Renderer::drawWater() {
-    if (gMapId != MAP_PALDISKI) return;   // the lobby pad has no sea
-    // Translucent Baltic at SEA_LEVEL: the 100 m ground quad scaled well past the map
-    // edge so the sea runs into the fog on the west horizon. Depth-tested against the
-    // terrain (so the shore contact line is exact) but not depth-written, and drawn
-    // after all opaque world geometry. Slight specular gives a view-aligned glint.
-    const float span = (PALDISKI_HALF * 4.0f) / 50.0f;   // quad half-extent is 50
-    glm::mat4 model = glm::scale(
-        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, SEA_LEVEL, 0.0f)),
-        glm::vec3(span, 1.0f, span));
-    shader.use();
-    bindFlatColor(shader);
-    shader.setMat4(shader.locModel, model);
-    shader.setVec3(shader.locColor, glm::vec3(0.13f, 0.22f, 0.28f));
-    shader.setFloat(shader.locAlpha, 0.82f);
-    shader.setFloat(shader.locSpec, 0.5f);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDepthMask(GL_FALSE);
-    ground.draw();
-    glDepthMask(GL_TRUE);
-    glDisable(GL_BLEND);
-    shader.setFloat(shader.locAlpha, 1.0f);
-    shader.setFloat(shader.locSpec, 0.0f);
-}
-
-void Renderer::drawTerrain(const Frustum& fr, const glm::vec3& eye) {
-    bindMaterial(*active, materials, MAT_GROUND);   // grass layer on unit 0
-    // Rock + dirt layers for the slope/height splat on units 2 and 3.
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, materials.mats[MAT_ROCK].tex);
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, materials.mats[MAT_DIRT].tex);
-    glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, gMapId == MAP_LOBBY && materials.trainingGroundTex
-                  ? materials.trainingGroundTex : materials.forestGroundTex);
-    glActiveTexture(GL_TEXTURE0);
-    active->setFloat(active->locRockTile, materials.mats[MAT_ROCK].tile);
-    active->setFloat(active->locDirtTile, materials.mats[MAT_DIRT].tile);
-    active->setFloat(active->locForestTile, 3.2f);
-    active->setInt(active->locSplat, gMapId == MAP_LOBBY ? 2 : 1);
-    active->setMat4(active->locModel, glm::mat4(1.0f));
-    active->setVec3(active->locColor, glm::vec3(1.0f));
-    // Use textures/ground.* when present (triplanar splat base layer). Procedural
-    // grassColor() only when no ground image was loaded.
-    bool procGrass = !materials.groundHasImage;
-    active->setInt(active->locGrass, procGrass ? 1 : 0);
-    active->setInt(active->locHasNormal, 1);   // smooth analytic heightfield normals
-    if (gTerrainMode == TERRAIN_PALDISKI) {
-        // Chunked LOD ground + the mountain vista ring (vista only in the lit pass:
-        // the sun frustum never reaches it, and its shadows would be wrong anyway).
-        taigaTerrain.draw(fr, eye, /*withVista=*/active == &shader);
-    } else {
-        terrain.draw();   // lobby: one small static mesh
-    }
-    active->setInt(active->locHasNormal, 0);
-    active->setInt(active->locGrass, 0);
-    active->setInt(active->locSplat, 0);
-}
-
 void Renderer::endFrame() {
     SDL_GL_SwapWindow(window);
 }
@@ -560,6 +178,7 @@ void Renderer::toggleWireframe() {
 }
 
 void Renderer::shutdown() {
+    destroyLandscape();
     veg.destroy();
     materials.destroy();
     font.destroy();

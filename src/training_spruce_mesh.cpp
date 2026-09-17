@@ -2,7 +2,7 @@
 #include "tree_collision.h"
 #include <cmath>
 
-void vegBuildTrainingSpruce(std::vector<float>& v, std::vector<unsigned>& idx,int type) {
+void vegBuildTrainingSpruce(std::vector<float>& v, std::vector<unsigned>& idx,int type,bool low) {
     const auto& profile=TRAINING_SPRUCE_PROFILES[type];
     auto rand=[type](int k) { k+=type*1021; float f=sinf(k*127.1f+17.3f)*43758.5453f; return f-floorf(f); };
     auto vertex=[&](glm::vec3 p,glm::vec3 n,glm::vec3 color,float flex,glm::vec2 uv) {
@@ -74,14 +74,16 @@ void vegBuildTrainingSpruce(std::vector<float>& v, std::vector<unsigned>& idx,in
                 return root+dir*(length*u)+glm::vec3(0,-sag*sinf(u*3.14159265f)+length*.10f*u,0);
             };
             glm::vec3 elbow=spine(.58f),tip=spine(1);
-            wood(root,elbow,.0028f*(1-t)+.0005f,.0012f*(1-t)+.0003f,false);
-            wood(elbow,tip,.0012f*(1-t)+.0003f,.0003f,false);
+            if(!low) {
+                wood(root,elbow,.0028f*(1-t)+.0005f,.0012f*(1-t)+.0003f,false);
+                wood(elbow,tip,.0012f*(1-t)+.0003f,.0003f,false);
+            }
             float shade=(.62f+.15f*rand(key+33))*profile.tint;
-            spray(spine(.12f),tip-spine(.12f),length*.94f,length*.72f,shade,key);
+            spray(spine(.12f),tip-spine(.12f),length*.94f,length*(low ? .95f : .72f),shade,key);
             // Inner foliage joins each tier into a bough, hiding bare spoke roots.
             spray(spine(.08f),dir+glm::vec3(0,-.28f,0),length*.68f,length*.62f,shade*.90f,key+201);
             // Fine hanging foliage gives the tier a ragged curtain underneath.
-            for(int b=0;b<profile.twigs;++b) {
+            for(int b=0;b<(low ? 0 : profile.twigs);++b) {
                 float u=.28f+b*(.51f/(profile.twigs-1)), sign=b%2 ? 1.0f : -1.0f;
                 float sweep=(1-u)*length*.40f;
                 glm::vec3 start=spine(u)+side*(sign*sweep*.25f);
@@ -92,7 +94,7 @@ void vegBuildTrainingSpruce(std::vector<float>& v, std::vector<unsigned>& idx,in
         }
     }
     // A few bare lower limbs and a narrow upright leader.
-    for(int j=0;j<(type==3 ? 12 : 5);++j) {
+    for(int j=0;j<(low ? 0 : type==3 ? 12 : 5);++j) {
         float a=j*2.39996f;
         wood({0,.13f+j*.023f,0},{cosf(a)*.085f,.12f+j*.023f,sinf(a)*.085f},.0018f,.0003f,false);
     }

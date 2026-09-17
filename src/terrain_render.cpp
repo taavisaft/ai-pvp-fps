@@ -4,6 +4,14 @@
 constexpr float TerrainChunks::LOD_STEP[];
 constexpr float TerrainChunks::LOD_DIST[];
 
+static float lod0Step(float x0, float z0) {
+    if(gMapId!=MAP_LOBBY) return TerrainChunks::LOD_STEP[0];
+    const float half=TerrainChunks::CHUNK_SIZE*.5f;
+    if(fabsf(x0+half)<=half && fabsf(z0+half)<=half) return .5f;
+    if(fabsf(x0+half)<260 && fabsf(z0+half-128)<260) return 1.0f;
+    return 4.0f;
+}
+
 // Vista height: the real terrain, dipped near the play boundary so the slab's
 // coarse edge tucks underneath the fine chunks' skirts instead of poking through.
 static float vistaElev(float x, float z) {
@@ -14,9 +22,10 @@ static float vistaElev(float x, float z) {
     return h - 4.0f * nearEdge;
 }
 
-void TerrainChunks::draw(const Frustum& fr, const glm::vec3& eye, bool withVista) {
+void TerrainChunks::draw(const Frustum& fr, const glm::vec3& eye, bool withVista, int finestLod) {
     const float half = PALDISKI_HALF;
     int builds = 0;   // expensive-build budget this call (hitch control)
+    const int budget = gMapId==MAP_LOBBY && maxBuildsPerFrame<1 ? 1 : maxBuildsPerFrame;
 
     for (int cz = 0; cz < CHUNKS; cz++)
     for (int cx = 0; cx < CHUNKS; cx++) {
@@ -37,6 +46,7 @@ void TerrainChunks::draw(const Frustum& fr, const glm::vec3& eye, bool withVista
         int want = LODS - 1;
         for (int l = 0; l < LODS; l++)
             if (dist < LOD_DIST[l]) { want = l; break; }
+        if (want < finestLod) want = finestLod;
 
         // The coarse tier is cheap enough to build inline whenever it's missing —
         // it doubles as the instant fallback while finer tiers wait their turn.
@@ -49,9 +59,10 @@ void TerrainChunks::draw(const Frustum& fr, const glm::vec3& eye, bool withVista
         }
         // Fine tiers: at most N expensive builds per frame; draw the best built
         // tier meanwhile (a one-frame-late LOD upgrade is invisible, a hitch isn't).
-        if (want < LODS - 1 && !c.built[want] && builds < maxBuildsPerFrame) {
-            createTerrainPatch(c.lod[want], x0, z0, CHUNK_SIZE, CHUNK_SIZE, LOD_STEP[want],
-                               1.5f + LOD_STEP[want] * 0.5f, terrainHeight);
+        if (want < LODS - 1 && !c.built[want] && builds < budget) {
+            float step = want == 0 ? lod0Step(x0, z0) : LOD_STEP[want];
+            createTerrainPatch(c.lod[want], x0, z0, CHUNK_SIZE, CHUNK_SIZE, step,
+                               1.5f + step * 0.5f, terrainHeight);
             c.built[want] = true;
             builds++;
         }
@@ -85,4 +96,17 @@ void TerrainChunks::destroy() {
         }
     for (Mesh& m : vistaSlab) m.destroy();
     vistaBuilt = false;
+}
+
+void TerrainChunks::prepareTraining() {
+    destroy();
+    for(int z=0;z<CHUNKS;++z) for(int x=0;x<CHUNKS;++x) {
+        auto& c=chunks[x][z];
+        float x0=-PALDISKI_HALF+x*CHUNK_SIZE,z0=-PALDISKI_HALF+z*CHUNK_SIZE;
+        float step=lod0Step(x0,z0);
+        if(step>=LOD_STEP[0]) continue;
+        createTerrainPatch(c.lod[0],x0,z0,CHUNK_SIZE,CHUNK_SIZE,step,
+                           1.5f+step*.5f,terrainHeight,&c.minY,&c.maxY);
+        c.built[0]=c.boundsKnown=true;
+    }
 }

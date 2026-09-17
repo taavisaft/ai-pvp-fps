@@ -12,6 +12,7 @@ struct QualitySettings {
     QualityTier tier                = QUALITY_MED;
     const char* name                = "medium";
     int         shadowSize          = 2048;
+    int         msaaSamples         = 0;
     float       treeFade0           = 58.0f;
     float       treeL0End           = 72.0f;
     float       treeFade1           = 280.0f;
@@ -22,7 +23,6 @@ struct QualitySettings {
     float       bushFade            = 120.0f;
     float       bushEnd             = 150.0f;
     float       bushShadowRange     = 40.0f;
-    bool        grassEnabled        = false;
     int         terrainBuildsPerFrame = 1;
 };
 
@@ -79,6 +79,7 @@ struct RefCameraPreset {
     float       yaw;
     float       pitch;
     int         atmo;   // Renderer::Atmo preset index
+    bool        training = false;
 };
 
 int                    refCameraCount();

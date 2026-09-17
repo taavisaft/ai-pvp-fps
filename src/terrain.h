@@ -167,6 +167,8 @@ inline float paldiskiElevation(float x, float z) {
     return h;
 }
 
+#include "training_landscape.h"
+
 // Ground shape for the active map (see setMap in map.h). TERRAIN_OFF = flat y=0,
 // kept so future arena-style maps can opt out of the heightfield.
 enum TerrainMode { TERRAIN_OFF = 0, TERRAIN_PALDISKI, TERRAIN_LOBBY };
@@ -175,28 +177,6 @@ inline TerrainMode gTerrainMode = TERRAIN_OFF;
 // Gameplay ground height used by physics/spawns/shadows/mesh.
 inline float terrainHeight(float x, float z) {
     if (gTerrainMode == TERRAIN_PALDISKI) return paldiskiElevation(x, z);
-    if (gTerrainMode == TERRAIN_LOBBY) {
-        float lane = terrSmooth(terrClamp01((fabsf(z) - 14.0f) / 12.0f));
-        float edge = terrSmooth(terrClamp01((sqrtf(x*x + z*z) - 18.0f) / 35.0f));
-        float broad = (terrValueNoise(x * 0.035f + 8.0f, z * 0.035f - 3.0f) - 0.42f) * 5.0f;
-        float detail = (terrValueNoise(x * 0.11f, z * 0.11f) - 0.5f) * 0.7f;
-        float h = fmaxf(0.0f, (broad + detail) * fmaxf(lane, edge));
-        // Ballistics hill (west, behind the firing line): ~16 m terraced rise —
-        // Paldiski's terraced swells in miniature. The flat ledges are known
-        // shooter heights for comparing per-weapon drop/holdover on downhill
-        // shots at the target wall (~60-90 m).
-        float dw = sqrtf((x + 40.0f) * (x + 40.0f) + z * z);
-        h += terrTerrace(terrSmooth(terrClamp01(1.0f - dw / 34.0f)) * 16.0f, 5.0f, 0.6f);
-        // Target knoll (north-east, past the wall's end): a smooth bare slope
-        // facing the pad, so uphill impact points read directly as drop at range.
-        float dk = sqrtf((x - 40.0f) * (x - 40.0f) + (z - 42.0f) * (z - 42.0f));
-        h += terrSmooth(terrClamp01(1.0f - dk / 30.0f)) * 9.0f;
-        // Low meadow hummocks outside the established range/prop pad.
-        float meadow = lobbySmooth(14, 22, fabsf(z));
-        float rolls = 0.45f + 1.15f*terrValueNoise(x*.085f+17, z*.085f-9);
-        float rough = (terrValueNoise(x*.55f, z*.55f)-.5f)*.14f;
-        h += meadow * (rolls + rough) * (1-.7f*lobbyWear(x,z));
-        return h;
-    }
+    if (gTerrainMode == TERRAIN_LOBBY) return trainingHeight(x,z);
     return 0.0f;
 }

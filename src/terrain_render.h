@@ -40,6 +40,7 @@ struct TerrainChunks {
 
     // Draw all visible chunks (+ vista) with whatever program is already set up —
     // the caller (Renderer::drawTerrain) binds textures/uniforms first.
-    void draw(const Frustum& fr, const glm::vec3& eye, bool withVista);
+    void draw(const Frustum& fr, const glm::vec3& eye, bool withVista, int finestLod = 0);
+    void prepareTraining();
     void destroy();
 };
