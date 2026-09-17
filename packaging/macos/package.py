@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build an Apple Silicon macOS alpha; run from any working directory."""
+"""Build an Apple Silicon macOS release; run from any working directory."""
 import hashlib
 from pathlib import Path
 import plistlib
@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORK = ROOT / 'build/macos-deps'
 BUILD = ROOT / 'build/macos-release'
 DIST = ROOT / 'dist'
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 NAME = 'AI PvP FPS'
 
 def run(*args):
@@ -90,7 +90,7 @@ def main():
     shutil.copy2(ROOT / 'README.md', stage / 'CONTROLS.md')
     shutil.copy2(ROOT / 'packaging/macos/PLAYER-README.txt', stage / 'README.txt')
     revision = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
-    (resources / 'build-info.txt').write_text(f'Version: {VERSION} alpha\nBase commit: {revision}\nArchitecture: arm64\nDeployment target: macOS 12.0\nMay include uncommitted packaging changes.\n')
+    (resources / 'build-info.txt').write_text(f'Version: {VERSION}\nBase commit: {revision}\nArchitecture: arm64\nDeployment target: macOS 12.0\nMay include uncommitted packaging changes.\n')
     run('codesign', '--force', '--sign', '-', lib)
     run('codesign', '--force', '--sign', '-', app)
     run('codesign', '--verify', '--deep', '--strict', '--verbose=2', app)

@@ -1,4 +1,4 @@
-# macOS alpha packaging
+# macOS packaging
 
 Run `python3 packaging/macos/package.py` on an Apple Silicon Mac with Xcode
 Command Line Tools, CMake and Python 3. The script downloads checksum-pinned
@@ -21,7 +21,7 @@ The optional `textures/ground.jpg` is excluded because its repository attributio
 requires verification before redistribution. Source assets stay untouched.
 SDL and GLM licenses and existing texture attribution files are bundled.
 
-This is an Apple Silicon alpha, not a verified universal build. macOS 12 is the
+This is an Apple Silicon build, not a verified universal build. macOS 12 is the
 compiler deployment target, not a claim of testing on that OS. Local smoke tests
 must use the extracted app from outside the repository, including a path with
 spaces, and inspect a rendered frame. Verify the signature again after extraction.
