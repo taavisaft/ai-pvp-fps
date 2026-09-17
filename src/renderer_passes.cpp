@@ -123,9 +123,14 @@ void Renderer::beginShadowPass(const glm::vec3& focus) {
     const float R = gMapId==MAP_LOBBY ? 110.0f : 60.0f;          // half-extent of the shadowed region around focus
     const float backDist = 120.0f;  // how far up the sun-ray the light camera sits
     glm::vec3 dir = glm::normalize(sunDir);
-    glm::vec3 leye = focus + dir * backDist;
     glm::vec3 up = (dir.y > 0.99f || dir.y < -0.99f) ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
-    glm::mat4 lview = glm::lookAt(leye, focus, up);
+    glm::vec3 right = glm::normalize(glm::cross(dir, up));
+    glm::vec3 above = glm::cross(right, dir);
+    float texel = 2.0f * R / (float)shadowSize;
+    float alongRight = glm::dot(focus, right), alongAbove = glm::dot(focus, above);
+    glm::vec3 snapped = focus + right * (floorf(alongRight / texel) * texel - alongRight)
+                              + above * (floorf(alongAbove / texel) * texel - alongAbove);
+    glm::mat4 lview = glm::lookAt(snapped + dir * backDist, snapped, up);
     glm::mat4 lproj = glm::ortho(-R, R, -R, R, 1.0f, backDist + R + 50.0f);
     lightSpace = lproj * lview;
     shadowFocus = focus;

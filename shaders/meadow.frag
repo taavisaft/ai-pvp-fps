@@ -24,10 +24,11 @@ uniform sampler2D branchTex;
 
 out vec4 fragColor;
 
+#include "shadow_bias.glsl"
 float sunVisibility(vec3 n, vec3 L) {
     vec3 p = lightSpacePos.xyz / lightSpacePos.w * 0.5 + 0.5;
     if (p.z > 1.0 || p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) return 1.0;
-    float bias = max(0.0025 * (1.0 - dot(n, L)), 0.0006);
+    float bias = shadowBias(n, L, 0.75);
     return p.z - bias > texture(shadowMap, p.xy).r ? 0.0 : 1.0;
 }
 

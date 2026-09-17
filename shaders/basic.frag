@@ -59,12 +59,13 @@ uniform sampler2D landscapeMap;
 float farSun = 1.0;
 float canopy = 0.0;
 
+#include "shadow_bias.glsl"
 float sunVisibility(vec3 n, vec3 L) {
     if (useShadow == 0) return farSun;
     vec3 p = lightSpacePos.xyz / lightSpacePos.w;
     p = p * 0.5 + 0.5;
     if (p.z > 1.0 || p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) return farSun;
-    float bias = max(0.0025 * (1.0 - dot(n, L)), 0.0006);
+    float bias = shadowBias(n, L, 1.5);
     vec2 texel = 1.0 / vec2(textureSize(shadowMap, 0));
     float vis = 0.0;
     for (int x = -1; x <= 1; x++)

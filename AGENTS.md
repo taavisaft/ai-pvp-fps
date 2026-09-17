@@ -44,18 +44,16 @@ Current guide, reviewed against source on 2026-09-05. Build a realistic, perform
 ## Build and verification
 
 ```sh
-cmake -B build && cmake --build build
+cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
 ./build/server
 ./build/game 127.0.0.1
 ```
 
-For performance comparisons use an optimized build consistently:
+One build folder, always Release. Performance comparisons:
 
 ```sh
-cmake -B build-release -DCMAKE_BUILD_TYPE=Release
-cmake --build build-release --config Release
-FPS_REF=forest FPS_QUALITY=medium FPS_BENCH=1 ./build-release/game
-FPS_REF=meadow FPS_QUALITY=medium FPS_BENCH=1 ./build-release/game   # training: meadow|pond|canopy|range
+FPS_REF=forest FPS_QUALITY=medium FPS_BENCH=1 ./build/game
+FPS_REF=meadow FPS_QUALITY=medium FPS_BENCH=1 ./build/game   # training: meadow|pond|canopy|range
 ```
 
 Multi-config generators put executables in their configuration subdirectory. See [README.md](README.md) for controls, dependencies, and debug commands.
