@@ -110,6 +110,7 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
             if (fr.aabbVisible(b.center, b.half))
                 r.drawCube(b.center, b.half * 2.0f, mapBoxMaterial(i));
         }
+        if (gMapId == MAP_KEILA) r.drawKeila(fr);
     }
     r.drawVegetation(fr, eye);   // taiga forest (miniature spruce ring on the lobby)
     for (int i = 0; i < MAX_PLAYERS; i++) {

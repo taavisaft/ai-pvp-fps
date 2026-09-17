@@ -168,15 +168,17 @@ inline float paldiskiElevation(float x, float z) {
 }
 
 #include "training_landscape.h"
+#include "keila.h"
 
 // Ground shape for the active map (see setMap in map.h). TERRAIN_OFF = flat y=0,
 // kept so future arena-style maps can opt out of the heightfield.
-enum TerrainMode { TERRAIN_OFF = 0, TERRAIN_PALDISKI, TERRAIN_LOBBY };
+enum TerrainMode { TERRAIN_OFF = 0, TERRAIN_PALDISKI, TERRAIN_LOBBY, TERRAIN_KEILA };
 inline TerrainMode gTerrainMode = TERRAIN_OFF;
 
 // Gameplay ground height used by physics/spawns/shadows/mesh.
 inline float terrainHeight(float x, float z) {
     if (gTerrainMode == TERRAIN_PALDISKI) return paldiskiElevation(x, z);
     if (gTerrainMode == TERRAIN_LOBBY) return trainingHeight(x,z);
+    if (gTerrainMode == TERRAIN_KEILA) return keilaHeight(x, z);
     return 0.0f;
 }

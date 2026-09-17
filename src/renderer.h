@@ -81,6 +81,26 @@ struct Renderer {
     TerrainChunks taigaTerrain;  // chunked LOD 2 km ground + mountain vista
     Vegetation    veg;           // instanced grass + LOD spruce forest (taiga only)
     Mesh   stand;
+    static constexpr int KEILA_TILES = 8;
+    Mesh      keilaTile[KEILA_TILES * KEILA_TILES];
+    glm::vec3 keilaTileMin[KEILA_TILES * KEILA_TILES];
+    glm::vec3 keilaTileMax[KEILA_TILES * KEILA_TILES];
+    bool      keilaBuilt = false;
+    GLuint    keilaSurfaceTex = 0;
+    bool      keilaSurfaceTried = false;
+    static constexpr int KEILA_MAX_LANDMARKS = 32;
+    Mesh      keilaLandmark[KEILA_MAX_LANDMARKS];
+    GLuint    keilaLandmarkTex[KEILA_MAX_LANDMARKS] = {};
+    glm::vec3 keilaLandmarkMin[KEILA_MAX_LANDMARKS];
+    glm::vec3 keilaLandmarkMax[KEILA_MAX_LANDMARKS];
+    void   buildKeilaLandmarks();
+    void   drawKeilaLandmarks(const Frustum& fr);
+    GLuint keilaOrthoNear = 0, keilaOrthoFar = 0;
+    GLint  orthoNearLoc = -1, orthoFarLoc = -1, hasOrthoLoc = -1;
+    void   bindKeilaGround();
+    GLuint keilaSurface();
+    void   drawKeila(const Frustum& fr);
+    void   destroyKeila();
     // Blender-authored player body parts (tools/player_model.py), unit-box space —
     // drawn with the same M * scale(2*half) transform as the plain cube, so the
     // pose boxes/hitboxes are unchanged. Order matches PMESH_PARTS in player_mesh.h.

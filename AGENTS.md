@@ -20,7 +20,8 @@ Current guide, reviewed against source on 2026-09-05. Build a realistic, perform
 - `game` client and `server` executable; 16-player drop-in FFA, 100 HP, three-second respawn. No rounds or victory condition.
 - 60 Hz authoritative simulation and 20 Hz snapshots. Raw UDP defaults to port 7777; server accepts `FPS_PORT`.
 - Protocol v4 and world revision live in `src/protocol.h`. Snapshots contain all 16 player slots plus an occupied-slot mask and up to 63 bullet records; only the bullet tail is truncated. Simulation has 256 bullet slots.
-- Paldiski is the online map, approximately 2×2 km (±1024 m). Offline launch starts in the separate training lobby. Old warehouse/field maps are removed.
+- Keila (`FPS_MAP=keila`, WIP) is a 1×1 km play area (±512 m, terrain and shells out to ±1024 m) baked from Maa- ja Ruumiamet data by `tools/keila/bake.py` into `src/keila_data.cpp` and `textures/keila_*.png`. `src/keila.h/.cpp` owns the sampled heightfield, polygon wall/roof collision and bare-ground mask; `src/renderer_keila.cpp` draws flat-roof shells and binds the orthophoto ground (`textures/keila_ortho_*.jpg`, shader splat mode 3); `src/renderer_keila_landmarks.cpp` draws atlas-textured landmark walls from `tools/keila/landmarks.json`. North is −Z on every map; HUD map and compass follow that.
+- Paldiski is the default online map, approximately 2×2 km (±1024 m). Offline launch starts in the separate training lobby. Old warehouse/field maps are removed.
 - Shared terrain and tree scatter drive server/client placement. Tree trunks block movement and swept bullets; bullet collision matches the visible taper, while movement keeps a wider cylinder. Paldiski has a first forestry shelter and timber-cover layout near (325, 75); the lobby has cover and a hunting stand.
 - Sprint, jump, crouch, lean, ADS, Uzi/Glock, preserved per-weapon ammo, manual/automatic reload, sticky recoil, swept projectile collision, drag/falloff, posed regional hitboxes, and target rewind exist.
 - Client prediction currently smooths position corrections; it does not replay acknowledged/unacknowledged input history. Shot cadence, bounded queues and state epochs are enforced by `server_fire.cpp`; broader packet validation/rate limits remain unfinished.
@@ -34,7 +35,7 @@ Current guide, reviewed against source on 2026-09-05. Build a realistic, perform
 | --- | --- |
 | Build / client loop | `CMakeLists.txt`, `src/main.cpp` |
 | Shared gameplay / weapons | `src/game.h`, `src/weapon.h`, `src/physics.h/.cpp`, `src/projectiles.cpp` |
-| World / collision placement | `src/map.h`, `src/forest_site.h/.cpp`, `src/terrain.h`, `src/training_landscape.h`, `src/lobby_ground.h`, `src/tree_scatter.h/.cpp`, `src/tree_collision.h/.cpp`, `src/spatial.h` |
+| World / collision placement | `src/map.h`, `src/keila.h/.cpp`, `src/keila_data.cpp` (generated), `src/forest_site.h/.cpp`, `src/terrain.h`, `src/training_landscape.h`, `src/lobby_ground.h`, `src/tree_scatter.h/.cpp`, `src/tree_collision.h/.cpp`, `src/spatial.h` |
 | Server / transport / wire data | `src/server_main.cpp`, `src/server_fire.h/.cpp`, `src/server_rewind.h/.cpp`, `src/network.h/.cpp`, `src/net_common.h/.cpp`, `src/platform.h`, `src/protocol.h` |
 | Rendering / terrain / plants | `src/renderer.h/.cpp`, `src/terrain_render.h/.cpp`, `src/vegetation.h/.cpp`, `src/renderer_passes.cpp`, `src/renderer_draw.cpp`, `src/renderer_world.cpp`, `src/renderer_landscape.cpp`, `src/vegetation_draw.cpp`, `src/veg_mesh.cpp`, `src/veg_meadow.cpp`, `src/veg_world_grass.cpp`, `src/meadow_mesh.cpp`, `src/training_*.cpp/.h`, `src/landscape_map.cpp`, `shaders/` |
 | Meshes / textures / materials | `src/mesh.h/.cpp`, `src/material.h/.cpp`, `src/texture.h/.cpp`, `src/gl_loader.h/.cpp` |

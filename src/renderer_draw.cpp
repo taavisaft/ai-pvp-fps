@@ -61,10 +61,10 @@ void Renderer::drawTexQuad(const glm::vec2& center, const glm::vec2& size, unsig
 }
 
 unsigned int Renderer::mapTexture(int mapId, const Box* boxes, int count, float worldHalf) {
-    if (mapId < 0 || mapId > 2) return 0;
+    if (mapId < 0 || mapId >= MAP_COUNT) return 0;
     if (!mapTexTried[mapId]) {
         mapTexTried[mapId] = true;
-        static const char* names[3] = {"training", "warehouse", "field"};
+        static const char* names[MAP_COUNT] = {"paldiski", "keila", "lobby"};
         char path[64];
         snprintf(path, sizeof(path), "textures/map_%s.png", names[mapId]);
         GLuint t = loadTexture(path);                       // hand-made art if present

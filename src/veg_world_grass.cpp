@@ -22,6 +22,7 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
         int key=tx*1024+i;
         float x=x0+mapRand(key,tz,211)*5, z=z0+mapRand(key,tz,212)*5;
         if(fabsf(x)>gArenaHalf || fabsf(z)>gArenaHalf) continue;
+        if(gMapId==MAP_KEILA && (!KEILA_GRASS || keilaBare(x,z))) continue;
         float h=terrainHeight(x,z);
         if(gMapId==MAP_LOBBY) {
             if(trainingPondRadius(x,z)<1.8f && h<TRAINING_POND_Y+.12f) continue;
@@ -41,6 +42,7 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
         float rock=lobbySmooth(.30f,.55f,slope);
         float dirt=lobbySmooth(.52f,.70f,vegFbm(x*.004f,z*.004f))*.35f;
         float keep=(1-rock)*(1-dirt)*(1-.8f*pineForestBiome(x,z));
+        if(gMapId==MAP_KEILA) keep=.55f*(1-rock);
         float growth=lobbyGrowth(x,z);
         if(gMapId==MAP_LOBBY) {
             keep=(.32f+.68f*growth)*(1-lobbyWear(x,z))*(1-.7f*trainingForest(x,z));

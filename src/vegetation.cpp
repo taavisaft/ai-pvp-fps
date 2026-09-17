@@ -180,6 +180,10 @@ void Vegetation::buildBushes() {
         bushGrid.init(LOBBY_HALF, 16, 0.0f, 2.0f);
         return;
     }
+    if (gMapId == MAP_KEILA) {
+        bushGrid.init(PALDISKI_HALF, 16, 0.0f, 2.0f);
+        return;
+    }
     const float STEP = 7.0f;
     const int n = (int)(2.0f * PALDISKI_HALF / STEP);
     for (int iz = 0; iz < n; iz++)

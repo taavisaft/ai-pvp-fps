@@ -30,7 +30,7 @@ static ClientSlot clients[MAX_PLAYERS];
 static bool       prevAlive[MAX_PLAYERS];
 
 // Human-readable map name, shared by the startup log and the lobby PKT_INFO reply.
-static const char* mapLabel(MapId) { return "PALDISKI"; }
+static const char* mapLabel(MapId id) { return id == MAP_KEILA ? "KEILA" : "PALDISKI"; }
 
 // World-impact decals collected across the ticks since the last broadcast, then sent
 // once per state packet and cleared. Cosmetic + unreliable; overflow just drops marks.
@@ -249,7 +249,7 @@ static void broadcast(int fd, uint32_t seq) {
 int main() {
     setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffered even when piped to a log
     srand((unsigned)time(nullptr));
-    // Paldiski is the map; FPS_MAP stays as the registry hook for future maps.
+    // Paldiski is the default; FPS_MAP=keila selects Keila.
     MapId mapSel = mapFromName(getenv("FPS_MAP"), MAP_PALDISKI);
     setMap(mapSel);
     printf("server: map = %s\n", mapLabel(mapSel));

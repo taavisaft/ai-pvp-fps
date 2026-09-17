@@ -23,7 +23,7 @@ struct Box {
 // MAP_LOBBY is the client-only offline sandbox (flat pad, shooting range, test
 // cover) you sit in until you press C and pick a server. It is NOT a server map:
 // mapFromName never returns it and no server runs it — only real maps precede it.
-enum MapId { MAP_PALDISKI = 0, MAP_LOBBY, MAP_COUNT_ };
+enum MapId { MAP_PALDISKI = 0, MAP_KEILA, MAP_LOBBY, MAP_COUNT_ };
 constexpr int MAP_COUNT = MAP_COUNT_;   // sizes client arrays (incl. the lobby)
 
 inline constexpr float PALDISKI_HALF = 1024.0f;  // 2x2 km play area, clamp at +/-1024
@@ -77,6 +77,15 @@ inline void generatePaldiski() {
     }
 }
 
+inline void generateKeila() {
+    gTownBoxCount    = 0;
+    gMapSpawnCount   = 0;
+    gTerrainPadCount = 0;
+    buildKeilaColliders();
+    for (int i = 0; i < KEILA_SPAWN_COUNT && gMapSpawnCount < 64; i++)
+        gMapSpawns[gMapSpawnCount++] = {KEILA_SPAWNS[i][0], 0.0f, KEILA_SPAWNS[i][1]};
+}
+
 // Build the offline lobby: a flat 120x120 m pad with a shooting-range target wall
 // (front face at x=25.4, matching the aim cross drawn client-side), a little test
 // cover, and the practice dummy's yard. Reuses the shared box/spawn arrays so
@@ -128,16 +137,22 @@ inline float mapViewHalf() { return gArenaHalf; }
 inline MapId mapFromName(const char* s, MapId fallback) {
     if (!s) return fallback;
     if (strcmp(s, "paldiski") == 0) return MAP_PALDISKI;
+    if (strcmp(s, "keila") == 0) return MAP_KEILA;
     return fallback;
 }
 
 inline void setMap(MapId id) {
     gMapId = id;
+    if (id != MAP_KEILA) clearKeilaColliders();
     // Future maps add their generator + clamp + terrain mode as branches here.
     if (id == MAP_LOBBY) {
         gTerrainMode = TERRAIN_LOBBY;
         gArenaHalf   = LOBBY_HALF;
         generateLobby();
+    } else if (id == MAP_KEILA) {
+        gTerrainMode = TERRAIN_KEILA;
+        gArenaHalf   = KEILA_HALF;
+        generateKeila();
     } else {
         gTerrainMode = TERRAIN_PALDISKI;
         gArenaHalf   = PALDISKI_HALF;

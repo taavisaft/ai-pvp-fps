@@ -33,6 +33,14 @@ Test the current grass and terrain material across Paldiski offline with
 `FPS_MAP=paldiski ./build/game`. Grass streams around the camera and does not cast
 shadows. `FPS_NOMEADOW=1` disables the new grass for performance comparisons.
 
+Keila (WIP): 1×1 km of real Keila, Estonia, centred on Keila Kultuurikeskus. Terrain, building shells and roads baked from Maa- ja Ruumiamet open data. North is −Z.
+
+```sh
+FPS_MAP=keila ./build/game           # offline
+FPS_MAP=keila ./build/server         # online
+python3 tools/keila/bake.py          # rebake; see tools/keila/README.md
+```
+
 Offline practice spawns in a 2×2 km training landscape: shooting range at the origin, meadow, pond and wooded hills to the north.
 
 ```sh

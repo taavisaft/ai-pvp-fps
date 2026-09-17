@@ -22,6 +22,10 @@ set(SHARED_SOURCES
     src/net_common.cpp
     src/tree_scatter.cpp)
 
+add_library(keila STATIC src/keila.cpp src/keila_data.cpp)
+target_include_directories(keila PUBLIC src)
+target_link_libraries(keila PUBLIC glm::glm)
+
 set(CLIENT_SOURCES
     src/main.cpp
     src/player_visual.cpp
@@ -48,6 +52,8 @@ set(CLIENT_SOURCES
     src/renderer_draw.cpp
     src/renderer_world.cpp
     src/renderer_landscape.cpp
+    src/renderer_keila.cpp
+    src/renderer_keila_landmarks.cpp
     src/renderer_window.cpp
     src/hud.cpp
     src/hud_panels.cpp
@@ -60,11 +66,11 @@ set(CLIENT_SOURCES
 
 add_executable(game ${CLIENT_SOURCES} ${SHARED_SOURCES})
 target_include_directories(game PRIVATE src)
-target_link_libraries(game PRIVATE SDL2::SDL2 OpenGL::GL glm::glm)
+target_link_libraries(game PRIVATE SDL2::SDL2 OpenGL::GL glm::glm keila)
 
 add_executable(server src/server_main.cpp src/server_fire.cpp src/server_rewind.cpp ${SHARED_SOURCES})
 target_include_directories(server PRIVATE src)
-target_link_libraries(server PRIVATE glm::glm)
+target_link_libraries(server PRIVATE glm::glm keila)
 
 if(WIN32)
     target_link_libraries(game PRIVATE ws2_32)
@@ -97,7 +103,7 @@ if(BUILD_TESTING)
     add_executable(server_fire_tests tests/server_fire_tests.cpp src/server_fire.cpp src/server_rewind.cpp
         src/physics.cpp src/projectiles.cpp src/tree_collision.cpp src/tree_scatter.cpp src/forest_site.cpp)
     target_include_directories(server_fire_tests PRIVATE src)
-    target_link_libraries(server_fire_tests PRIVATE glm::glm)
+    target_link_libraries(server_fire_tests PRIVATE glm::glm keila)
     add_test(NAME server_fire COMMAND server_fire_tests)
     add_executable(client_fire_tests tests/client_fire_tests.cpp src/network.cpp src/net_common.cpp)
     target_include_directories(client_fire_tests PRIVATE src)
@@ -109,18 +115,23 @@ if(BUILD_TESTING)
     add_executable(tree_collision_tests tests/tree_collision_tests.cpp
         src/physics.cpp src/projectiles.cpp src/tree_collision.cpp src/tree_scatter.cpp src/forest_site.cpp)
     target_include_directories(tree_collision_tests PRIVATE src)
-    target_link_libraries(tree_collision_tests PRIVATE glm::glm)
+    target_link_libraries(tree_collision_tests PRIVATE glm::glm keila)
     add_test(NAME tree_collision COMMAND tree_collision_tests)
     add_executable(forest_site_tests tests/forest_site_tests.cpp
         src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp)
     target_include_directories(forest_site_tests PRIVATE src)
-    target_link_libraries(forest_site_tests PRIVATE glm::glm)
+    target_link_libraries(forest_site_tests PRIVATE glm::glm keila)
     add_test(NAME forest_site COMMAND forest_site_tests)
     add_executable(lobby_ground_tests tests/lobby_ground_tests.cpp
         src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp)
     target_include_directories(lobby_ground_tests PRIVATE src)
-    target_link_libraries(lobby_ground_tests PRIVATE glm::glm)
+    target_link_libraries(lobby_ground_tests PRIVATE glm::glm keila)
     add_test(NAME lobby_ground COMMAND lobby_ground_tests)
+    add_executable(keila_tests tests/keila_tests.cpp
+        src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp)
+    target_include_directories(keila_tests PRIVATE src)
+    target_link_libraries(keila_tests PRIVATE glm::glm keila)
+    add_test(NAME keila COMMAND keila_tests)
     add_executable(training_spruce_tests tests/training_spruce_tests.cpp src/training_spruce_mesh.cpp)
     target_include_directories(training_spruce_tests PRIVATE src)
     target_link_libraries(training_spruce_tests PRIVATE glm::glm)

@@ -107,6 +107,10 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
         if (sweepTreeTrunks(p0, p1, t, treeNormal) && t < bestT) {
             bestT = t; hitBox = -3;
         }
+        glm::vec3 wallNormal(0, 1, 0);
+        if (gTerrainMode == TERRAIN_KEILA && keilaSweep(p0, p1, t, wallNormal) && t < bestT) {
+            bestT = t; hitBox = -3; treeNormal = wallNormal;
+        }
 
         for (int pid = 0; pid < MAX_PLAYERS; pid++) {
             if (pid == b.ownerID) continue;

@@ -1,0 +1,17 @@
+[
+  {
+    "address": "Pae tn 7",
+    "texture": "textures/keila_pae7.png",
+    "floors": 4,
+    "plinth": 1.3,
+    "parapet": 0.7,
+    "walls": [
+      "BABDAB",
+      "W",
+      "W",
+      "P",
+      "W",
+      "W"
+    ]
+  }
+]

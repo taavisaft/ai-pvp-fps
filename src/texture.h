@@ -12,7 +12,7 @@ GLuint loadTextureRGBA(const char* path);
 
 // Top-down "satellite" map texture baked from the arena box layout: muted terrain
 // noise + box footprints shaded by height with drop shadows. Spans world XZ in
-// [-worldHalf, worldHalf]^2, north (+Z) at the top row. boxes may be null (count 0).
+// [-worldHalf, worldHalf]^2, south (+Z) at the top row. boxes may be null (count 0).
 // Used as a fallback when no hand-made textures/map_<name>.png exists.
 struct Box;
 GLuint makeMapTexture(const Box* boxes, int count, float worldHalf);

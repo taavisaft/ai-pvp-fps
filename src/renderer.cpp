@@ -187,6 +187,7 @@ void Renderer::shutdown() {
     taigaTerrain.destroy();
     ground.destroy();
     stand.destroy();
+    destroyKeila();
     for (int i = 0; i < PART_COUNT; i++) playerPart[i].destroy();
     uzi.destroy();
     uziLod.destroy();

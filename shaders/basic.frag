@@ -318,6 +318,39 @@ vec3 lobbyTerrain(vec3 p, vec3 an) {
     return ground;
 }
 
+uniform sampler2D orthoNear;
+uniform sampler2D orthoFar;
+uniform int hasOrtho;
+vec3 keilaPhoto(vec3 p) {
+    vec3 cover = texture(landscapeMap, p.xz / 2048.0 + 0.5).rgb;
+    vec3 nearC = texture(orthoNear, p.xz / 1024.0 + 0.5).rgb;
+    vec3 farC  = texture(orthoFar,  p.xz / 2048.0 + 0.5).rgb;
+    float edge = max(abs(p.x), abs(p.z));
+    vec3 photo = mix(nearC, farC, smoothstep(500.0, 511.0, edge));
+    float paved = max(smoothstep(0.35, 0.65, cover.r), smoothstep(0.35, 0.65, cover.g));
+    float fine = mix(0.80 + 0.40 * vnoise(p.xz * 5.0) * vnoise(p.xz * 23.0 + 7.0) * 2.0,
+                     0.90 + 0.20 * vnoise(p.xz * 14.0), paved);
+    float close = 1.0 - smoothstep(6.0, 40.0, length(p - eyePos));
+    photo = pow(photo, vec3(1.4)) * 0.70;
+    return photo * mix(1.0, fine, close);
+}
+
+vec3 keilaTerrain(vec3 p, vec3 an) {
+    if (hasOrtho == 1) return keilaPhoto(p);
+    vec3 cover = texture(landscapeMap, p.xz / 2048.0 + 0.5).rgb;
+    vec3 dirtC = antiTile(dirtMap, p, dirtTile, an);
+    float worn = smoothstep(0.55, 0.75, fbm(p.xz * 0.05)) * 0.3;
+    vec3 col = heightBlend(meadowGround(p.xz), dirtC * vec3(0.86, 0.90, 0.66), worn);
+    col *= 0.85 + 0.30 * fbm(p.xz * 0.03);
+    vec3 gravel = dirtC * vec3(0.92, 0.88, 0.80) * (0.85 + 0.30 * vnoise(p.xz * 6.0));
+    vec3 asphalt = vec3(0.235, 0.225, 0.215) * (0.82 + 0.30 * vnoise(p.xz * 9.0))
+                 * (0.90 + 0.20 * fbm(p.xz * 0.4));
+    col = mix(col, gravel, smoothstep(0.35, 0.65, cover.g));
+    col = mix(col, asphalt, smoothstep(0.35, 0.65, cover.r));
+    col = mix(col, vec3(0.10, 0.15, 0.17), smoothstep(0.40, 0.60, cover.b));
+    return col;
+}
+
 uniform float clipWater;
 void main() {
     if(clipWater>0.0 && worldPos.y<clipWater) discard;
@@ -347,6 +380,8 @@ void main() {
         farSun = 1.0 - .85 * cover.g;
     } else if (lit == 1 && splat == 1) {
         c = splatTerrain(worldPos, axisBlend(worldPos));
+    } else if (lit == 1 && splat == 3) {
+        c = keilaTerrain(worldPos, axisBlend(worldPos));
     } else if (lit == 1 && grass == 1) {
         c = grassColor(worldPos.xz, time);
     } else if (lit == 1 && useTexture != 0) {

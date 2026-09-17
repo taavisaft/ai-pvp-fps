@@ -47,6 +47,16 @@ For payload policy, follow [RFC 8085 message-size guidance](https://www.rfc-edit
 - [ ] Package shaders/textures/sounds reliably. Shader copies run every build; texture/sound copies currently depend on relinking the game.
 - [ ] Make licensed asset provenance explicit: exact source, author, license and modifications. The current ground image attribution is only a provider label; do not infer its license.
 
+## Keila map (1×1 km real-world replica, basics landed 2026-09-17)
+
+- [ ] Trees from LiDAR canopy (DSM − DTM) plus ETAK `puittaimestik`; none placed yet.
+- [ ] Roof shapes and true eave heights from Maa-amet LOD2 3D buildings; shells are flat-roofed ETAK footprints × `korgus_m`.
+- [ ] Facades: landmark pipeline exists (`tools/keila/landmarks.json`, Pae tn 7 first, authored atlas). Next: own rectified photos into atlas cells, balconies/canopy as geometry, generic facade set for the other buildings, more landmarks (kultuurikeskus, station, church).
+- [ ] Courtyard holes (polygon inner rings are ignored), fences (`e_405_piire_j`), enterable buildings.
+- [ ] Ground is the Maa-amet orthophoto (25 cm/px) with a procedural close-range grain; 3D grass is off on Keila (`KEILA_GRASS`). Next: real detail textures per surface class near the camera, remove baked cars/shadows where they hurt, 12.5 cm tiles streamed around the player, river water surface.
+- [ ] East 126 m of the ±1024 m backdrop is edge-clamped (DTM sheets 63722/63724 not downloaded).
+- [ ] Per-surface footsteps/impact decals for building hits (currently reuse the tree impact path).
+
 ## Later, after the combat area plays well
 
 - Rifle and longer-range gunplay; loadout selection/pickups.

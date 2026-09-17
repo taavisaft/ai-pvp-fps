@@ -124,6 +124,7 @@ static float supportHeight(const Player& p, float fromY) {
         float top = b.center.y + b.half.y;
         if (top > floor && fromY >= top - 0.05f) floor = top;
     }
+    if (gTerrainMode == TERRAIN_KEILA) floor = keilaRoofUnder(p.pos.x, p.pos.z, fromY, floor);
     return floor;
 }
 
@@ -209,6 +210,8 @@ void movePlayer(Player& p, const InputState& in, float dt) {
     }
     collideXZ(p);
     collideTrees(p);
+    if (gTerrainMode == TERRAIN_KEILA)
+        keilaCollidePlayer(p.pos, FOOT_R, p.crouched ? CROUCH_HEIGHT : STAND_HEIGHT);
 
     // Wade limit: the sea (terrain below SEA_LEVEL) is walkable to waist depth, then
     // acts as a wall. Resolve per axis so the shoreline slides like box collision.

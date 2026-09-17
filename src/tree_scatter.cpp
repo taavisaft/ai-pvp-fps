@@ -12,6 +12,7 @@ float gTreeTrunkMaxRadius = 0.0f;
 // Vegetation::buildTrees so the rendered forest and the collision cylinders agree.
 static void scatterTrees(std::vector<TreeInstance>& out) {
     out.clear();
+    if (gMapId == MAP_KEILA) return;
     if (gMapId == MAP_LOBBY) {
         // Loose spruce ring outside the pad, firing lane kept clear.
         for (int i = 0; i < 40; i++) {
