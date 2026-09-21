@@ -56,6 +56,10 @@ out vec4 fragColor;
 // with a slope-scaled bias. Anything outside the light frustum is treated as lit.
 #include "atmosphere.glsl"
 uniform sampler2D landscapeMap;
+vec2 landscapeCover(vec2 xz) {
+    vec2 inside = step(abs(xz), vec2(1023.0));
+    return texture(landscapeMap, xz / 2048.0 + 0.5).rg * inside.x * inside.y;
+}
 float farSun = 1.0;
 float canopy = 0.0;
 
@@ -220,11 +224,31 @@ float pineBiome(vec2 p) {
     return max(base, clump * 0.85);
 }
 
+uniform sampler2D meadowMap;
+vec3 meadowLayer(vec3 p) {
+    float growth=lobbyGrowth(p.xz);
+    vec3 litter=mix(texture(meadowMap,p.xz/1.35).rgb,
+                    texture(meadowMap,vec2(p.x*.799-p.z*.602,p.x*.602+p.z*.799)/6.25).rgb,.34);
+    if(gFar>0.0) litter=mix(litter,textureLod(meadowMap,p.xz/31.0,4.0).rgb,gFar);
+    float fibre=dot(litter,vec3(.299,.587,.114));
+    vec3 dryGround=litter*vec3(.83,.82,.66);
+    vec3 lush=growthColorOf(growth);
+    vec3 deepGround=lush*(.65+fibre*1.15);
+    vec3 meadow=mix(dryGround,deepGround,growth*.85);
+    float distance=length(p.xz-eyePos.xz);
+    float macro=growthNoise(p.xz*.018+vec2(4,9));
+    float patches=growthNoise(p.xz*.11+vec2(31,-7));
+    vec3 toEye=normalize(eyePos-p);
+    float grazing=1.0-smoothstep(.04,.42,dot(normalize(vNormal),toEye));
+    vec3 tips=mix(vec3(.43,.41,.17),vec3(.30,.37,.13),growth);
+    vec3 field=mix(lush,tips,grazing*.85)*(.80+.26*macro+.14*patches);
+    return mix(meadow,field,smoothstep(12.0,55.0,distance)*.94);
+}
 // Blend grass/dirt/rock across the heightfield by surface slope (steep -> rock),
 // with a height bias (peaks rockier) and fbm-jittered band edges so the material
 // transitions look organic instead of contour-line clean. Erangel/Miramar look.
 vec3 splatTerrain(vec3 p, vec3 an) {
-    vec3 grassC = meadowGround(p.xz);
+    vec3 grassC = meadowLayer(p);
     vec3 dirtC  = antiTile(dirtMap, p, dirtTile, an);
     vec3 rockC  = antiTile(rockMap, p, rockTile, an);
     // Slope: steep faces -> rock. The heightfield is gentle (~few deg), so amplify
@@ -273,9 +297,7 @@ vec3 splatTerrain(vec3 p, vec3 an) {
     sand *= 1.0 - smoothstep(-600.0, -350.0, p.x);
     col = mix(col, dirtC * vec3(0.98, 0.96, 0.72), sand);
 
-    // Macro variation: large-scale brightness drift (~30 m) so the ground doesn't
-    // read as one uniform repeating carpet into the distance.
-    col *= 0.82 + 0.36 * fbm(p.xz * 0.03);
+    col *= 0.90 + 0.20 * fbm(p.xz * 0.03);
 
     // Snowcaps on the vista mountains: altitude band with a noise-ragged snowline,
     // thinning on steep faces so dark rock ribs streak through (the Altai look).
@@ -294,22 +316,9 @@ float lobbyWear(vec2 p) {
     return max(range, trail*.92);
 }
 vec3 lobbyTerrain(vec3 p, vec3 an) {
-    float growth=lobbyGrowth(p.xz);
-    // Training's dedicated straw/low-grass scan, with matching growth tint.
-    vec3 litter=antiTile(forestMap,p,1.35,an);
+    vec3 meadow=meadowLayer(p);
     vec3 soil=antiTile(dirtMap,p,.85,an)*vec3(.65,.58,.46);
-    float fibre=dot(litter,vec3(.299,.587,.114));
-    vec3 dryGround=mix(litter*vec3(.83,.82,.66),soil,.18);
-    vec3 deepGround=lobbyGrowthColor(p.xz)*(.65+fibre*1.15);
-    vec3 meadow=mix(dryGround,deepGround,growth*.85);
-    float distance=length(p.xz-eyePos.xz);
-    float macro=growthNoise(p.xz*.018+vec2(4,9));
-    float patches=growthNoise(p.xz*.11+vec2(31,-7));
-    vec3 toEye=normalize(eyePos-p);
-    float grazing=1.0-smoothstep(.04,.42,dot(normalize(vNormal),toEye));
-    vec3 tips=mix(vec3(.43,.41,.17),vec3(.30,.37,.13),growth);
-    vec3 field=mix(lobbyGrowthColor(p.xz),tips,grazing*.85)*(.80+.26*macro+.14*patches);
-    meadow=mix(meadow,field,smoothstep(12.0,55.0,distance)*.94);
+    meadow=mix(meadow,soil,.18*(1.0-lobbyGrowth(p.xz)));
     float wear = lobbyWear(p.xz);
     wear = clamp(wear+(vnoise(p.xz*2.4)-.5)*.20*wear,0.0,1.0);
     vec3 ground = mix(meadow,soil,wear);
@@ -341,12 +350,16 @@ void main() {
     } else if (lit == 1 && splat == 2) {
         vec3 smoothAxis = pow(abs(normalize(vNormal)), vec3(8.0));
         c = lobbyTerrain(worldPos, smoothAxis / (smoothAxis.x + smoothAxis.y + smoothAxis.z));
-        vec2 cover = texture(landscapeMap, worldPos.xz / 2048.0 + 0.5).rg;
+        vec2 cover = landscapeCover(worldPos.xz);
         c *= mix(vec3(1.0), vec3(.74,.78,.70), cover.r);
         canopy = cover.r;
         farSun = 1.0 - .85 * cover.g;
     } else if (lit == 1 && splat == 1) {
         c = splatTerrain(worldPos, axisBlend(worldPos));
+        vec2 cover = landscapeCover(worldPos.xz);
+        c *= mix(vec3(1.0), vec3(.80,.83,.76), cover.r);
+        canopy = cover.r;
+        farSun = 1.0 - .85 * cover.g;
     } else if (lit == 1 && grass == 1) {
         c = grassColor(worldPos.xz, time);
     } else if (lit == 1 && useTexture != 0) {

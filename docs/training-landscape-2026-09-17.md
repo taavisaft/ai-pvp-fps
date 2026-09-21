@@ -34,6 +34,21 @@ Cameras moved with the spawn/pond; scene went 21k → 51k trees. Budget: ≤ 11 
 - Lobby golden preset: sun behind-left, fog 1250 m, haze cools away from the sun (`atmosphere.glsl`, `hazeCool`). Panorama rotated to the sun.
 - Terrain far field mixes toward grass-tip colour at grazing angles; hides the 50 m grass edge. Smooth-normal triplanar weights removed contour stripes.
 
+## Paldiski port (same day, world revision `0x20260918`)
+
+One vegetation system on both maps; the old card spruce, its impostor and the old meadow meshes are deleted.
+
+- Trees: seven species everywhere. `taigaTreeType` = 72–97 % spruce by forest density, broadleaf mostly birch, 40 m stands. Mature trees 9–19 m (were 6.5–11.5), forest density ×0.42. 33k trees (were 41k). Server and client must update together.
+- Per-tree `interior` (forest density) rides the spare instance float: interior trees lift their crowns in `training_tree.glsl`, open-grown ones keep foliage to the ground. Keeps sightlines between trunks.
+- LOD ranges per tier (medium): full mesh 30–42 m, low mesh to 90–115 m, impostor beyond. Shrubs (< 6.5 m) always low mesh.
+- Ground: `meadowLayer()` in `basic.frag` is the grass layer on both maps (own sampler, unit 9); Paldiski keeps sand, rock, dirt fields and forest floor. Canopy/far-shadow map sampled inside ±1023 m only.
+- Grass: training meadow mesh and colours everywhere; density and height follow the growth field.
+- Atmosphere: cool-away-from-sun haze on clear and golden; photo sky on clear and golden; overcast unchanged. Panorama seam cross-faded with its mirror.
+
+Back-to-back against commit c968f48 on a warm machine: forest interior (`ridge`) +0.6–0.9 ms (~7–9 %); open ground (`bog`) −1 ms. Lobby: meadow 9.5, pond 8.6, canopy 9.6, range 7.6 ms.
+
+`shore` and `forest` reference cameras stand below sea level (pre-existing): they show seabed, not their namesakes.
+
 ## Open
 
 - Pond mostly mirrors the far bank from eye height; brighter water needs a higher vantage or lower far trees.

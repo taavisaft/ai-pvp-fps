@@ -70,10 +70,14 @@ void main() {
     if(usePanorama==1) {
         vec2 uv=vec2(atan(dir.z,dir.x)/6.2831853+panoramaTurn,
                      .5+asin(clamp(dir.y,-1.0,1.0))/3.14159265);
-        vec3 photograph=texture(panorama,uv).rgb;
+        float turn=fract(uv.x);
+        float seam=min(turn,1.0-turn);
+        vec3 photograph=textureLod(panorama,vec2(turn,uv.y),0.0).rgb;
+        vec3 mirrored=textureLod(panorama,vec2(1.0-turn,uv.y),0.0).rgb;
+        photograph=mix(mix(photograph,mirrored,.5),photograph,smoothstep(0.0,.035,seam));
         // The panorama is display encoded; avoid applying the filmic curve twice.
         float luminance=dot(photograph,vec3(.299,.587,.114));
-        photograph=mix(vec3(luminance),photograph,.78)*mix(vec3(1.0),vec3(1.05,.99,.90),hazeCool);
+        photograph=mix(vec3(luminance),photograph,.78)*mix(vec3(1.0),sunColor/max(sunColor.g,.001),.13);
         vec3 horizon=grade(fogColor(dir));
         photograph=mix(horizon,photograph,smoothstep(-.02,.24,dir.y)*.92+.08*step(.0,dir.y));
         fragColor=vec4(photograph,1); return;

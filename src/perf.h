@@ -13,13 +13,12 @@ struct QualitySettings {
     const char* name                = "medium";
     int         shadowSize          = 2048;
     int         msaaSamples         = 0;
-    float       treeFade0           = 58.0f;
-    float       treeL0End           = 72.0f;
-    float       treeFade1           = 280.0f;
-    float       treeL1End           = 320.0f;
+    float       treeFade0           = 30.0f;
+    float       treeL0End           = 42.0f;
+    float       treeFade1           = 90.0f;
+    float       treeL1End           = 115.0f;
     float       treeImpFade         = 1350.0f;
     float       treeImpEnd          = 1500.0f;
-    float       treeShadowRange     = 85.0f;
     float       bushFade            = 120.0f;
     float       bushEnd             = 150.0f;
     float       bushShadowRange     = 40.0f;

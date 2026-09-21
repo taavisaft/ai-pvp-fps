@@ -47,5 +47,15 @@ int main() {
     CHECK(farSpruce*10>farSamples*7);
     for(int z=80;z<200;z+=5) CHECK(trainingTreeType(-50,float(z))==0);
     for(int z=80;z<300;z+=5) CHECK(trainingTreeType(40,float(z))>=4);
+    int taiga[TRAINING_TREE_TYPES]{}, denseSpruce=0, denseSamples=0, edgeBirch=0, edgeLeaf=0;
+    for(int x=-900;x<=900;x+=7) for(int z=-900;z<=900;z+=7) {
+        int dense=taigaTreeType(float(x),float(z),1.0f), edge=taigaTreeType(float(x),float(z),0.0f);
+        CHECK(dense>=0 && dense<TRAINING_TREE_TYPES && edge>=0 && edge<TRAINING_TREE_TYPES);
+        ++taiga[edge]; denseSpruce+=dense<4; ++denseSamples;
+        if(edge>=4) { ++edgeLeaf; edgeBirch+=edge==5; }
+    }
+    for(int n:taiga) CHECK(n>200);
+    CHECK(denseSpruce*100>denseSamples*90);
+    CHECK(edgeBirch*2>edgeLeaf);
     return failures ? 1 : 0;
 }

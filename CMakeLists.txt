@@ -35,7 +35,6 @@ set(CLIENT_SOURCES
     src/vegetation.cpp
     src/vegetation_draw.cpp
     src/landscape_map.cpp
-    src/meadow_mesh.cpp
     src/training_meadow_mesh.cpp
     src/training_tree.cpp
     src/training_spruce_mesh.cpp
@@ -94,6 +93,10 @@ add_custom_command(TARGET game POST_BUILD
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(pond_reflection_tests tests/pond_reflection_tests.cpp)
+    target_include_directories(pond_reflection_tests PRIVATE src)
+    target_link_libraries(pond_reflection_tests PRIVATE glm::glm)
+    add_test(NAME pond_reflection COMMAND pond_reflection_tests)
     add_executable(server_fire_tests tests/server_fire_tests.cpp src/server_fire.cpp src/server_rewind.cpp
         src/physics.cpp src/projectiles.cpp src/tree_collision.cpp src/tree_scatter.cpp src/forest_site.cpp)
     target_include_directories(server_fire_tests PRIVATE src)

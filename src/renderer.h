@@ -1,4 +1,5 @@
 #pragma once
+#include "pond_reflection.h"
 #include <SDL.h>
 #include <vector>
 #include <glm/glm.hpp>
@@ -26,11 +27,12 @@ struct Renderer {
     Shader pondShader;
     GLuint meadowSky=0, pondFBO=0, pondTexture=0, pondDepth=0;
     GLint skyPanoramaLoc=-1, skyUsePanoramaLoc=-1;
-    GLint landscapeMapLoc=-1, skyPanoramaTurnLoc=-1;
+    GLint landscapeMapLoc=-1, skyPanoramaTurnLoc=-1, meadowMapLoc=-1;
     float hazeCool=0;
     GLint pondReflectionLoc=-1, pondTimeLoc=-1, pondReflectionMixLoc=-1;
     float pondReflectionMix=0;
-    unsigned pondFrame=0;
+    PondReflectionCache pondCache;
+    GLint pondCaptureVPLoc=-1;
     bool initLandscape(const char* base);
     void destroyLandscape();
     void drawPondReflection(const glm::mat4& view,const glm::mat4& proj,const glm::vec3& eye);

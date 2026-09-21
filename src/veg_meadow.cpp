@@ -16,37 +16,20 @@ void Vegetation::initMeadowAtlas(const char* base) {
 }
 
 void Vegetation::prepareMeadow() {
-    meadowCards=getenv("FPS_GRASS_RIBBONS")==nullptr && meadowAtlas!=0;
-    if(!meadowAtlas) printf("[meadow] atlas missing; using ribbons\n");
     if (getenv("FPS_MEADOW_GPU")) for(auto& timer:meadowTimer) timer.init();
-    if (!meadowVbo) {
+    auto upload=[](GLuint& vbo,GLuint& ebo,GLsizei& count,bool far) {
         std::vector<float> verts;
         std::vector<unsigned> indices;
-        if(meadowCards) vegBuildMeadowCards(verts,indices,false);
-        else vegBuildMeadow(verts,indices);
-        meadowIdx=(GLsizei)indices.size();
-        if(meadowCards) vegBuildTrainingMeadow(verts,indices,false);
-        trainingIdx=(GLsizei)indices.size()-meadowIdx;
-        glGenBuffers(1,&meadowVbo); glGenBuffers(1,&meadowEbo);
-        glBindBuffer(GL_ARRAY_BUFFER,meadowVbo);
+        vegBuildTrainingMeadow(verts,indices,far);
+        count=(GLsizei)indices.size();
+        glGenBuffers(1,&vbo); glGenBuffers(1,&ebo);
+        glBindBuffer(GL_ARRAY_BUFFER,vbo);
         glBufferData(GL_ARRAY_BUFFER,verts.size()*sizeof(float),verts.data(),GL_STATIC_DRAW);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,meadowEbo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,ebo);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER,indices.size()*sizeof(unsigned),indices.data(),GL_STATIC_DRAW);
-    }
-    if (!meadowFarVbo) {
-        std::vector<float> verts;
-        std::vector<unsigned> indices;
-        if(meadowCards) vegBuildMeadowCards(verts,indices,true);
-        else vegBuildMeadowFar(verts,indices);
-        meadowFarIdx=(GLsizei)indices.size();
-        if(meadowCards) vegBuildTrainingMeadow(verts,indices,true);
-        trainingFarIdx=(GLsizei)indices.size()-meadowFarIdx;
-        glGenBuffers(1,&meadowFarVbo); glGenBuffers(1,&meadowFarEbo);
-        glBindBuffer(GL_ARRAY_BUFFER,meadowFarVbo);
-        glBufferData(GL_ARRAY_BUFFER,verts.size()*sizeof(float),verts.data(),GL_STATIC_DRAW);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,meadowFarEbo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER,indices.size()*sizeof(unsigned),indices.data(),GL_STATIC_DRAW);
-    }
+    };
+    if (!meadowVbo) upload(meadowVbo,meadowEbo,meadowIdx,false);
+    if (!meadowFarVbo) upload(meadowFarVbo,meadowFarEbo,meadowFarIdx,true);
     meadowEnabled=getenv("FPS_NOMEADOW")==nullptr;
     meadowSide=24;
     meadowRanks.resize(24*24);
@@ -89,11 +72,9 @@ void Vegetation::drawMeadow(const Renderer& r, const Frustum& fr, const glm::vec
     meadowSh.setFloat(meadowSh.locSaturation, r.saturation);
     meadowSh.setFloat(meadowSh.locHazeCool, r.hazeCool);
     meadowSh.setFloat(locGrassWind,.045f);
-    meadowSh.setFloat(locGrassRange,gMapId==MAP_LOBBY ? 65.0f : 60.0f);
-    if(meadowCards) {
-        glActiveTexture(GL_TEXTURE6); glBindTexture(GL_TEXTURE_2D,meadowAtlas);
-        glActiveTexture(GL_TEXTURE0);
-    }
+    meadowSh.setFloat(locGrassRange,65.0f);
+    glActiveTexture(GL_TEXTURE6); glBindTexture(GL_TEXTURE_2D,meadowAtlas);
+    glActiveTexture(GL_TEXTURE0);
     MeadowTimer& timer=meadowTimer[0];
     timer.begin();
     for(int iz=0;iz<meadowSide;++iz) for(int ix=0;ix<meadowSide;++ix) {
@@ -101,7 +82,7 @@ void Vegetation::drawMeadow(const Renderer& r, const Frustum& fr, const glm::vec
         if(!t.count || t.tx==INT_MIN) continue;
         glm::vec3 center(t.tx*5+2.5f,(t.minY+t.maxY)*.5f,t.tz*5+2.5f);
         float dx=fmaxf(fabsf(eye.x-center.x)-2.5f,0), dz=fmaxf(fabsf(eye.z-center.z)-2.5f,0);
-        float plantHeight=gMapId==MAP_LOBBY ? 1.8f : 1.0f; // include the training seed stalks
+        const float plantHeight=1.8f;
         if(!fr.aabbVisible(center,{4.0f,(t.maxY-t.minY)*.5f+plantHeight,4.0f})) continue;
         const float* ranks=meadowRanks[iz*meadowSide+ix].data();
         // Nearest tile point is conservative: per-plant shader thinning handles the
@@ -112,23 +93,19 @@ void Vegetation::drawMeadow(const Renderer& r, const Frustum& fr, const glm::vec
         if(!count) continue;
         if(dx*dx+dz*dz < 32*32) {
             glBindVertexArray(t.vao);
-            const bool training=gMapId==MAP_LOBBY && meadowCards;
-            glDrawElementsInstanced(GL_TRIANGLES,training ? TRAINING_BLADE_INDICES : meadowIdx,GL_UNSIGNED_INT,
-                training ? reinterpret_cast<const void*>(size_t(meadowIdx)*sizeof(unsigned)) : nullptr,count);
+            glDrawElementsInstanced(GL_TRIANGLES,TRAINING_BLADE_INDICES,GL_UNSIGNED_INT,nullptr,count);
             const float* decoratedRanks=meadowDecoratedRanks[iz*meadowSide+ix].data();
             int decorated=(int)(std::lower_bound(decoratedRanks,decoratedRanks+t.decoratedCount,density)-decoratedRanks);
-            if(training && decorated) {
+            if(decorated) {
                 glBindVertexArray(t.decoratedVao);
-                glDrawElementsInstanced(GL_TRIANGLES,trainingIdx-TRAINING_BLADE_INDICES,GL_UNSIGNED_INT,
-                    reinterpret_cast<const void*>(size_t(meadowIdx+TRAINING_BLADE_INDICES)*sizeof(unsigned)),decorated);
+                glDrawElementsInstanced(GL_TRIANGLES,meadowIdx-TRAINING_BLADE_INDICES,GL_UNSIGNED_INT,
+                    reinterpret_cast<const void*>(size_t(TRAINING_BLADE_INDICES)*sizeof(unsigned)),decorated);
             }
         }
         float farX=fabsf(eye.x-center.x)+2.5f, farZ=fabsf(eye.z-center.z)+2.5f;
         if(farX*farX+farZ*farZ > 18*18) {
             glBindVertexArray(meadowFarVao[iz*meadowSide+ix]);
-            const bool training=gMapId==MAP_LOBBY && meadowCards;
-            glDrawElementsInstanced(GL_TRIANGLES,training ? trainingFarIdx : meadowFarIdx,GL_UNSIGNED_INT,
-                training ? reinterpret_cast<const void*>(size_t(meadowFarIdx)*sizeof(unsigned)) : nullptr,count);
+            glDrawElementsInstanced(GL_TRIANGLES,meadowFarIdx,GL_UNSIGNED_INT,nullptr,count);
         }
     }
     glBindVertexArray(0);

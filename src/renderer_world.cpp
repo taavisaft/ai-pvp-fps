@@ -78,10 +78,12 @@ void Renderer::drawTerrain(const Frustum& fr, const glm::vec3& eye) {
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D, materials.mats[MAT_DIRT].tex);
     glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, gMapId == MAP_LOBBY && materials.trainingGroundTex
-                  ? materials.trainingGroundTex : materials.forestGroundTex);
+    glBindTexture(GL_TEXTURE_2D, materials.forestGroundTex);
+    glActiveTexture(GL_TEXTURE9);
+    glBindTexture(GL_TEXTURE_2D, materials.trainingGroundTex ? materials.trainingGroundTex
+                                                              : materials.mats[MAT_GROUND].tex);
     glActiveTexture(GL_TEXTURE8);
-    glBindTexture(GL_TEXTURE_2D, gMapId == MAP_LOBBY ? veg.landscapeTex : 0);
+    glBindTexture(GL_TEXTURE_2D, veg.landscapeTex);
     glActiveTexture(GL_TEXTURE0);
     active->setFloat(active->locRockTile, materials.mats[MAT_ROCK].tile);
     active->setFloat(active->locDirtTile, materials.mats[MAT_DIRT].tile);

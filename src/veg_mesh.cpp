@@ -50,103 +50,6 @@ static unsigned pushV(std::vector<float>& v, glm::vec3 p, glm::vec3 n, glm::vec3
     return pushVT(v, p, n, c, flex, {-1.0f, -1.0f});
 }
 
-// Textured spruce, unit height 1 (instance scale = tree height in meters).
-// DayZ-style construction: a tapered bark trunk plus branch "cards" — flat quads
-// carrying a photo of a real needle spray (textures/spruce_branch.png, alpha
-// cutout). Each branch is an X-pair: two quads crossing along the branch spine,
-// rolled +-35 deg, so a branch shows area from every view direction (one flat
-// quad vanishes edge-on). Cards sit in whorls like a real spruce; crown diameter
-// ~0.35 x height.
-// `low` is currently ignored: the card tree is ~4x cheaper than the old solid
-// cone was, and any geometric difference between LOD0 and LOD1 shows up in the
-// dither cross-fade band as a half-dissolved ghost tree (cards are sparse — a
-// dropped card has nothing to fade against). One mesh, zero ghosting; split the
-// LODs again only if vertex cost ever shows up in a profile.
-void vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low) {
-    (void)low;
-    const glm::vec3 bark(0.320f, 0.235f, 0.165f);
-    const glm::vec3 up(0, 1, 0);
-
-    // Trunk: tapered capped prism, full height (visible between the card whorls).
-    {
-        const int ts = TREE_TRUNK_SIDES;
-        unsigned b[8], t[8];
-        for (int i = 0; i < ts; i++) {
-            float a = (float)i / ts * 6.2831853f;
-            glm::vec3 d(cosf(a), 0.0f, sinf(a));
-            glm::vec3 c = bark * (0.85f + 0.3f * ghash((float)i, 3.0f));
-            b[i] = pushV(v, d * TREE_TRUNK_BASE,                          d, c, 0.0f);
-            t[i] = pushV(v, d * TREE_TRUNK_TOP + glm::vec3(0, TREE_TRUNK_HEIGHT, 0), d, c, 0.0f);
-        }
-        for (int i = 0; i < ts; i++) {
-            int j = (i + 1) % ts;
-            idx.insert(idx.end(), {b[i], b[j], t[j], b[i], t[j], t[i]});
-        }
-        const unsigned bottom = pushV(v, glm::vec3(0), -up, bark, 0.0f);
-        const unsigned top = pushV(v, {0, TREE_TRUNK_HEIGHT, 0}, up, bark, 0.0f);
-        for (int i = 0; i < ts; ++i) {
-            int j = (i + 1) % ts;
-            idx.insert(idx.end(), {bottom, b[i], b[j], top, t[j], t[i]});
-        }
-    }
-
-    // One branch = X-pair of quads along a drooping spine. The spray photo maps
-    // with its stem base (v=0) at the trunk, tip pointing outward.
-    auto card = [&](glm::vec3 root, glm::vec3 axis, glm::vec3 tang, float len,
-                    float halfW, glm::vec3 n, float shade, float flexTip) {
-        glm::vec3 tint = glm::vec3(shade);
-        for (int q = 0; q < 2; q++) {
-            float roll = (q == 0 ? 0.6109f : -0.6109f);   // +-35 deg
-            glm::vec3 side = tang * cosf(roll)
-                           + glm::normalize(glm::cross(axis, tang)) * sinf(roll);
-            side *= halfW;
-            glm::vec3 tip = root + axis * len;
-            unsigned i0 = pushVT(v, root - side, n, tint, 0.04f, {0, 0});
-            unsigned i1 = pushVT(v, root + side, n, tint, 0.04f, {1, 0});
-            unsigned i2 = pushVT(v, tip  - side, n, tint, flexTip, {0, 1});
-            unsigned i3 = pushVT(v, tip  + side, n, tint, flexTip, {1, 1});
-            idx.insert(idx.end(), {i0, i1, i3, i0, i3, i2});
-        }
-    };
-
-    // Whorls. Lowest at 0.24 * height: a 7-9 m spruce keeps its needles above
-    // eye level, so walking through a stand doesn't fill the screen with canopy
-    // (and firing lanes exist between the trunks, DayZ-style).
-    const int whorls   = 14;
-    const int branches = 4;
-    for (int k = 0; k < whorls; k++) {
-        float t = (float)k / (whorls - 1);
-        float y = 0.24f + 0.66f * t + (ghash((float)k, 51.0f) - 0.5f) * 0.03f;
-        // Crown taper: branch length shrinks toward the top; per-branch jitter
-        // breaks the perfect cone outline.
-        float len   = (0.195f - 0.120f * t);
-        float droop = 0.42f - 0.28f * t;   // radians below horizontal, more at base
-        for (int b2 = 0; b2 < branches; b2++) {
-            float yaw = k * 2.3999f + b2 * (6.2831853f / branches)
-                      + (ghash((float)(k * 7 + b2), 13.0f) - 0.5f) * 1.1f;
-            glm::vec3 dir(cosf(yaw), 0.0f, sinf(yaw));
-            glm::vec3 tang = glm::normalize(glm::cross(up, dir));
-            glm::vec3 axis = glm::normalize(dir * cosf(droop) - up * sinf(droop));
-            float jl = len * (0.85f + 0.35f * ghash((float)(k * 31 + b2), 7.0f));
-            // Cone-shell fake normal (radial + up): flat quads with true normals
-            // would each light as one flat sheet — this shades the crown as one
-            // smooth cone instead, same trick the old skirt mesh used.
-            glm::vec3 n = glm::normalize(dir * 0.55f + up * 0.85f);
-            float shade = 1.30f + 0.60f * ghash((float)(k + b2 * 17), 29.0f);
-            card(dir * 0.012f + glm::vec3(0, y, 0), axis, tang, jl,
-                 jl * 0.40f, n, shade, 0.16f);
-        }
-    }
-
-    // Leader: upright X-cross at the top, the spray photo standing as the spike.
-    {
-        float h = 0.24f;
-        glm::vec3 root(0, 1.0f - h * 0.88f, 0);
-        glm::vec3 n = glm::normalize(glm::vec3(0.3f, 0.9f, 0.1f));
-        card(root, up, {1, 0, 0}, h, h * 0.34f, n, 1.15f, 0.20f);
-    }
-}
-
 // Bush, unit height 1, width ~1.5 (instance scale = bush height in meters).
 // Same card idea as the spruce but no trunk: two tiers of photo-textured quads
 // (textures/bush_1.png) crossed around the root. Upright inner cross gives the
@@ -220,9 +123,8 @@ GLuint vegMakeVAO(GLuint vbo, GLuint ebo, GLuint inst) {
 // Render the LOD0 spruce once into a texture — the far-tree billboard. Bake is
 // raw albedo (veg.frag bake=1); the impostor shader lights it at draw time.
 bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType) {
-    const bool training=trainingType>=0;
-    GLuint& texture=training ? veg.trainingSpruce[trainingType].impostor : veg.impTex;
-    const glm::vec2 size=training ? glm::vec2(trainingTreeWidth(trainingType),1.10f) : veg.impSize;
+    GLuint& texture=veg.trainingSpruce[trainingType].impostor;
+    const glm::vec2 size(trainingTreeWidth(trainingType),1.10f);
     GLuint fbo = 0, depthRb = 0;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -262,7 +164,7 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType) {
         veg.vegSh.setMat4(veg.vegSh.locView, view);
         veg.vegSh.setMat4(veg.vegSh.locProj, proj);
         veg.vegSh.setInt(veg.locBake, 1);
-        veg.vegSh.setInt(veg.locTrainingTree,training ? (trainingType<4 ? 1 : trainingType-2) : 0);
+        veg.vegSh.setInt(veg.locTrainingTree,trainingType<4 ? 1 : trainingType-2);
         veg.vegSh.setFloat(veg.locWind, 0.0f);
         veg.vegSh.setFloat(veg.locRange, 0.0f);
         glUniform2f(veg.locFadeIn, 0.0f, 0.0f);
@@ -270,7 +172,7 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType) {
         veg.vegSh.setFloat(veg.vegSh.locTime, 0.0f);
         veg.vegSh.setVec3(veg.vegSh.locEye, glm::vec3(100.0f));
         glActiveTexture(GL_TEXTURE6);
-        glBindTexture(GL_TEXTURE_2D, training ? (trainingType<4 ? veg.trainingBranchTex : veg.trainingBroadleafTex) : veg.branchTex);
+        glBindTexture(GL_TEXTURE_2D, trainingType<4 ? veg.trainingBranchTex : veg.trainingBroadleafTex);
         if (veg.shadowTex) {
             glActiveTexture(GL_TEXTURE1);
             glBindTexture(GL_TEXTURE_2D, veg.shadowTex);
@@ -280,8 +182,8 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType) {
         const float inst[8] = {0, 0, 0, 1, 0, 0, 1, 0};
         glBindBuffer(GL_ARRAY_BUFFER, veg.streamL0);
         glBufferData(GL_ARRAY_BUFFER, sizeof(inst), inst, GL_STREAM_DRAW);
-        glBindVertexArray(training ? veg.trainingSpruce[trainingType].vao[0] : veg.vaoL0);
-        glDrawElementsInstanced(GL_TRIANGLES, training ? veg.trainingSpruce[trainingType].count : veg.l0Idx, GL_UNSIGNED_INT, nullptr, 1);
+        glBindVertexArray(veg.trainingSpruce[trainingType].vao[0]);
+        glDrawElementsInstanced(GL_TRIANGLES, veg.trainingSpruce[trainingType].count, GL_UNSIGNED_INT, nullptr, 1);
         glBindVertexArray(0);
 
         veg.vegSh.setInt(veg.locBake, 0);

@@ -99,7 +99,7 @@ static void scatterTrees(std::vector<TreeInstance>& out) {
             float z = -PALDISKI_HALF + (iz + 0.5f) * STEP + (mapRand(ix, iz, 42) - 0.5f) * 4.2f;
             if (forestSiteClearance(x, z, 1.0f)) continue;
             float b = pineForestBiome(x, z);
-            float dens = b * b * 2.2f + b * 0.30f + 0.045f;
+            float dens = (b * b * 2.2f + b * 0.30f) * 0.42f + 0.040f;
             if (mapRand(ix, iz, 43) > dens) continue;
             float h = terrainHeight(x, z);
             if (h < 1.6f || h > 95.0f) continue;
@@ -110,7 +110,7 @@ static void scatterTrees(std::vector<TreeInstance>& out) {
             t.x = x; t.z = z; t.y = h - 0.15f;
             float r     = mapRand(ix, iz, 44);
             float young = 2.2f + r * 2.6f;               // 2.2-4.8 m sapling
-            float grown = 6.5f + r * 5.0f;               // 6.5-11.5 m stand tree
+            float grown = 9.0f + r * 10.0f;
             float pYoung = b < 0.35f ? 0.78f : 0.18f;    // meadow vs core mix
             t.scale = mapRand(ix, iz, 47) < pYoung ? young : grown;
             t.yaw   = mapRand(ix, iz, 45) * 6.2831853f;

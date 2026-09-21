@@ -30,4 +30,13 @@ inline int trainingTreeType(float x,float z) {
     if(float(pick%1000)*.001f<conifer) return int((pick/1000)%4);
     return 4+int((pick/1000)%3);
 }
+inline int taigaTreeType(float x,float z,float forest) {
+    uint32_t tree=trainingTreeHash(int32_t(floorf(x*8)),int32_t(floorf(z*8)));
+    uint32_t stand=trainingTreeHash(int32_t(floorf(x/40))+911,int32_t(floorf(z/40))-577);
+    uint32_t pick=tree%4==0 ? tree/16 : stand;
+    float conifer=.72f+.25f*fminf(1.0f,fmaxf(0.0f,forest));
+    if(float(pick%1000)*.001f<conifer) return int((pick/1000)%4);
+    uint32_t leaf=(pick/1000)%10;
+    return leaf<6 ? 5 : leaf<8 ? 4 : 6;
+}
 void vegBuildBroadleaf(std::vector<float>& v,std::vector<unsigned>& idx,int species,bool low=false);

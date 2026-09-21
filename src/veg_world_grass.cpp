@@ -18,7 +18,7 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
            fabsf(z0+2.5f-b.center.z)<b.half.z+2.8f) boxes[boxCount++]=j;
     }
     tile.minY=1e9f; tile.maxY=-1e9f;
-    for(int i=0;i<(meadowCards ? 450 : 900);++i) {
+    for(int i=0;i<450;++i) {
         int key=tx*1024+i;
         float x=x0+mapRand(key,tz,211)*5, z=z0+mapRand(key,tz,212)*5;
         if(fabsf(x)>gArenaHalf || fabsf(z)>gArenaHalf) continue;
@@ -40,26 +40,20 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
         float slope=(1-n.y)*6+(vegFbm(x*.06f,z*.06f)-.5f)*.10f;
         float rock=lobbySmooth(.30f,.55f,slope);
         float dirt=lobbySmooth(.52f,.70f,vegFbm(x*.004f,z*.004f))*.35f;
-        float keep=(1-rock)*(1-dirt)*(1-.8f*pineForestBiome(x,z));
         float growth=lobbyGrowth(x,z);
+        float keep=(1-rock)*(1-dirt)*(1-.8f*pineForestBiome(x,z))*(.32f+.68f*growth);
         if(gMapId==MAP_LOBBY) {
             keep=(.32f+.68f*growth)*(1-lobbyWear(x,z))*(1-.7f*trainingForest(x,z));
             keep=fmaxf(keep,trainingReeds(x,z));
         }
         if(mapRand(key,tz,213)>=keep) continue;
-        float dry=.12f+.5f*vegFbm(x*.19f,z*.19f);
-        if(meadowCards) {
-            int nx=(int)((n.x*.5f+.5f)*255+.5f), nz=(int)((n.z*.5f+.5f)*255+.5f);
-            dry=(float)(nx+256*nz);
-        }
-        float scale=.65f+.5f*mapRand(key,tz,214);
-        if(gMapId==MAP_LOBBY) {
-            scale=(.70f+.45f*growth)*(.8f+.4f*mapRand(key,tz,214));
-            scale*=1+.9f*trainingReeds(x,z);
-        }
+        int nx=(int)((n.x*.5f+.5f)*255+.5f), nz=(int)((n.z*.5f+.5f)*255+.5f);
+        float packedNormal=(float)(nx+256*nz);
+        float scale=(.70f+.45f*growth)*(.8f+.4f*mapRand(key,tz,214));
+        if(gMapId==MAP_LOBBY) scale*=1+.9f*trainingReeds(x,z);
         plants[count++]={x,h-.025f,z,scale,
                          mapRand(key,tz,215)*6.2831853f,mapRand(key,tz,216),
-                         .85f+.25f*mapRand(key,tz,217),dry};
+                         .85f+.25f*mapRand(key,tz,217),packedNormal};
         tile.minY=fminf(tile.minY,h); tile.maxY=fmaxf(tile.maxY,h);
     }
     std::sort(plants.begin(),plants.begin()+count,[](const auto& a,const auto& b) {

@@ -48,9 +48,9 @@ out float meadowCloud;
 out vec3  meadowFog;
 
 void main() {
-    trainingMeadow=(grassRange>0.0 && grassRange>64.0 && aUV.x < -7.5) ? 1.0 : 0.0;
+    trainingMeadow=(grassRange>0.0 && aUV.x < -7.5) ? 1.0 : 0.0;
     float c = cos(iB.x), s = sin(iB.x);
-    vec3 shaped=trainingTreeShape(aPos,aUV,iA);
+    vec3 shaped=trainingTreeShape(aPos,aUV,iA,iB.w);
     treeLocal=aPos*iA.w;
     treeUnit=aPos;
     vec3 p = vec3(c * shaped.x - s * shaped.z, shaped.y, s * shaped.x + c * shaped.z);
@@ -110,7 +110,7 @@ void main() {
     }
     // Dry-grass tint (iB.w) matches the ground shader's dry patches; iB.z is a
     // per-instance brightness jitter that breaks up the uniform green.
-    vColor   = mix(aColor, vec3(0.33, 0.30, 0.14), iB.w) * iB.z;
+    vColor   = aColor * iB.z;
     if (aUV.x < -2.5 && aUV.x > -7.5 && grassRange > 0.0) {
         // At distance the ground supplies coverage; suppress isolated dark roots,
         // dry clumps and brightness variation instead of amplifying their spots.
@@ -133,7 +133,8 @@ void main() {
     meadowField = vec4(0.0);
     meadowCloud = 1.0;
     if(aUV.x < -7.5) {
-        meadowField = trainingMeadow>0.5 ? vec4(lobbyGrowthColor(iA.xz),lobbyGrowth(iA.xz))
+        float plantGrowth = lobbyGrowth(iA.xz);
+        meadowField = trainingMeadow>0.5 ? vec4(growthColorOf(plantGrowth),plantGrowth)
                                          : vec4(meadowSurface(iA.xz),1.0);
     }
     meadowFog = vec3(0.0);

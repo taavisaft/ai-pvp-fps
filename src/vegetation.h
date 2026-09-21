@@ -35,20 +35,19 @@ struct QualitySettings;
 // screen-door dither (see veg.frag) — every tree is visible at every distance
 // and never pops. LOD0 trees also render into the sun shadow map.
 struct Vegetation {
-    static constexpr float TREE_FADE0 = 58.0f,  TREE_L0_END = 72.0f;
-    static constexpr float TREE_FADE1 = 280.0f, TREE_L1_END = 320.0f;
+    static constexpr float TREE_FADE0 = 30.0f,  TREE_L0_END = 42.0f;
+    static constexpr float TREE_FADE1 = 90.0f, TREE_L1_END = 115.0f;
     // Impostor far cap: past ~1.35 km a spruce billboard is a fog-dimmed speck, and
     // on a ridge the whole 2 km map's trees would otherwise queue as impostors every
     // frame (CPU bucket + stream re-upload + tens of thousands of alpha quads). Cap
     // and dither out over a band so nothing pops. Tunable — lower for more headroom.
     static constexpr float TREE_IMP_FADE = 1350.0f, TREE_IMP_END = 1500.0f;
-    static constexpr float TREE_SHADOW_RANGE = 85.0f;   // LOD0 casters around camera
     // Bushes: one mesh, dithered fully out by BUSH_END (no impostor — undergrowth
     // is concealment detail, not silhouette; past 150 m it wouldn't cover a pixel).
     static constexpr float BUSH_FADE = 120.0f, BUSH_END = 150.0f;
     static constexpr float BUSH_SHADOW_RANGE = 40.0f;
 
-    struct Tree { glm::vec3 pos; float scale, yaw, tint; uint8_t type=0; };
+    struct Tree { glm::vec3 pos; float scale, yaw, tint; uint8_t type=0; float interior=0; };
     static constexpr int MEADOW_DECORATED = 96;
     static constexpr int TRAINING_BLADE_INDICES = 24 * 3 * 6;
     static constexpr float MEADOW_DECORATED_PHASE = .88f;
@@ -63,7 +62,6 @@ struct Vegetation {
 
     MeadowTimer meadowTimer[2];
     bool meadowEnabled = true; // FPS_NOMEADOW comparison aid
-    bool meadowCards = true; // FPS_GRASS_RIBBONS restores untextured meshes
     GLuint meadowAtlas=0;
     int meadowSide = 24;
     GrassTile meadowTiles[24*24];
@@ -71,7 +69,6 @@ struct Vegetation {
     std::vector<std::array<float,MEADOW_DECORATED>> meadowDecoratedRanks;
     GLuint meadowVbo=0, meadowEbo=0;
     GLsizei meadowIdx=0, meadowFarIdx=0;
-    GLsizei trainingIdx=0, trainingFarIdx=0;
     GLuint meadowFarVbo=0, meadowFarEbo=0;
     GLuint meadowFarVao[24*24]{};
     GLint locMeadowEye=-1, locMeadowRange=-1;
@@ -98,16 +95,12 @@ struct Vegetation {
     GLint locImpSize = -1, locImpFadeIn = -1, locImpFadeOut = -1;  // impSh
 
     // Geometry: shared vertex/index buffers; one VAO per (mesh, instance stream).
-    GLuint  l0Vbo = 0, l0Ebo = 0;       GLsizei l0Idx = 0;
-    GLuint  l1Vbo = 0, l1Ebo = 0;       GLsizei l1Idx = 0;
     GLuint  bushVbo = 0, bushEbo = 0;   GLsizei bushIdx = 0;
     GLuint  quadVbo = 0;                          // impostor corners+uv (4 verts)
     GLuint  streamL0 = 0, streamL1 = 0, streamImp = 0, streamShadow = 0;
     GLuint  streamBush = 0, streamBushShadow = 0;
-    GLuint  vaoL0 = 0, vaoL1 = 0, vaoImp = 0, vaoShadow = 0;
+    GLuint  vaoImp = 0;
     GLuint  vaoBush = 0, vaoBushShadow = 0;
-    GLuint  impTex = 0;                           // baked spruce atlas
-    GLuint  branchTex = 0;                        // needle-spray photo, alpha cutout
     GLuint trainingBranchTex=0,trainingBroadleafTex=0;
     struct SpruceMesh {
         GLuint vbo=0,ebo=0,lowVbo=0,lowEbo=0,vao[4]{},impostor=0;
@@ -127,7 +120,6 @@ struct Vegetation {
     void logTrainingTreeMix() const;
     GLuint  bushTex = 0;                          // berry-bush photo, alpha cutout
     GLuint  shadowTex = 0;                        // shadow map texture reference for impostor bake
-    glm::vec2 impSize = {0.52f, 1.10f};           // world size of the bake, scale 1
 
     std::vector<Tree> trees;
     std::vector<Tree> bushes;                     // same instance layout as trees
@@ -135,14 +127,12 @@ struct Vegetation {
     SpatialGrid       bushGrid;
     bool              placed = false;
     // Instance staging, reused every frame (capacity settles, no steady-state allocs)
-    std::vector<float> bufL0, bufL1, bufImp, bufShadow;
     std::vector<float> bufBush, bufBushShadow;
 
     // Runtime LOD distances (defaults mirror the constexprs; overridden by quality tier).
     float treeFade0_ = TREE_FADE0, treeL0End_ = TREE_L0_END;
     float treeFade1_ = TREE_FADE1, treeL1End_ = TREE_L1_END;
     float treeImpFade_ = TREE_IMP_FADE, treeImpEnd_ = TREE_IMP_END;
-    float treeShadowRange_ = TREE_SHADOW_RANGE;
     float bushFade_ = BUSH_FADE, bushEnd_ = BUSH_END;
     float bushShadowRange_ = BUSH_SHADOW_RANGE;
 
@@ -159,14 +149,10 @@ struct Vegetation {
 };
 
 // veg_mesh.cpp — build-time helpers.
-void   vegBuildMeadowCards(std::vector<float>& v, std::vector<unsigned>& idx, bool far);
 void   vegBuildTrainingMeadow(std::vector<float>& v, std::vector<unsigned>& idx, bool far);
-void   vegBuildMeadowFar(std::vector<float>& v, std::vector<unsigned>& idx);
-void   vegBuildMeadow(std::vector<float>& v, std::vector<unsigned>& idx);
-void   vegBuildSpruce(std::vector<float>& v, std::vector<unsigned>& idx, bool low);
 void   vegBuildBush(std::vector<float>& v, std::vector<unsigned>& idx);
 GLuint vegMakeVAO(GLuint vbo, GLuint ebo, GLuint inst);   // 10-float verts + stream
-bool   vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType = -1);
+bool   vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType);
 // GLSL-mirror of basic.frag's fbm (same float math) so CPU placement masks agree
 // with the shader's dirt-field / dry-patch regions.
 float  vegFbm(float x, float y);

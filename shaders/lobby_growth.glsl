@@ -15,6 +15,9 @@ float lobbyGrowth(vec2 p) {
             +.25*growthNoise(p*.22+vec2(5,0));
     return smoothstep(.30,.68,g);
 }
+vec3 growthColorOf(float growth) {
+    return mix(vec3(.36,.33,.125),vec3(.15,.23,.065),growth);
+}
 vec3 lobbyGrowthColor(vec2 p) {
-    return mix(vec3(.36,.33,.125),vec3(.15,.23,.065),lobbyGrowth(p));
+    return growthColorOf(lobbyGrowth(p));
 }

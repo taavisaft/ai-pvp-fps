@@ -86,6 +86,15 @@ int main() {
         float dx=tree.x-spawn.x, dz=tree.z-spawn.z;
         CHECK(dx*dx+dz*dz > 6*6);
     }
+    setMap(MAP_PALDISKI);
+    CHECK(gTrees.size() > 20000 && gTrees.size() < 64000);
+    int mature=0;
+    for (const TreeInstance& tree : gTrees) {
+        CHECK(tree.y > 1.0f && tree.scale >= 2.0f && tree.scale <= 19.5f);
+        mature += tree.scale >= 9.0f;
+    }
+    CHECK(mature*3 > (int)gTrees.size());
+    setMap(MAP_LOBBY);
     Player p{}; p.pos = {5,terrainHeight(5,17),17};
     InputState in{}; in.w = true; in.yaw = 90;
     for (int i=0; i<240; ++i) {

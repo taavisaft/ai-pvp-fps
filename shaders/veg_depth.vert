@@ -18,7 +18,7 @@ uniform float grassRange;
 
 void main() {
     float c = cos(iB.x), s = sin(iB.x);
-    vec3 shaped=trainingTreeShape(aPos,aUV,iA);
+    vec3 shaped=trainingTreeShape(aPos,aUV,iA,iB.w);
     vec3 p = vec3(c * shaped.x - s * shaped.z, shaped.y, s * shaped.x + c * shaped.z) * iA.w;
     // Different plants share a batch; uncommon leaves/seed heads collapse away.
     if ((aUV.x < -4.5 && aUV.x > -5.5 && iB.y < .97) || (aUV.x < -3.5 && aUV.x > -4.5 && iB.y < .72)) p=vec3(0);

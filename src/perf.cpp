@@ -19,13 +19,12 @@ static QualitySettings makeQuality(QualityTier tier) {
     case QUALITY_LOW:
         q.name                  = "low";
         q.shadowSize            = 1024;
-        q.treeFade0             = 48.0f;
-        q.treeL0End             = 58.0f;
-        q.treeFade1             = 220.0f;
-        q.treeL1End             = 260.0f;
+        q.treeFade0             = 22.0f;
+        q.treeL0End             = 32.0f;
+        q.treeFade1             = 70.0f;
+        q.treeL1End             = 90.0f;
         q.treeImpFade           = 900.0f;
         q.treeImpEnd            = 1000.0f;
-        q.treeShadowRange       = 55.0f;
         q.bushFade              = 80.0f;
         q.bushEnd               = 110.0f;
         q.bushShadowRange       = 28.0f;
@@ -34,13 +33,12 @@ static QualitySettings makeQuality(QualityTier tier) {
     case QUALITY_HIGH:
         q.name                  = "high";
         q.shadowSize            = 2048;
-        q.treeFade0             = 58.0f;
-        q.treeL0End             = 85.0f;
-        q.treeFade1             = 300.0f;
-        q.treeL1End             = 360.0f;
+        q.treeFade0             = 45.0f;
+        q.treeL0End             = 60.0f;
+        q.treeFade1             = 130.0f;
+        q.treeL1End             = 165.0f;
         q.treeImpFade           = 1500.0f;
         q.treeImpEnd            = 1700.0f;
-        q.treeShadowRange       = 100.0f;
         q.bushFade              = 130.0f;
         q.bushEnd               = 180.0f;
         q.bushShadowRange       = 50.0f;
@@ -50,13 +48,12 @@ static QualitySettings makeQuality(QualityTier tier) {
     default:
         q.name                  = "medium";
         q.shadowSize            = 2048;
-        q.treeFade0             = 58.0f;
-        q.treeL0End             = 72.0f;
-        q.treeFade1             = 280.0f;
-        q.treeL1End             = 320.0f;
+        q.treeFade0             = 30.0f;
+        q.treeL0End             = 42.0f;
+        q.treeFade1             = 90.0f;
+        q.treeL1End             = 115.0f;
         q.treeImpFade           = 1350.0f;
         q.treeImpEnd            = 1500.0f;
-        q.treeShadowRange       = 85.0f;
         q.bushFade              = 120.0f;
         q.bushEnd               = 150.0f;
         q.bushShadowRange       = 40.0f;

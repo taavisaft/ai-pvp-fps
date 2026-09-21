@@ -19,6 +19,8 @@ bool Renderer::initLandscape(const char* base) {
     landscapeMapLoc=glGetUniformLocation(shader.program,"landscapeMap");
     shader.use();
     shader.setInt(landscapeMapLoc,8);
+    meadowMapLoc=glGetUniformLocation(shader.program,"meadowMap");
+    shader.setInt(meadowMapLoc,9);
     skyPanoramaLoc=glGetUniformLocation(skyShader.program,"panorama");
     skyUsePanoramaLoc=glGetUniformLocation(skyShader.program,"usePanorama");
     skyPanoramaTurnLoc=glGetUniformLocation(skyShader.program,"panoramaTurn");
@@ -26,6 +28,7 @@ bool Renderer::initLandscape(const char* base) {
     snprintf(f,sizeof(f),"%sshaders/pond.frag",base);
     if(!pondShader.load(v,f) && !pondShader.load("shaders/pond.vert","shaders/pond.frag")) return false;
     pondReflectionLoc=glGetUniformLocation(pondShader.program,"reflectionMap");
+    pondCaptureVPLoc=glGetUniformLocation(pondShader.program,"captureVP");
     pondTimeLoc=glGetUniformLocation(pondShader.program,"time");
     pondReflectionMixLoc=glGetUniformLocation(pondShader.program,"reflectionMix");
     glGenFramebuffers(1,&pondFBO); glBindFramebuffer(GL_FRAMEBUFFER,pondFBO);
@@ -48,15 +51,18 @@ bool Renderer::initLandscape(const char* base) {
 
 void Renderer::drawPondReflection(const glm::mat4& view,const glm::mat4& proj,const glm::vec3& eye) {
     static const bool noReflection=getenv("FPS_NOREFLECT")!=nullptr;
-    if(noReflection) { pondReflectionMix=0; return; }
-    if(++pondFrame%2 && pondReflectionMix>0) return;
+    // Eligibility precedes throttling: never reuse a reflection after leaving
+    // this map, crossing below water, or looking away from the pond.
     pondReflectionMix=0;
-    if(gMapId!=MAP_LOBBY || eye.y<TRAINING_POND_Y) return;
     Frustum fr=Frustum::fromVP(proj*view);
-    if(!fr.aabbVisible({0,TRAINING_POND_Y,TRAINING_POND_Z},{50,1,36})) return;
     float pondDistance=glm::distance(eye,glm::vec3(0,TRAINING_POND_Y,TRAINING_POND_Z));
-    if(pondDistance>350) return;
+    if(noReflection || gMapId!=MAP_LOBBY || eye.y<TRAINING_POND_Y || pondDistance>350 ||
+       !fr.aabbVisible({0,TRAINING_POND_Y,TRAINING_POND_Z},{50,1,36})) {
+        pondCache.invalidate(); return;
+    }
     pondReflectionMix=1-glm::smoothstep(250.0f,350.0f,pondDistance);
+    if(!pondCache.needsCapture(view,proj,eye)) return;
+    pondCache.capture(view,proj,eye,TRAINING_POND_Y);
     glm::mat4 mirror=glm::scale(glm::translate(glm::mat4(1),{0,2*TRAINING_POND_Y,0}),{1,-1,1});
     glm::mat4 reflected=view*mirror;
     glm::vec3 reflectedEye(eye.x,2*TRAINING_POND_Y-eye.y,eye.z);
@@ -79,6 +85,7 @@ void Renderer::drawPond() {
     pondShader.setMat4(pondShader.locModel,model);
     pondShader.setMat4(pondShader.locView,curView);
     pondShader.setMat4(pondShader.locProj,curProj);
+    pondShader.setMat4(pondCaptureVPLoc,pondCache.captureVP);
     pondShader.setFloat(pondTimeLoc,frameTime);
     pondShader.setFloat(pondReflectionMixLoc,pondReflectionMix);
     pondShader.setVec3(pondShader.locSkyZenith,skyZenith);
@@ -97,6 +104,7 @@ void Renderer::drawPond() {
 }
 
 void Renderer::destroyLandscape() {
+    pondCache.invalidate();
     pondShader.destroy();
     if(meadowSky) glDeleteTextures(1,&meadowSky);
     if(pondTexture) glDeleteTextures(1,&pondTexture);

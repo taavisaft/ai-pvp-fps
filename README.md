@@ -29,9 +29,7 @@ For multiplayer, start a server and connect using its IP:
 ./build/game 127.0.0.1
 ```
 
-Test the current grass and terrain material across Paldiski offline with
-`FPS_MAP=paldiski ./build/game`. Grass streams around the camera and does not cast
-shadows. `FPS_NOMEADOW=1` disables the new grass for performance comparisons.
+Walk Paldiski offline with `FPS_MAP=paldiski ./build/game`. `FPS_NOMEADOW=1` disables grass for performance comparisons.
 
 Offline practice spawns in a 2×2 km training landscape: shooting range at the origin, meadow, pond and wooded hills to the north.
 

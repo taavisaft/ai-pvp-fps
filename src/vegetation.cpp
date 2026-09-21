@@ -23,7 +23,6 @@ void Vegetation::applyQuality(const QualitySettings& q) {
     treeL1End_        = q.treeL1End;
     treeImpFade_      = q.treeImpFade;
     treeImpEnd_       = q.treeImpEnd;
-    treeShadowRange_  = q.treeShadowRange;
     bushFade_         = q.bushFade;
     bushEnd_          = q.bushEnd;
     bushShadowRange_  = q.bushShadowRange;
@@ -49,15 +48,7 @@ bool Vegetation::init(const char* base, GLuint shadow) {
     if (!loadPair(impSh, base, "veg_imp.vert", "veg_imp.frag")) return false;
     if (!loadPair(vegDepthSh, base, "veg_depth.vert", "veg_depth.frag")) return false;
 
-    // Needle-spray photo for the branch cards (alpha cutout). Deep mips average
-    // the cutout toward transparent and distant crowns thin out — clamp the chain.
     char tp[600];
-    snprintf(tp, sizeof(tp), "%stextures/spruce_branch.png", base);
-    branchTex = loadTextureRGBA(tp);
-    if (!branchTex) branchTex = loadTextureRGBA("textures/spruce_branch.png");
-    if (!branchTex) { printf("[veg] missing textures/spruce_branch.png\n"); return false; }
-    glBindTexture(GL_TEXTURE_2D, branchTex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 5);
     snprintf(tp, sizeof(tp), "%stextures/bush_1.png", base);
     bushTex = loadTextureRGBA(tp);
     if (!bushTex) bushTex = loadTextureRGBA("textures/bush_1.png");
@@ -94,12 +85,6 @@ bool Vegetation::init(const char* base, GLuint shadow) {
 
     std::vector<float> v;
     std::vector<unsigned> idx;
-    vegBuildSpruce(v, idx, /*low=*/false);
-    uploadMesh(l0Vbo, l0Ebo, l0Idx, v, idx);
-    v.clear(); idx.clear();
-    vegBuildSpruce(v, idx, /*low=*/true);
-    uploadMesh(l1Vbo, l1Ebo, l1Idx, v, idx);
-    v.clear(); idx.clear();
     vegBuildBush(v, idx);
     uploadMesh(bushVbo, bushEbo, bushIdx, v, idx);
 
@@ -109,9 +94,6 @@ bool Vegetation::init(const char* base, GLuint shadow) {
     glGenBuffers(1, &streamShadow);
     glGenBuffers(1, &streamBush);
     glGenBuffers(1, &streamBushShadow);
-    vaoL0     = vegMakeVAO(l0Vbo, l0Ebo, streamL0);
-    vaoL1     = vegMakeVAO(l1Vbo, l1Ebo, streamL1);
-    vaoShadow = vegMakeVAO(l0Vbo, l0Ebo, streamShadow);
     vaoBush       = vegMakeVAO(bushVbo, bushEbo, streamBush);
     vaoBushShadow = vegMakeVAO(bushVbo, bushEbo, streamBushShadow);
 
@@ -136,7 +118,7 @@ bool Vegetation::init(const char* base, GLuint shadow) {
     glVertexAttribDivisor(5, 1);
     glBindVertexArray(0);
 
-    return initTrainingTrees(base) && vegBakeImpostor(*this, 256, 512);   // caller restores the viewport
+    return initTrainingTrees(base);
 }
 
 // Deterministic spruce scatter: one candidate per ~7 m cell, kept by the pine
@@ -149,23 +131,24 @@ void Vegetation::buildTrees() {
     // matches). setMap() fills gTrees; consume it here for the rendered instances.
     if (gTrees.empty()) buildTreeColliders();   // safety if drawn before a setMap
     trees.reserve(gTrees.size());
-    bufL0.reserve(gTrees.size()*8); bufL1.reserve(gTrees.size()*8);
-    bufImp.reserve(gTrees.size()*8); bufShadow.reserve(gTrees.size()*8);
-    const bool training = gMapId == MAP_LOBBY;
-    for (const TreeInstance& g : gTrees)
-        trees.push_back({{g.x, g.y, g.z}, g.scale, g.yaw, g.tint,
-                         training ? (uint8_t)trainingTreeType(g.x, g.z) : (uint8_t)0});
-    if (training) reserveTrainingStaging();
+    for (const TreeInstance& g : gTrees) {
+        int type = gMapId == MAP_LOBBY ? trainingTreeType(g.x, g.z)
+                                       : taigaTreeType(g.x, g.z, pineForestBiome(g.x, g.z));
+        float interior = gMapId == MAP_LOBBY ? trainingForest(g.x, g.z) : pineForestBiome(g.x, g.z);
+        interior = fminf(1.0f, fmaxf(0.0f, (interior - .58f) / .30f));
+        trees.push_back({{g.x, g.y, g.z}, g.scale, g.yaw, g.tint, (uint8_t)type, interior});
+    }
+    reserveTrainingStaging();
 
     float half  = (gMapId == MAP_LOBBY) ? LOBBY_HALF : PALDISKI_HALF;
-    int   cells = (gMapId == MAP_LOBBY) ? 64 : 32;
+    int   cells = 64;
     float yMax  = 110.0f;
     for (const Tree& t : trees) yMax = fmaxf(yMax, t.pos.y + t.scale * 1.1f + 1.0f);
     grid.init(half, cells, 0.0f, yMax);
     for (int i = 0; i < (int)trees.size(); i++)
         grid.insert(trees[i].pos.x, trees[i].pos.z, i);
     printf("[veg] %d trees (shared scatter)\n", (int)trees.size());
-    if(gMapId==MAP_LOBBY) logTrainingTreeMix();
+    logTrainingTreeMix();
 }
 
 // Deterministic bush scatter, forest-edge biased: b*(1-b) peaks where the pine
@@ -221,22 +204,18 @@ void Vegetation::destroy() {
     destroyMeadow();
     destroyLandscape();
     destroyTrainingTrees();
-    GLuint vaos[] = {vaoL0, vaoL1, vaoImp, vaoShadow, vaoBush, vaoBushShadow};
+    GLuint vaos[] = {vaoImp, vaoBush, vaoBushShadow};
     for (GLuint v : vaos) if (v) glDeleteVertexArrays(1, &v);
-    GLuint bufs[] = {l0Vbo, l0Ebo, l1Vbo, l1Ebo, quadVbo,
+    GLuint bufs[] = {quadVbo,
                      bushVbo, bushEbo,
                      streamL0, streamL1, streamImp, streamShadow,
                      streamBush, streamBushShadow};
     for (GLuint b : bufs) if (b) glDeleteBuffers(1, &b);
-    vaoL0 = vaoL1 = vaoImp = vaoShadow = vaoBush = vaoBushShadow = 0;
-    l0Vbo = l0Ebo = l1Vbo = l1Ebo = quadVbo = 0;
+    vaoImp = vaoBush = vaoBushShadow = 0;
+    quadVbo = 0;
     bushVbo = bushEbo = 0;
     streamL0 = streamL1 = streamImp = streamShadow = 0;
     streamBush = streamBushShadow = 0;
-    if (impTex) glDeleteTextures(1, &impTex);
-    impTex = 0;
-    if (branchTex) glDeleteTextures(1, &branchTex);
-    branchTex = 0;
     if (bushTex) glDeleteTextures(1, &bushTex);
     bushTex = 0;
     vegSh.destroy();

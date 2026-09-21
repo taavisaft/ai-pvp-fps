@@ -2,6 +2,8 @@
 
 Use dated reports for measurements and inspections; [TODO.md](TODO.md) owns current priorities. Old reports describe the state when measured and should not silently be rewritten as current claims.
 
+- [2026-09-21: pond reflection continuity](docs/pond-reflection-2026-09-21.md) — cached-camera projection, invalidation and regression checks.
+
 - [2026-09-14: Paldiski grass scale test](docs/paldiski-grass-2026-09-14.md) — streaming meadow pool and main-map material comparison.
 - [2026-09-13: full lobby grass](docs/lobby-grass-coverage-2026-09-13.md) — expanded coverage and controlled Release comparison.
 - [2026-09-05: game inspection and HUD performance improvement](docs/progress-2026-09-05.md) — controlled local benchmark and connection smoke test.
@@ -23,3 +25,5 @@ Use dated reports for measurements and inspections; [TODO.md](TODO.md) owns curr
 - [Mixed training woodland: ash, birch, oak and spruce](docs/training-mixed-woodland-2026-09-15.md) — 2026-09-15.
 
 - [Training landscape: meadow, pond, wooded hills](docs/training-landscape-2026-09-17.md) — 2026-09-17.
+
+- [Vegetation, ground and haze ported to Paldiski](docs/training-landscape-2026-09-17.md#paldiski-port-same-day-world-revision-0x20260918) — 2026-09-17. World revision 0x20260918.

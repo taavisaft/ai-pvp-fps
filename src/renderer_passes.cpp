@@ -10,7 +10,7 @@ float Renderer::aspect() const {
 
 void Renderer::setAtmosphere(int preset) {
     atmoPreset = ((preset % ATMO_COUNT) + ATMO_COUNT) % ATMO_COUNT;
-    hazeCool = 0.0f;
+    hazeCool = atmoPreset == ATMO_OVERCAST ? 0.0f : 1.0f;
     switch (atmoPreset) {
     case ATMO_OVERCAST:   // DayZ gloom: weak grey sun, flat light, close haze
         sunDir        = glm::normalize(glm::vec3(0.35f, 0.75f, 0.30f));
@@ -34,7 +34,6 @@ void Renderer::setAtmosphere(int preset) {
             sunColor   = {1.30f, 0.95f, 0.62f};
             skyHorizon = {0.90f, 0.80f, 0.66f};
             fogDist = 1250.0f; fogHeightAmt = 0.90f;
-            hazeCool = 1.0f;
         }
         break;
     default:              // ATMO_CLEAR: PUBG bright midday (original palette)
@@ -111,7 +110,7 @@ void Renderer::drawSky(const glm::mat4& view, const glm::mat4& proj, const glm::
     skyShader.setFloat(skyShader.locHazeCool, hazeCool);
     skyShader.setFloat(skyPanoramaTurnLoc, 0.06f - atan2f(sunDir.z, sunDir.x) / 6.2831853f);
     skyShader.setInt(skyPanoramaLoc,7);
-    skyShader.setInt(skyUsePanoramaLoc,gMapId==MAP_LOBBY && meadowSky && atmoPreset!=ATMO_OVERCAST);
+    skyShader.setInt(skyUsePanoramaLoc,meadowSky && atmoPreset!=ATMO_OVERCAST);
     glActiveTexture(GL_TEXTURE7); glBindTexture(GL_TEXTURE_2D,meadowSky);
     glActiveTexture(GL_TEXTURE0);
     quad2d.draw();
