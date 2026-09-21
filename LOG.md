@@ -2,6 +2,8 @@
 
 Use dated reports for measurements and inspections; [TODO.md](TODO.md) owns current priorities. Old reports describe the state when measured and should not silently be rewritten as current claims.
 
+- [2026-09-21: connected broadleaf branches](docs/tree-attachments-2026-09-21.md) — attached twig/leaf structure, shared wind and geometry regression checks.
+
 - [2026-09-21: pond reflection continuity](docs/pond-reflection-2026-09-21.md) — cached-camera projection, invalidation and regression checks.
 
 - [2026-09-14: Paldiski grass scale test](docs/paldiski-grass-2026-09-14.md) — streaming meadow pool and main-map material comparison.

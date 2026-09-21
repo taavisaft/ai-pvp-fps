@@ -1,6 +1,7 @@
 #include "training_woodland.h"
 #include "tree_collision.h"
 #include <cstdio>
+#include "tree_attachment_checks.h"
 
 static int failures=0;
 #define CHECK(x) do { if(!(x)) { std::fprintf(stderr,"%d: %s\n",__LINE__,#x); ++failures; } } while(0)
@@ -11,6 +12,7 @@ int main() {
     for(int species=0;species<3;++species) {
         std::vector<float> v; std::vector<unsigned> idx;
         vegBuildBroadleaf(v,idx,species);
+        CHECK(checkTreeAttachments(v,idx,species)==0);
         CHECK(!idx.empty() && v.size()%12==0 && idx.size()%3==0);
         CHECK(idx.size()/3<8000);
         for(unsigned i:idx) CHECK(i<v.size()/12);
@@ -31,6 +33,16 @@ int main() {
         std::vector<float> again; std::vector<unsigned> againIdx;
         vegBuildBroadleaf(again,againIdx,species);
         CHECK(v==again && idx==againIdx);
+        std::vector<float> low; std::vector<unsigned> lowIdx;
+        vegBuildBroadleaf(low,lowIdx,species,true);
+        CHECK(checkTreeAttachments(low,lowIdx,species)==0);
+        CHECK(lowIdx.size()<idx.size());
+        // The proof must reject the old failure: a displaced, unsupported card.
+        for(size_t i=0;i<v.size();i+=12) if(v[i+10]>=0) {
+            for(size_t j=i;j<i+6*12;j+=12) v[j]+=1.0f;
+            break;
+        }
+        CHECK(checkTreeAttachments(v,idx,species)>0);
     }
     CHECK(radius[1]<radius[0] && radius[0]<radius[2]);
     int counts[TRAINING_TREE_TYPES]{};
