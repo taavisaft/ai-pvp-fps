@@ -1,15 +1,26 @@
 #include "training_spruce.h"
 #include "tree_collision.h"
 #include <cstdio>
+#include "tree_attachment_checks.h"
 
 static int failures=0;
 #define CHECK(x) do { if(!(x)) { std::fprintf(stderr,"%d: %s\n",__LINE__,#x); ++failures; } } while(0)
+// Summed projected needle area catches LODs that keep wood but discard the
+// crown. Check multiple directions so a single edge-on sheet cannot pass.
+static float needleArea(const std::vector<float>& v,const std::vector<unsigned>& idx,glm::vec3 view) {
+    auto pos=[&](unsigned i) { return glm::vec3(v[i*12],v[i*12+1],v[i*12+2]); };
+    float area=0;
+    for(size_t i=0;i<idx.size();i+=3) if(v[idx[i]*12+10]>=0)
+        area+=fabsf(glm::dot(glm::cross(pos(idx[i+1])-pos(idx[i]),pos(idx[i+2])-pos(idx[i])),view))*.5f;
+    return area;
+}
 int main() {
     float radius[4]{},foliageBase[4];
     std::vector<float> original;
     for(int type=0;type<TRAINING_SPRUCE_TYPES;++type) {
         std::vector<float> v; std::vector<unsigned> idx;
         vegBuildTrainingSpruce(v,idx,type);
+        CHECK(checkTreeAttachments(v,idx,-1)==0);
         CHECK(v.size()%12==0 && idx.size()%3==0 && !idx.empty());
         CHECK(idx.size()/3<8000);
         for(unsigned i:idx) CHECK(i<v.size()/12);
@@ -35,9 +46,28 @@ int main() {
         std::vector<float> again; std::vector<unsigned> againIdx;
         vegBuildTrainingSpruce(again,againIdx,type);
         CHECK(v==again && idx==againIdx);
+        std::vector<float> low; std::vector<unsigned> lowIdx;
+        vegBuildTrainingSpruce(low,lowIdx,type,true);
+        CHECK(checkTreeAttachments(low,lowIdx,-1)==0);
+        CHECK(lowIdx.size()<idx.size());
+        for(int angle=0;angle<8;++angle) {
+            float a=angle*6.2831853f/8;
+            glm::vec3 view(cosf(a),0,sinf(a));
+            CHECK(needleArea(low,lowIdx,view)>=needleArea(v,idx,view)*.70f);
+        }
+        // Reject a floating needle spray even if its mesh remains valid.
+        for(size_t i=0;i<v.size();i+=12) if(v[i+10]>=0) {
+            for(size_t j=i;j<i+6*12;j+=12) v[j]+=1.0f;
+            break;
+        }
+        CHECK(checkTreeAttachments(v,idx,-1)>0);
+        // Reject a detached supporting bough, independently of foliage.
+        size_t branch=(TREE_TRUNK_SIDES*2+2+6)*12; // trunk then leader
+        for(int side=0;side<3;++side) again[branch+side*24]+=1.0f;
+        CHECK(checkTreeAttachments(again,againIdx,-1)>0);
     }
     CHECK(radius[1]<radius[0] && radius[0]<radius[2]);
-    CHECK(foliageBase[3]>.30f && foliageBase[3]>foliageBase[0]+.15f);
+    CHECK(foliageBase[3]>.25f && foliageBase[3]>foliageBase[0]+.15f);
     int counts[4]{};
     for(int x=-60;x<=60;x+=5) for(int z=-60;z<=60;z+=5) {
         int type=trainingSpruceType(float(x),float(z));

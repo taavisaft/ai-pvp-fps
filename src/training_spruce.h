@@ -4,7 +4,7 @@
 #include <vector>
 
 constexpr int TRAINING_SPRUCE_TYPES=4;
-constexpr float TRAINING_SPRUCE_WIDTH=.76f;
+constexpr float TRAINING_SPRUCE_WIDTH=.84f;
 
 // Cosmetic assignment only: stable across camera movement, LOD and shadows.
 inline int trainingSpruceType(float x,float z) {

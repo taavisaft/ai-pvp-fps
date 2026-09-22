@@ -2,6 +2,12 @@
 
 Use dated reports for measurements and inspections; [TODO.md](TODO.md) owns current priorities. Old reports describe the state when measured and should not silently be rewritten as current claims.
 
+- [2026-09-22: spruce crown density](docs/spruce-density-2026-09-22.md) — overlapping inner foliage retained across LODs, distant needle-area regression checks.
+
+- [2026-09-22: connected spruce model](docs/spruce-model-2026-09-22.md) — continuous leader, connected bough/twig hierarchy in both LODs, geometry attachment checks.
+
+- [2026-09-22: tree proportions and palette](docs/tree-tuning-2026-09-22.md) — spruce needle alignment, lighter short-shoot foliage and subdued loading-area lighting.
+
 - [2026-09-21: connected broadleaf branches](docs/tree-attachments-2026-09-21.md) — attached twig/leaf structure, shared wind and geometry regression checks.
 
 - [2026-09-21: pond reflection continuity](docs/pond-reflection-2026-09-21.md) — cached-camera projection, invalidation and regression checks.

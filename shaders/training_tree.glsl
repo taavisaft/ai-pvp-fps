@@ -21,7 +21,7 @@ vec3 trainingTreeShape(vec3 p, vec2 uv, vec4 instance, float interior) {
 // Shared spatial deformation keeps branch junctions and attached spray stems
 // together. Per-card flex used to move each disconnected piece independently.
 float trainingWindFlex(vec3 p,vec2 uv,float flex) {
-    if(trainingTree>1 && uv.y>=0.0)
+    if(trainingTree>0 && uv.y>=0.0)
         return max(0.0,length(p.xz)-.025)*.28;
     return flex;
 }

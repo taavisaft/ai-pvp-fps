@@ -14,10 +14,15 @@ inline int checkTreeAttachments(const std::vector<float>& v,const std::vector<un
         unsigned first=idx[at];
         if(v[first*12+10]>=0) {
             const float stemU[]={.476f,.457f,.453f};
-            float anchor=(stemU[species]-.012f)/.976f;
+            float anchor=species<0 ? .48f : (stemU[species]-.012f)/.976f;
             glm::vec3 stem=glm::mix(pos(first),pos(first+1),anchor);
-            if(glm::distance(stem,branches.back().tip)>.00001f) ++failures;
-            at+=12; ++cards; continue;
+            bool attached=glm::distance(stem,branches.back().tip)<.00001f;
+            // Spruce inner sprays and the terminal leader may use an earlier tip.
+            if(species<0) for(const auto& b:branches)
+                if(glm::distance(stem,b.tip)<.00001f) { attached=true; break; }
+            if(!attached) ++failures;
+            int rows=v[(first+2)*12+11]>.9f ? 2 : 3;
+            at+=(rows-1)*6; ++cards; continue;
         }
         int sides=0;
         do {

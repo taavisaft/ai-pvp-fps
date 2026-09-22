@@ -31,7 +31,9 @@ void Renderer::setAtmosphere(int preset) {
         exposure = 1.10f; saturation = 1.06f;
         if (gMapId == MAP_LOBBY) {
             sunDir     = glm::normalize(glm::vec3(0.76f, 0.27f, -0.50f));
-            sunColor   = {1.30f, 0.95f, 0.62f};
+            sunColor   = {1.08f, 0.90f, 0.70f};
+            // Retain low evening light with Paldiski-like restrained greens.
+            exposure = 0.92f; saturation = 0.90f;
             skyHorizon = {0.90f, 0.80f, 0.66f};
             fogDist = 1250.0f; fogHeightAmt = 0.90f;
         }

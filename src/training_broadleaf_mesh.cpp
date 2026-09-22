@@ -40,8 +40,12 @@ void vegBuildBroadleaf(std::vector<float>& v,std::vector<unsigned>& idx,int spec
         glm::vec3 lateral=glm::normalize(glm::cross(direction,
             fabsf(direction.y)>.98f ? glm::vec3(1,0,0) : glm::vec3(0,1,0)));
         glm::vec3 vertical=glm::cross(lateral,direction);
-        int sprays=low ? (species==1 ? 3 : 4) : (species==1 ? 14 : 18);
-        float cover=low ? 1.90f : 1.0f;
+        // Short shoots cannot support the same leaf mass as a long bough.
+        float support=glm::clamp(glm::length(parentTip-parentRoot)/(size*.65f),.40f,1.0f);
+        int budget=low ? (species==1 ? 3 : 4) : (species==1 ? 14 : 18);
+        int sprays=glm::max(2,int(budget*support+.5f));
+        size*=.78f+.22f*support;
+        float cover=low ? 1.65f : 1.0f;
         // Stem locations measured in each atlas cell; V begins at the cut stem.
         const float stemU[]={.476f,.457f,.453f};
         float anchor=(stemU[species]-.012f)/.976f;
