@@ -31,15 +31,15 @@ void Vegetation::prepareMeadow() {
     if (!meadowVbo) upload(meadowVbo,meadowEbo,meadowIdx,false);
     if (!meadowFarVbo) upload(meadowFarVbo,meadowFarEbo,meadowFarIdx,true);
     meadowEnabled=getenv("FPS_NOMEADOW")==nullptr;
-    meadowSide=24;
-    meadowRanks.resize(24*24);
-    meadowDecoratedRanks.resize(24*24);
-    for(int i=0;i<24*24;++i) {
+    meadowSide=gMapId==MAP_LOBBY ? MEADOW_SIDE : 24;
+    meadowRanks.resize(meadowSide*meadowSide);
+    meadowDecoratedRanks.resize(meadowSide*meadowSide);
+    for(int i=0;i<meadowSide*meadowSide;++i) {
         GrassTile& t=meadowTiles[i];
         t.tx=t.tz=INT_MIN; t.count=0;
         if(!t.vbo) glGenBuffers(1,&t.vbo);
         glBindBuffer(GL_ARRAY_BUFFER,t.vbo);
-        glBufferData(GL_ARRAY_BUFFER,900*8*sizeof(float),nullptr,GL_DYNAMIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER,MEADOW_CAPACITY*8*sizeof(float),nullptr,GL_DYNAMIC_DRAW);
         if(!t.vao) t.vao=vegMakeVAO(meadowVbo,meadowEbo,t.vbo);
         t.decoratedCount=0;
         if(!t.decoratedVbo) glGenBuffers(1,&t.decoratedVbo);
@@ -48,7 +48,8 @@ void Vegetation::prepareMeadow() {
         if(!t.decoratedVao) t.decoratedVao=vegMakeVAO(meadowVbo,meadowEbo,t.decoratedVbo);
         if(!meadowFarVao[i]) meadowFarVao[i]=vegMakeVAO(meadowFarVbo,meadowFarEbo,t.vbo);
     }
-    printf("[meadow] 576 reserved tiles, 50 m draw / 55 m preload\n");
+    printf("[meadow] %d reserved tiles, %d m draw\n",meadowSide*meadowSide,
+           gMapId==MAP_LOBBY ? 90 : 50);
 }
 
 void Vegetation::drawMeadow(const Renderer& r, const Frustum& fr, const glm::vec3& eye) {
@@ -72,7 +73,7 @@ void Vegetation::drawMeadow(const Renderer& r, const Frustum& fr, const glm::vec
     meadowSh.setFloat(meadowSh.locSaturation, r.saturation);
     meadowSh.setFloat(meadowSh.locHazeCool, r.hazeCool);
     meadowSh.setFloat(locGrassWind,.045f);
-    meadowSh.setFloat(locGrassRange,65.0f);
+    meadowSh.setFloat(locGrassRange,gMapId==MAP_LOBBY ? 105.0f : 65.0f);
     glActiveTexture(GL_TEXTURE6); glBindTexture(GL_TEXTURE_2D,meadowAtlas);
     glActiveTexture(GL_TEXTURE0);
     MeadowTimer& timer=meadowTimer[0];
@@ -88,7 +89,8 @@ void Vegetation::drawMeadow(const Renderer& r, const Frustum& fr, const glm::vec
         // Nearest tile point is conservative: per-plant shader thinning handles the
         // rest, identically in visible and shadow passes.
         float distance=sqrtf(dx*dx+dz*dz);
-        float density=worldMeadowDensity(distance);
+        float density=gMapId==MAP_LOBBY ? worldMeadowDensity(distance,80.0f,.035f)
+                                       : worldMeadowDensity(distance);
         int count=(int)(std::lower_bound(ranks,ranks+t.count,density)-ranks);
         if(!count) continue;
         if(dx*dx+dz*dz < 32*32) {

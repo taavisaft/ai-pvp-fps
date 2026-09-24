@@ -232,16 +232,40 @@ vec3 meadowLayer(vec3 p) {
     if(gFar>0.0) litter=mix(litter,textureLod(meadowMap,p.xz/31.0,4.0).rgb,gFar);
     float fibre=dot(litter,vec3(.299,.587,.114));
     vec3 dryGround=litter*vec3(.83,.82,.66);
+    float distance=length(p.xz-eyePos.xz);
+    // As grass cards thin from 30-50 m, move the field toward a muted green
+    // while retaining local growth variation; avoid straw-colored hill bands.
+    float farField=smoothstep(30.0,90.0,distance);
     vec3 lush=growthColorOf(growth);
+    if (splat==2) lush=mix(lush,vec3(.15,.23,.065),farField*.9);
     vec3 deepGround=lush*(.65+fibre*1.15);
     vec3 meadow=mix(dryGround,deepGround,growth*.85);
-    float distance=length(p.xz-eyePos.xz);
     float macro=growthNoise(p.xz*.018+vec2(4,9));
     float patches=growthNoise(p.xz*.11+vec2(31,-7));
+    // Keep a few-meter-scale field pattern after the grass cards thin out. Fade
+    // it when a noise cell approaches a pixel so distant hills do not shimmer.
+    float grain=.5;
+    if (splat==2) {
+        grain=growthNoise(p.xz*.30+vec2(-13,21));
+        float grainFootprint=max(fwidth(p.x*.30),fwidth(p.z*.30));
+        grain=mix(.5,grain,1.0-smoothstep(.5,1.5,grainFootprint));
+    }
     vec3 toEye=normalize(eyePos-p);
     float grazing=1.0-smoothstep(.04,.42,dot(normalize(vNormal),toEye));
     vec3 tips=mix(vec3(.43,.41,.17),vec3(.30,.37,.13),growth);
-    vec3 field=mix(lush,tips,grazing*.85)*(.80+.26*macro+.14*patches);
+    // Training's distant cards converge to lush ground color. Strong slope-based
+    // tip tint made the bare hillside look like broad tan contour bands.
+    float tipMix=grazing*(splat==2 ? .24*(1.0-farField) : .85);
+    float detail=splat==2 ? .64+.08*macro+.20*patches+.48*grain
+                          : .80+.26*macro+.14*patches;
+    if (splat==2) {
+        // A larger, warped sample of the scanned meadow supplies irregular
+        // mid-distance structure instead of more smooth value-noise bands.
+        vec2 photoUV=p.xz/20.0+vec2(macro,patches)*.23;
+        float photo=dot(textureLod(meadowMap,photoUV,3.0).rgb,vec3(.299,.587,.114));
+        detail*=mix(1.0,clamp(.62+photo,.76,1.20),farField);
+    }
+    vec3 field=mix(lush,tips,tipMix)*detail;
     return mix(meadow,field,smoothstep(12.0,55.0,distance)*.94);
 }
 // Blend grass/dirt/rock across the heightfield by surface slope (steep -> rock),

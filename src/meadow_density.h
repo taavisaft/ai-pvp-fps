@@ -13,11 +13,12 @@ inline float meadowRank(float phase) {
 }
 
 // Streaming residency ends beyond this gradual per-clump thinning band.
-inline float worldMeadowDensity(float distance) {
-    float t=fmaxf(0,fminf(1,(distance-40.0f)/10.0f));
-    return meadowDensity(distance)*(1-t*t*(3-2*t));
+inline float worldMeadowDensity(float distance, float fadeStart=40.0f,
+                               float farFloor=0.0f) {
+    float t=fmaxf(0,fminf(1,(distance-fadeStart)/10.0f));
+    return fmaxf(meadowDensity(distance),farFloor)*(1-t*t*(3-2*t));
 }
 
-inline int meadowTileSlot(int tx, int tz) {
-    return ((tz%24+24)%24)*24+(tx%24+24)%24;
+inline int meadowTileSlot(int tx, int tz, int side=24) {
+    return ((tz%side+side)%side)*side+(tx%side+side)%side;
 }

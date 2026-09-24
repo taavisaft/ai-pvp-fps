@@ -19,10 +19,9 @@ struct QualitySettings;
 // cutout). Placement is deterministic from the shared terrain noise,
 // client-side only.
 //
-// Grass: real blade geometry lives in camera-centered 16 m tiles out to ~90 m.
-// Each blade sinks smoothly into the ground approaching that range (per-blade
-// jitter staggers the edge), where the terrain shader's procedural grass color
-// takes over — same greens, so the handoff is invisible. Tiles are stored in a
+// Grass: real blade geometry lives in camera-centered 5 m tiles. The training
+// landscape keeps sparse far clumps to 90 m; the online map fades at 50 m.
+// Tiles are stored in a
 // toroidally-addressed slot grid and rebuilt (budgeted) as the camera crosses
 // tile boundaries; by the time a tile enters the visible range its blades are
 // still at zero height, so rebuilds never pop.
@@ -49,6 +48,8 @@ struct Vegetation {
 
     struct Tree { glm::vec3 pos; float scale, yaw, tint; uint8_t type=0; float interior=0; };
     static constexpr int MEADOW_DECORATED = 96;
+    static constexpr int MEADOW_SIDE = 40;
+    static constexpr int MEADOW_CAPACITY = 450;
     static constexpr int TRAINING_BLADE_INDICES = 24 * 3 * 6;
     static constexpr float MEADOW_DECORATED_PHASE = .88f;
     struct GrassTile {
@@ -64,13 +65,13 @@ struct Vegetation {
     bool meadowEnabled = true; // FPS_NOMEADOW comparison aid
     GLuint meadowAtlas=0;
     int meadowSide = 24;
-    GrassTile meadowTiles[24*24];
-    std::vector<std::array<float,900>> meadowRanks;
+    GrassTile meadowTiles[MEADOW_SIDE*MEADOW_SIDE];
+    std::vector<std::array<float,MEADOW_CAPACITY>> meadowRanks;
     std::vector<std::array<float,MEADOW_DECORATED>> meadowDecoratedRanks;
     GLuint meadowVbo=0, meadowEbo=0;
     GLsizei meadowIdx=0, meadowFarIdx=0;
     GLuint meadowFarVbo=0, meadowFarEbo=0;
-    GLuint meadowFarVao[24*24]{};
+    GLuint meadowFarVao[MEADOW_SIDE*MEADOW_SIDE]{};
     GLint locMeadowEye=-1, locMeadowRange=-1;
     GLuint landscapeTex=0;
     glm::vec3 landscapeSun{0};

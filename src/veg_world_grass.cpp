@@ -9,7 +9,7 @@
 // occurs while walking. Tile-coordinate seeds survive eviction and revisits.
 void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
     GrassTile& tile=meadowTiles[slot];
-    std::array<std::array<float,8>,900> plants;
+    std::array<std::array<float,8>,MEADOW_CAPACITY> plants;
     int boxes[MAX_MAP_BOXES], boxCount=0, count=0;
     const float x0=tx*5.0f, z0=tz*5.0f;
     for(int j=0;j<gMapBoxCount;++j) {
@@ -18,7 +18,7 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
            fabsf(z0+2.5f-b.center.z)<b.half.z+2.8f) boxes[boxCount++]=j;
     }
     tile.minY=1e9f; tile.maxY=-1e9f;
-    for(int i=0;i<450;++i) {
+    for(int i=0;i<MEADOW_CAPACITY;++i) {
         int key=tx*1024+i;
         float x=x0+mapRand(key,tz,211)*5, z=z0+mapRand(key,tz,212)*5;
         if(fabsf(x)>gArenaHalf || fabsf(z)>gArenaHalf) continue;
@@ -76,15 +76,17 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
 }
 
 void Vegetation::updateWorldGrass(const glm::vec3& eye) {
-    int cx=(int)floorf(eye.x/5), cz=(int)floorf(eye.z/5), budget=6;
+    int cx=(int)floorf(eye.x/5), cz=(int)floorf(eye.z/5);
+    int budget=gMapId==MAP_LOBBY ? 10 : 6;
     // Fill nearest rings first after spawn/teleport. At normal walking speeds
     // the outer preload ring is ready before its blades become visible.
-    for(int ring=0;ring<=11 && budget>0;++ring)
+    const int outerRing=gMapId==MAP_LOBBY ? 19 : 11;
+    for(int ring=0;ring<=outerRing && budget>0;++ring)
         for(int dz=-ring;dz<=ring && budget>0;++dz)
             for(int dx=-ring;dx<=ring && budget>0;++dx) {
                 if(std::max(abs(dx),abs(dz))!=ring) continue;
                 int tx=cx+dx, tz=cz+dz;
-                int slot=meadowTileSlot(tx,tz);
+                int slot=meadowTileSlot(tx,tz,meadowSide);
                 GrassTile& t=meadowTiles[slot];
                 if(t.tx==tx && t.tz==tz) continue;
                 buildWorldGrassTile(slot,tx,tz); --budget;

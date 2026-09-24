@@ -34,7 +34,8 @@ void main() {
         float dist=length(iA.xz-grassEye.xz);
         float d=max(0.0,dist-6.0)/8.0;
         float density=max(.004,1.18/(1.0+d*d));
-        if(grassRange > 50.0) density*=1.0-smoothstep(40.0,50.0,dist);
+        if(grassRange > 100.0) density=max(density,.035);
+        if(grassRange > 50.0) density*=1.0-smoothstep(grassRange-25.0,grassRange-15.0,dist);
         float rank=fract(iB.y*13.37);
         densityGrow=density>0.0 ? 1.0-smoothstep(density*.85,density,rank) : 0.0;
         // Narrow only the departing clumps; survivors retain their height.
