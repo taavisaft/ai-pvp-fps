@@ -6,8 +6,12 @@
 static constexpr float SENSITIVITY = 0.1f;
 
 void Camera::addLook(float xrel, float yrel) {
-    yaw   += xrel * SENSITIVITY;
-    pitch -= yrel * SENSITIVITY;
+    // Match movement near the reticle across zoom levels, including ADS transitions.
+    // Keep fractional degrees: at 8x one mouse count must turn only 1/8 as far.
+    static const float hipTangent = tanf(glm::radians(HIP_FOV * 0.5f));
+    const float sensitivity = SENSITIVITY * tanf(glm::radians(fov * 0.5f)) / hipTangent;
+    yaw   += xrel * sensitivity;
+    pitch -= yrel * sensitivity;
     if (pitch >  89.0f) pitch =  89.0f;
     if (pitch < -89.0f) pitch = -89.0f;
 }

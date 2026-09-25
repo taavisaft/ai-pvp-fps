@@ -27,6 +27,7 @@
 #include "player_visual.h"
 #include "perf.h"
 #include "traversal_benchmark.h"
+#include "practice_runners.h"
 #include "app_resources.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
@@ -301,6 +302,7 @@ int main(int argc, char** argv) {
     // connection drops, returning you to the lobby.
     glm::vec3 spawn0(0.0f), dummyPos(0.0f);
     static GameState offline;             // local practice match vs dummy
+    PracticeRunners runners;
     offline.usedMask = 0b11;              // slot 0 = self, slot 1 = dummy
     static GameState display;             // what gets rendered when online
 
@@ -326,6 +328,7 @@ int main(int argc, char** argv) {
     // the map's first spawn and face the dummy (lobby: down the firing line).
     auto setupOffline = [&]() {
         setMap(offlineMap);
+        offline.usedMask=3;
         spawn0 = gMapSpawnCount > 0 ? gMapSpawns[0] : glm::vec3(0.0f);
         glm::vec3 off = (gMapId == MAP_LOBBY) ? glm::vec3(8.0f, 0.0f, 7.0f)
                                               : glm::vec3(14.0f, 0.0f, 5.0f);
@@ -337,6 +340,7 @@ int main(int argc, char** argv) {
         offline.players[0].pos = spawn0;
         offline.players[1].pos = dummyPos;
         predicted.pos = spawn0;
+        if(runners.enabled() && !runners.start(offline,spawn0)) runners.stop(offline,dummyPos);
         cam.yaw = gMapId==MAP_LOBBY ? 90.0f : glm::degrees(atan2f(dummyPos.z-spawn0.z,dummyPos.x-spawn0.x));
         if(gMapId==MAP_LOBBY) { cam.pitch=-8; renderer.setAtmosphere(Renderer::ATMO_GOLDEN); }
     };
@@ -373,6 +377,7 @@ int main(int argc, char** argv) {
         printf("[ref] camera preset: %s\n", refCam->name);
     }
     const RefCameraPreset captureCamera{"capture", predicted.pos, cam.yaw, cam.pitch, 0};
+    if(getenv("FPS_RUNNERS")) runners.start(offline,predicted.pos);
     FrameInput input;
 
 
@@ -482,6 +487,10 @@ int main(int argc, char** argv) {
             printf("atmosphere: %s\n", atmoNames[renderer.atmoPreset]);
         }
         if (input.clearRange) { decalCount = 0; decalHead = 0; }
+        if(input.runnersToggle && !net.connected) {
+            if(runners.enabled()) runners.stop(offline,dummyPos);
+            else runners.start(offline,offline.players[0].pos);
+        }
 
         // Weapon select (1 = Uzi, 2 = Glock, 3 = Kar98). Offline re-arms now; online the server
         // adopts it from the input packet and stays authoritative.
@@ -669,6 +678,7 @@ int main(int argc, char** argv) {
                 }
                 movePlayer(self, input.state, FIXED_DT);   // wall push-out via collideXZ
                 updateReload(self, input.state.reload, FIXED_DT);
+                runners.tick(offline,FIXED_DT);
                 if (self.mag == 0 && self.reserve == 0)                       // keep practice stocked
                     self.reserve = weaponDef(self.weaponId).reservePerLife;
                 // updateBullets stops rounds on any surface and reports the impacts
@@ -678,7 +688,7 @@ int main(int argc, char** argv) {
                 int impCount = 0;
                 updateBullets(offline, FIXED_DT, nullptr, nullptr, imp, &impCount, NET_MAX_IMPACTS);
                 for (int k = 0; k < impCount; k++) addDecal(imp[k].pos, imp[k].normal);
-                if (!dummy.alive) {                                 // offline dummy respawn
+                if (!runners.enabled() && !dummy.alive) {            // offline dummy respawn
                     dummy.respawnTimer -= FIXED_DT;
                     if (dummy.respawnTimer <= 0.0f) {
                         dummy = Player{};
@@ -699,7 +709,7 @@ int main(int argc, char** argv) {
         // its yard with a fixed facing (so you can study it from any angle), walking
         // only animates it in place (walk-anim slot mirrored below) and jumps replay
         // as hops on the spot.
-        if (!online && offline.players[1].alive) {
+        if (!online && !runners.enabled() && offline.players[1].alive) {
             const Player& self  = offline.players[0];
             Player&       dummy = offline.players[1];
             dummy.pitch    = self.pitch;
@@ -901,7 +911,7 @@ int main(int argc, char** argv) {
         }
         // The pinned lobby dummy never moves, so hand it your stride instead —
         // it walks on the spot whenever you walk.
-        if (!online) { walkAmp[1] = walkAmp[0]; walkPhase[1] = walkPhase[0]; }
+        if (!online && !runners.enabled()) { walkAmp[1] = walkAmp[0]; walkPhase[1] = walkPhase[0]; }
 
         gameTime += dt;
         renderer.setTime(gameTime);

@@ -20,6 +20,7 @@ Requires CMake 3.20+, a C++17 compiler, SDL2 and OpenGL. On macOS: `brew install
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ./build/game                         # offline practice
+FPS_RUNNERS=1 ./build/game           # you + 15 random runners (16 players total)
 ```
 
 For multiplayer, start a server and connect using its IP:
@@ -69,6 +70,7 @@ window. Set `FPS_WINDOWED=1` to start windowed (useful for fixed-resolution benc
 | V | Toggle third-person view |
 | G | Clear bullet marks (offline) |
 | H / F | Toggle hitboxes / wireframe (debug) |
+| F6 | Toggle 15 roaming practice players (offline only) |
 | Esc | Quit |
 
 [Roadmap](TODO.md) · [Development notes](docs/development.md) · [Contributing](AGENTS.md)

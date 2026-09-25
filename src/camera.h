@@ -21,7 +21,7 @@ struct Camera {
     float     tpDist = 0.0f;
     glm::vec3 tpPos  = {0.0f, 0.0f, 0.0f};
 
-    void      addLook(float xrel, float yrel);  // mouse deltas, sensitivity 0.1
+    void      addLook(float xrel, float yrel);  // mouse deltas, 0.1 deg/count at hip FOV; zoom-scaled
     void      updateLean(float target, float dt); // lerp lean toward target (-1..1)
     float     aimYaw() const;                   // yaw + recoil
     float     aimPitch() const;                 // pitch + recoil, clamped

@@ -24,6 +24,8 @@ set(SHARED_SOURCES
 
 set(CLIENT_SOURCES
     src/main.cpp
+    src/random_runner.cpp
+    src/practice_runners.cpp
     src/player_visual.cpp
     src/kar98_mesh.cpp
     src/gl_loader.cpp
@@ -96,6 +98,15 @@ add_custom_command(TARGET game POST_BUILD
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(camera_look_tests tests/camera_look_tests.cpp src/camera.cpp)
+    target_include_directories(camera_look_tests PRIVATE src)
+    target_link_libraries(camera_look_tests PRIVATE glm::glm)
+    add_test(NAME camera_look COMMAND camera_look_tests)
+    add_executable(practice_runners_tests tests/practice_runners_tests.cpp
+        src/practice_runners.cpp src/random_runner.cpp src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp)
+    target_include_directories(practice_runners_tests PRIVATE src)
+    target_link_libraries(practice_runners_tests PRIVATE glm::glm)
+    add_test(NAME practice_runners COMMAND practice_runners_tests)
     add_executable(benchmark_route_tests tests/benchmark_route_tests.cpp)
     target_include_directories(benchmark_route_tests PRIVATE src)
     add_test(NAME benchmark_route COMMAND benchmark_route_tests)

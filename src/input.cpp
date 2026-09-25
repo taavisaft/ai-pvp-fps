@@ -15,6 +15,7 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
     in.promptDown       = false;
     in.weaponSelect     = -1;
     in.hitboxToggle     = false;
+    in.runnersToggle    = false;
     in.mapToggle        = false;
     in.hudToggle        = false;
     in.atmoToggle       = false;
@@ -82,6 +83,7 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
             case SDLK_2:      in.weaponSelect    = WEP_GLOCK19; break;
             case SDLK_3:      in.weaponSelect    = WEP_KAR98;   break;
             case SDLK_h:      in.hitboxToggle    = true;        break;
+            case SDLK_F6:     in.runnersToggle   = true;        break;
             case SDLK_m:      in.mapToggle       = true;        break;
             case SDLK_j:      in.hudToggle       = true;        break;
             case SDLK_k:      in.atmoToggle      = true;        break;
