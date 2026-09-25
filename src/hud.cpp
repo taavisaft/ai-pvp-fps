@@ -204,7 +204,7 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
             if (dotA > 1.0f) dotA = 1.0f;
             if (dotA > 0.01f)
                 r.drawRect({0, 0}, {0.009f * ia, 0.009f}, {0.95f, 0.12f, 0.08f}, 0.95f * dotA);
-        } else {
+        } else if (gWeaponId != WEP_KAR98 || hud.adsT < 0.85f) {
             r.drawRect({0, 0}, {0.006f * ia, 0.045f}, {1, 1, 1}, 0.9f);
             r.drawRect({0, 0}, {0.045f * ia, 0.006f}, {1, 1, 1}, 0.9f);
         }

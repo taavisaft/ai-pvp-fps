@@ -31,7 +31,6 @@ uniform float saturation;
 uniform sampler2D shadowMap;
 uniform sampler2D branchTex;   // needle-spray photo, alpha cutout
 uniform int       useShadow;
-uniform int       alphaToCoverage;
 
 out vec4 fragColor;
 #include "atmosphere.glsl"
@@ -100,7 +99,7 @@ void main() {
         vec4 t = texture(branchTex, vUV);
         float cut = trainingTree==1 ? 0.22 : trainingTree>0 ? 0.30 : 0.42;
         coverage = clamp((t.a - cut) / max(fwidth(t.a), 0.0001) + 0.5, 0.0, 1.0);
-        if (coverage < (alphaToCoverage == 1 ? 0.004 : 0.5)) discard;
+        if (coverage < 0.5) discard;
         albedo *= t.rgb;
     }
     if(trainingTree>0 && vUV.x<0.0) {

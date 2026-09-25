@@ -35,7 +35,12 @@ inline constexpr WeaponVisual GLOCK19_VIS = {
     /*fpMuzzle*/      {0.0f,  0.02f, 0.26f},
 };
 
-inline const WeaponVisual WEAPON_VIS[WEP_COUNT] = { UZI_VIS, GLOCK19_VIS };
+inline constexpr WeaponVisual KAR98_VIS = {
+    {0.0f, -0.07f, -0.08f}, {0.0f, -0.09f, 0.31f},
+    {0.012f, -0.10f, -0.12f}, {0.0f, -0.02f, 0.80f},
+};
+
+inline const WeaponVisual WEAPON_VIS[WEP_COUNT] = { UZI_VIS, GLOCK19_VIS, KAR98_VIS };
 
 inline const WeaponVisual& weaponVisual(uint8_t id) {
     return WEAPON_VIS[id < WEP_COUNT ? id : WEP_UZI];

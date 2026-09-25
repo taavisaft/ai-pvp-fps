@@ -15,6 +15,17 @@ void Renderer::beginHUD() {
     shader.setInt(shader.locLit, 0);
 }
 
+void Renderer::drawScope(float opacity) {
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    scopeShader.use();
+    glUniform1f(scopeAspectLoc, aspect());
+    glUniform1f(scopeOpacityLoc, opacity);
+    quad2d.draw();
+    shader.use();
+}
+
 void Renderer::drawRect(const glm::vec2& center, const glm::vec2& size,
                         const glm::vec3& color, float alpha) {
     shader.use();  // drawText may have bound the text program
@@ -156,5 +167,4 @@ void Renderer::drawCubeModelTranslucent(const glm::mat4& model, const glm::vec3&
     glDisable(GL_BLEND);
     active->setFloat(active->locAlpha, 1.0f);
 }
-
 

@@ -1,4 +1,5 @@
 #include "perf.h"
+#include "gpu_timing.h"
 #include "renderer.h"
 #include "camera.h"
 #include "game.h"
@@ -43,7 +44,6 @@ static QualitySettings makeQuality(QualityTier tier) {
         q.bushEnd               = 180.0f;
         q.bushShadowRange       = 50.0f;
         q.terrainBuildsPerFrame = 2;
-        q.msaaSamples           = 4;
         break;
     default:
         q.name                  = "medium";
@@ -63,18 +63,7 @@ static QualitySettings makeQuality(QualityTier tier) {
     return q;
 }
 
-static QualitySettings qualityTierFromEnv();
-
 QualitySettings qualityFromEnv() {
-    QualitySettings q = qualityTierFromEnv();
-    if (const char* samples = getenv("FPS_MSAA")) {
-        int n = atoi(samples);
-        q.msaaSamples = n >= 4 ? 4 : n >= 2 ? 2 : 0;
-    }
-    return q;
-}
-
-static QualitySettings qualityTierFromEnv() {
     const char* q = getenv("FPS_QUALITY");
     if (!q) return makeQuality(QUALITY_MED);
     if (strcmp(q, "low") == 0 || strcmp(q, "0") == 0) return makeQuality(QUALITY_LOW);
@@ -87,8 +76,8 @@ void applyQuality(Renderer& r, const QualitySettings& q) {
     r.setShadowMapSize(q.shadowSize);
     r.taigaTerrain.maxBuildsPerFrame = q.terrainBuildsPerFrame;
     r.veg.applyQuality(q);
-    printf("[quality] tier=%s shadow=%d msaa=%d treeImpEnd=%.0f terrainBuilds=%d/frame\n",
-           q.name, q.shadowSize, q.msaaSamples, q.treeImpEnd,
+    printf("[quality] tier=%s shadow=%d treeImpEnd=%.0f terrainBuilds=%d/frame\n",
+           q.name, q.shadowSize, q.treeImpEnd,
            q.terrainBuildsPerFrame);
 }
 
@@ -97,22 +86,25 @@ void FrameProfiler::configureFromEnv() {
 }
 
 void FrameProfiler::beginFrame() {
+    for(int b=0;b<BUILD_COUNT;++b) { builds[b]=0; buildMs[b]=0; }
     frameStart = SDL_GetPerformanceCounter();
     for (float& ms : passMsRaw) ms = 0.0f;  // skipped passes must not reuse old timings
 }
 
 void FrameProfiler::endFrame() {
+    gGpuTiming.endFrame();
     Uint64 freq = SDL_GetPerformanceFrequency();
     totalMsRaw = (float)(SDL_GetPerformanceCounter() - frameStart) * 1000.0f / (float)freq;
 }
 
 void FrameProfiler::beginPass(RenderPass p) {
     passStart = SDL_GetPerformanceCounter();
-    (void)p;
+    gGpuTiming.beginPass(p);
 }
 
 void FrameProfiler::endPass(RenderPass p) {
     if (p >= PASS_COUNT) return;
+    gGpuTiming.endPass(p);
     Uint64 freq = SDL_GetPerformanceFrequency();
     float ms = (float)(SDL_GetPerformanceCounter() - passStart) * 1000.0f / (float)freq;
     passMsRaw[p] = ms;
@@ -120,8 +112,17 @@ void FrameProfiler::endPass(RenderPass p) {
 }
 
 const char* FrameProfiler::passName(RenderPass p) {
-    static const char* names[] = {"shadow", "sky", "world", "water", "hud"};
+    static const char* names[] = {"shadow", "reflection", "sky", "world", "water", "hud"};
     return (p < PASS_COUNT) ? names[p] : "?";
+}
+
+ScopedBuildTimer::ScopedBuildTimer(BuildWork work):kind(work) {
+    if(gProfiler.measureWork) start=SDL_GetPerformanceCounter();
+}
+ScopedBuildTimer::~ScopedBuildTimer() {
+    if(!start) return;
+    ++gProfiler.builds[kind];
+    gProfiler.buildMs[kind]+=float(SDL_GetPerformanceCounter()-start)*1000.0f/SDL_GetPerformanceFrequency();
 }
 
 static const RefCameraPreset kRefCameras[] = {

@@ -8,6 +8,7 @@
 enum SoundId {
     SND_SHOOT = 0,      // Uzi
     SND_SHOOT_GLOCK,    // Glock 19
+    SND_SHOOT_KAR98,    // Kar98k
     SND_STEP,
     SND_DEATH,
     SND_RESPAWN,

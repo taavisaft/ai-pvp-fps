@@ -60,13 +60,12 @@ vec3 grade(vec3 c) {
 }
 
 uniform float clipWater;
-uniform int alphaToCoverage;
 void main() {
     if(clipWater>0.0 && worldPos.y<clipWater) discard;
     if (bayer(gl_FragCoord.xy) < vCutNear) discard;
     vec4 texel = texture(impTex, vUV);
     float coverage = clamp((texel.a - 0.3) / max(fwidth(texel.a), 0.0001) + 0.5, 0.0, 1.0);
-    if (coverage < (alphaToCoverage == 1 ? 0.004 : 0.5)) discard;
+    if (coverage < 0.5) discard;
 
     // Flat light: averaged sun + hemispheric ambient, tuned to sit level with the
     // mesh LODs' per-normal lighting so the dither band doesn't shift brightness.

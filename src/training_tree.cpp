@@ -7,9 +7,9 @@
 bool Vegetation::initTrainingTrees(const char* base) {
     locTrainingTree=glGetUniformLocation(vegSh.program,"trainingTree");
     locTrainingTreeD=glGetUniformLocation(vegDepthSh.program,"trainingTree");
-    char path[768]; snprintf(path,sizeof(path),"%stextures/training_spruce_branch.png",base);
+    char path[768]; snprintf(path,sizeof(path),"%stextures/training_spruce_bough.png",base);
     trainingBranchTex=loadTextureRGBA(path);
-    if(!trainingBranchTex) trainingBranchTex=loadTextureRGBA("textures/training_spruce_branch.png");
+    if(!trainingBranchTex) trainingBranchTex=loadTextureRGBA("textures/training_spruce_bough.png");
     if(!trainingBranchTex) return false;
     glBindTexture(GL_TEXTURE_2D,trainingBranchTex);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAX_LEVEL,5);

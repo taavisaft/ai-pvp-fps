@@ -43,16 +43,17 @@ void vegBuildTrainingSpruce(std::vector<float>& v, std::vector<unsigned>& idx,in
         glm::vec3 side=glm::normalize(glm::cross(along,
             fabsf(along.y)>.98f ? glm::vec3(1,0,0) : glm::vec3(0,1,0)));
         glm::vec3 out=glm::normalize(glm::vec3(root.x,.12f,root.z));
-        // The photographed stem is at U=.48, V=.01. Put that opaque stem
-        // exactly on the supporting wood tip, not the transparent card edge.
-        for(int q=0;q<(low && !volume ? 1 : 2);++q) {
+        // The compound bough's stem is centered in the cutout. Keep card
+        // proportions close to the photo so needle groups stay at tree scale.
+        const float cardWidth=fminf(width,length*.58f);
+        for(int q=0;q<2;++q) {
             float roll=(q ? 1.20f : -.25f)+(rand(key)-.5f)*.35f;
             glm::vec3 across=side*cosf(roll)+glm::cross(along,side)*sinf(roll);
             unsigned rows[3][2];
             const int rowCount=low ? 2 : 3;
             for(int r=0;r<rowCount;++r) for(int edge=0;edge<2;++edge) {
                 float t=float(r)/(rowCount-1);
-                glm::vec3 p=root+along*(length*t)+across*((edge-.48f)*width);
+                glm::vec3 p=root+along*(length*t)+across*((edge-.5f)*cardWidth);
                 p.y-=length*.08f*sinf(t*3.14159265f);
                 glm::vec3 n=glm::normalize(out+glm::vec3(0,.65f,0)+across*((edge-.5f)*.25f));
                 rows[r][edge]=vertex(p,n,glm::vec3(shade*(.88f+.12f*t)),0,{float(edge),.01f+t*.98f});
@@ -64,15 +65,19 @@ void vegBuildTrainingSpruce(std::vector<float>& v, std::vector<unsigned>& idx,in
     // Bough -> elbow -> tip, with lateral shoots rooted on those exact segments.
     // Both LODs retain the entire load-bearing skeleton; only needle shoots thin.
     for(int k=0;k<profile.tiers;++k) {
-        float t=float(k)/(profile.tiers-1),y=profile.crownBase+(.94f-profile.crownBase)*t;
-        int branches=profile.branches+(k%3==0);
+        float t=float(k)/(profile.tiers-1);
+        float y=profile.crownBase+(.94f-profile.crownBase)*t
+               +(rand(k*131+3)-.5f)*.035f*(1-t);
+        int branches=profile.branches+(rand(k*131+11)>.65f ? 1 : 0)
+                     -(rand(k*131+23)<.15f ? 1 : 0);
         for(int j=0;j<branches;++j) {
             int key=k*37+j;
-            float a=k*2.39996f+j*6.2831853f/branches+(rand(key+5)-.5f)*.45f;
+            if(k>1 && k<profile.tiers-2 && rand(key+119)<.11f) continue;
+            float a=k*2.39996f+j*6.2831853f/branches+(rand(key+5)-.5f)*.9f;
             glm::vec3 dir(cosf(a),0,sinf(a)),side(-sinf(a),0,cosf(a));
-            float length=(profile.radius*powf(1-t,profile.taper)+.016f)*(.83f+.20f*rand(key+17));
-            glm::vec3 root(0,y+(rand(key+45)-.5f)*.018f,0);
-            float sag=length*(.14f+.08f*rand(key+71))*(1-t)*profile.droop;
+            float length=(profile.radius*powf(1-t,profile.taper)+.016f)*(.68f+.38f*rand(key+17));
+            glm::vec3 root(0,y+(rand(key+45)-.5f)*.06f*(1-t),0);
+            float sag=length*(.10f+.17f*rand(key+71))*(1-t)*profile.droop;
             glm::vec3 elbow=root+dir*(length*.48f)+glm::vec3(0,-sag,0);
             glm::vec3 tip=root+dir*(length*.83f)+glm::vec3(0,-sag*.35f+length*.06f,0);
             float r0=.0036f*(1-t)+.0005f,r1=.0015f*(1-t)+.00025f;
@@ -87,7 +92,7 @@ void vegBuildTrainingSpruce(std::vector<float>& v, std::vector<unsigned>& idx,in
             glm::vec3 inner=glm::mix(root,elbow,.16f);
             wood(root,inner,r0*.70f,r1,false);
             spray(inner,elbow-root,length*.86f,length*.95f,shade*.86f,key+401,true);
-            int twigs=low ? 2 : 3;
+            int twigs=3;
             for(int b=0;b<twigs;++b) {
                 float u=.24f+.64f*(b+.35f)/twigs;
                 glm::vec3 start=u<.48f ? glm::mix(root,elbow,u/.48f)
@@ -103,5 +108,5 @@ void vegBuildTrainingSpruce(std::vector<float>& v, std::vector<unsigned>& idx,in
         }
     }
     // The terminal shoot grows from the leader, not above a missing trunk.
-    spray({0,.96f,0},{0,1,0},.09f,.030f,.80f,991);
+    spray({0,.96f,0},{0,1,0},.055f,.030f,.80f,991);
 }

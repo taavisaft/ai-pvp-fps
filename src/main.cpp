@@ -26,6 +26,7 @@
 #include "playerpose.h"
 #include "player_visual.h"
 #include "perf.h"
+#include "traversal_benchmark.h"
 #include "app_resources.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
@@ -158,7 +159,9 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     r.endShadowPass();
     gProfiler.endPass(PASS_SHADOW);
 
+    gProfiler.beginPass(PASS_REFLECTION);
     r.drawPondReflection(cam.view(),cam.proj(r.aspect()),cam.eye);
+    gProfiler.endPass(PASS_REFLECTION);
 
     // Pass 2: lit main view, sampling the shadow map built above.
     if (!diagOnce) printf("[diag] pass 2: sky\n");
@@ -218,6 +221,8 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         r.shader.setInt(r.shader.locUseShadow, 0);
         drawViewModel(r, cam, vm, gWeaponId);
         r.shader.setInt(r.shader.locUseShadow, 1);
+        if (gWeaponId == WEP_KAR98 && vm.adsT > 0.85f)
+            r.drawScope(glm::clamp((vm.adsT - 0.85f) / 0.15f, 0.0f, 1.0f));
     }
     if (!diagOnce) printf("[diag] F: hud\n");
     if (showHud) {
@@ -259,6 +264,10 @@ int main(int argc, char** argv) {
     if (!prepareAppResources()) return 1;
     setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffered so logs flush when piped to a file
     platformSocketInit();
+#ifdef __APPLE__
+    // Use the complete display bounds, including the camera/menu-bar strip.
+    SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
+#endif
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         return 1;
@@ -273,12 +282,15 @@ int main(int argc, char** argv) {
 
     Renderer renderer;
     const QualitySettings quality = qualityFromEnv();
-    if (!renderer.init("pvp_shooter", 1280, 720, quality.msaaSamples)) {
+    if (!renderer.init("pvp_shooter", 1280, 720)) {
         fprintf(stderr, "renderer init failed\n");
         return 1;
     }
     gProfiler.configureFromEnv();
     applyQuality(renderer, quality);
+    static TraversalBenchmark traversal;
+    if(!traversal.init(renderer)) { renderer.shutdown(); SDL_Quit(); return 1; }
+    if(traversal.enabled()) offlineMap=MAP_LOBBY;
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
     Audio audio;
@@ -330,8 +342,8 @@ int main(int argc, char** argv) {
     };
     setupOffline();
     if (const char* w = getenv("FPS_WEAPON")) {
-        if (strcmp(w, "glock") == 0) {
-            gWeaponId = WEP_GLOCK19;
+        if (strcmp(w, "glock") == 0 || strcmp(w, "kar98") == 0) {
+            gWeaponId = strcmp(w, "kar98") == 0 ? WEP_KAR98 : WEP_GLOCK19;
             giveWeapon(offline.players[0], gWeaponId);
         }
     }
@@ -366,7 +378,7 @@ int main(int argc, char** argv) {
 
     // Default: training mode (offline). Only auto-connect when an IP arg is given;
     // otherwise press C to connect to a server.
-    if (argc > 1) {
+    if (argc > 1 && !traversal.enabled()) {
         printf("connecting to %s...\n", argv[1]);
         if (!net.connect(argv[1]))
             printf("connect failed — training mode\n");
@@ -436,8 +448,8 @@ int main(int argc, char** argv) {
         connectPromptActive = false;
     };
 
-    printf("controls: WASD move, mouse look, LMB shoot, Q/E lean, 1/2 or scroll weapon "
-           "(Uzi/Glock), C connect, V third-person, K atmosphere, F wireframe, H hitboxes, J toggle HUD, ESC quit\n");
+    printf("controls: WASD move, mouse look, LMB shoot, RMB aim, Q/E lean, 1/2/3 or scroll weapon "
+           "(Uzi/Glock/Kar98), C connect, V third-person, K atmosphere, F wireframe, H hitboxes, J toggle HUD, ESC quit\n");
     printf("lobby: shooting range + meadow landscape; press C to join a server (Paldiski)\n");
 
     const char* shotFrameEnv = getenv("FPS_SHOT_FRAME");
@@ -455,6 +467,8 @@ int main(int argc, char** argv) {
         if (dt > 0.05f) dt = 0.05f;   // cap to avoid spiral
 
         pollInput(input, cam, &connectPrompt);
+        if(traversal.enabled()) { bool quit=input.quit; input=FrameInput{}; input.quit=quit; }
+        if (input.fullscreenToggle) renderer.toggleFullscreen();
         renderer.refreshWindowSize();
         if (input.quit) running = false;
         if (input.wireframeToggle) renderer.toggleWireframe();
@@ -469,7 +483,7 @@ int main(int argc, char** argv) {
         }
         if (input.clearRange) { decalCount = 0; decalHead = 0; }
 
-        // Weapon select (1 = Uzi, 2 = Glock). Offline re-arms now; online the server
+        // Weapon select (1 = Uzi, 2 = Glock, 3 = Kar98). Offline re-arms now; online the server
         // adopts it from the input packet and stays authoritative.
         if (input.weaponSelect >= 0 && (uint8_t)input.weaponSelect != gWeaponId) {
             gWeaponId = (uint8_t)input.weaponSelect;
@@ -628,6 +642,7 @@ int main(int argc, char** argv) {
             if (t > 1.0f) vKick += (t - 1.0f) * RECOIL_HEAT_OVER * mult;
             float hKick = RECOIL_YAW * (0.6f + 0.8f * ramp) * mult * rs;
             if (t > 1.0f) hKick *= 1.0f + (t - 1.0f) * 0.05f;
+            if (gWeaponId == WEP_KAR98) vKick = input.state.ads ? 2.5f : 3.5f;
             cam.applyRecoil(vKick, hKick);
             recoilHeat += 1.0f;
             sinceShot = 0.0f;
@@ -790,7 +805,7 @@ int main(int argc, char** argv) {
         float k = dt * ADS_LERP_SPEED;
         if (k > 1.0f) k = 1.0f;
         vm.adsT += (adsTarget - vm.adsT) * k;
-        cam.fov  = glm::mix(HIP_FOV, ADS_FOV, vm.adsT);
+        cam.fov  = glm::mix(HIP_FOV, gWeaponId == WEP_KAR98 ? SCOPE_8X_FOV : ADS_FOV, vm.adsT);
         vm.flashTimer -= dt;
         if (vm.flashTimer < 0.0f) vm.flashTimer = 0.0f;
         vm.recoilT -= dt * 8.0f;
@@ -923,12 +938,14 @@ int main(int argc, char** argv) {
             applyRefCamera(cam, refCam ? *refCam : captureCamera);
             cam.tpDist = 0.0f;
         }
+        traversal.beforeRender(renderer,cam,vm,hud);
         Uint64 renderStart = SDL_GetPerformanceCounter();
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
                     decals, decalCount, connectPrompt, lobby, walkPhase, walkAmp,
                     crouchAnim, adsAnim, showHitboxes, fullMap, showHud, thirdPerson, ragdolls);
         float renderMs = (float)(SDL_GetPerformanceCounter() - renderStart) * 1000.0f /
                          (float)SDL_GetPerformanceFrequency();
+        if(traversal.afterFrame(now,renderer)) running=false;
         hud.renderCpuMs = hud.renderCpuMs <= 0.0f ? renderMs
                           : hud.renderCpuMs + (renderMs - hud.renderCpuMs) * 0.1f;
 
@@ -980,6 +997,7 @@ int main(int argc, char** argv) {
     closeConnectPrompt();
     net.disconnect();
     audio.shutdown();
+    traversal.finish();
     renderer.shutdown();
     SDL_Quit();
     platformSocketCleanup();

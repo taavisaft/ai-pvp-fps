@@ -160,7 +160,7 @@ static void tick(float dt) {
             continue;
         }
 
-        if (p.weaponId != c.input.weaponId)   // client swapped weapons (1/2 keys)
+        if (p.weaponId != c.input.weaponId)   // client swapped weapons
             giveWeapon(p, c.input.weaponId);
         movePlayer(p, c.input, dt);
         p.ads   = c.input.ads;                // recorded into the lag-comp snapshot

@@ -29,9 +29,12 @@ int main() {
     glm::vec3 shifted=eye+glm::vec3(.5,0,0);
     auto moved=glm::lookAt(shifted,target,{0,1,0});
     cache.capture(view,proj,eye,6);
-    CHECK(!cache.needsCapture(moved,proj,shifted));
+    CHECK(cache.needsCapture(moved,proj,shifted));
     CHECK(glm::distance(project(cache.captureVP,target),project(oldVP,target))==0);
     CHECK(glm::distance(project(proj*moved,{20,6,184}),project(oldVP,{20,6,184}))>.00001f);
+    cache.capture(view,proj,eye,6);
+    auto leaned=glm::rotate(view,glm::radians(1.0f),glm::vec3(0,0,1));
+    CHECK(cache.needsCapture(leaned,proj,eye));
     cache.invalidate();
     CHECK(cache.needsCapture(view,proj,eye));
     cache.capture(view,proj,eye,6);

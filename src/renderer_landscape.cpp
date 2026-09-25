@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 
-static constexpr int POND_W=640, POND_H=360;
+static constexpr int POND_W=512, POND_H=288;
 
 bool Renderer::initLandscape(const char* base) {
     char p[768],v[768],f[768];

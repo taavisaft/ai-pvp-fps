@@ -42,10 +42,12 @@ void vegBuildBroadleaf(std::vector<float>& v,std::vector<unsigned>& idx,int spec
         glm::vec3 vertical=glm::cross(lateral,direction);
         // Short shoots cannot support the same leaf mass as a long bough.
         float support=glm::clamp(glm::length(parentTip-parentRoot)/(size*.65f),.40f,1.0f);
-        int budget=low ? (species==1 ? 3 : 4) : (species==1 ? 14 : 18);
+        // The distant mesh keeps every leaf spray. Dropping sprays during a
+        // screen-door crossfade leaves holes that look like fading branches.
+        int budget=species==1 ? 14 : 18;
         int sprays=glm::max(2,int(budget*support+.5f));
         size*=.78f+.22f*support;
-        float cover=low ? 1.65f : 1.0f;
+        float cover=1.0f;
         // Stem locations measured in each atlas cell; V begins at the cut stem.
         const float stemU[]={.476f,.457f,.453f};
         float anchor=(stemU[species]-.012f)/.976f;

@@ -38,6 +38,7 @@ struct Fixture {
 
 static void cadence() {
     for (uint8_t weapon = 0; weapon < WEP_COUNT; ++weapon) {
+        if (weapon == WEP_KAR98) continue; // queued requests expire before a bolt cycles
         for (uint8_t mode = 0; mode < FIRE_MODE_COUNT; ++mode) {
             if (weaponDef(weapon).semiOnly && mode != FIRE_SEMI) continue;
             Fixture f(weapon, mode);
@@ -71,6 +72,25 @@ static void cadence() {
         CHECK(spam.fire.pendingCount() <= ServerFire::MAX_PENDING);
     }
     CHECK(spam.fire.shotsFired <= 17); // hostile request stream cannot exceed semi rate
+}
+
+static void kar98Cadence() {
+    Fixture f(WEP_KAR98);
+    CHECK(f.gs.players[0].mag == 5 && f.gs.players[0].reserve == 30);
+    f.send(1, 0);
+    CHECK(f.tick(0));
+    f.send(2, 0.1);
+    CHECK(!f.tick(0.1));
+    CHECK(!f.tick(0.5)); // old request expires; no delayed phantom shot
+    f.send(3, 1.22);
+    CHECK(f.tick(1.22));
+    CHECK(f.gs.players[0].mag == 3);
+    InputPacket p = f.packet;
+    p.fireMode = FIRE_AUTO;
+    CHECK(!validFireInput(p));
+    giveWeapon(f.gs.players[0], WEP_UZI);
+    giveWeapon(f.gs.players[0], WEP_KAR98);
+    CHECK(f.gs.players[0].mag == 3);
 }
 
 static void queueAndSerials() {
@@ -256,6 +276,7 @@ static void rewindRegression() {
 int main() {
     gTerrainMode = TERRAIN_OFF;
     cadence();
+    kar98Cadence();
     queueAndSerials();
     stateChanges();
     reloadAndFailures();

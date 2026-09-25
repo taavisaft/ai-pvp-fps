@@ -13,3 +13,13 @@ void Renderer::refreshWindowSize() {
     fbW=drawableW; fbH=drawableH;
     glViewport(0,0,fbW,fbH);
 }
+
+void Renderer::toggleFullscreen() {
+    const bool fullscreen = (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0;
+    const Uint32 mode = fullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP;
+    if (SDL_SetWindowFullscreen(window, mode) != 0) {
+        SDL_Log("SDL_SetWindowFullscreen: %s", SDL_GetError());
+        return;
+    }
+    refreshWindowSize();
+}

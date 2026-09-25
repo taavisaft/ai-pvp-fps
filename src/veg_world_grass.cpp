@@ -1,4 +1,5 @@
 #include "vegetation.h"
+#include "perf.h"
 #include "map.h"
 #include "meadow_density.h"
 #include "lobby_growth.h"
@@ -8,6 +9,7 @@
 // Refill only preallocated buffers. No container growth or GL object creation
 // occurs while walking. Tile-coordinate seeds survive eviction and revisits.
 void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
+    ScopedBuildTimer timer(BUILD_GRASS);
     GrassTile& tile=meadowTiles[slot];
     std::array<std::array<float,8>,MEADOW_CAPACITY> plants;
     int boxes[MAX_MAP_BOXES], boxCount=0, count=0;

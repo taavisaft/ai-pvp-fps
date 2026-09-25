@@ -63,6 +63,18 @@ void genShoot(std::vector<float>& b) {
     }
 }
 
+void genRifle(std::vector<float>& b) {
+    b = makeBuffer(0.42f);
+    float lp = 0.0f;
+    for (size_t i = 0; i < b.size(); ++i) {
+        float t = (float)i / SR;
+        lp += (noise() - lp) * 0.3f;
+        float crack = noise() * expf(-t * 55.0f);
+        float body = sinf(2.0f * (float)M_PI * 72.0f * t) * expf(-t * 12.0f);
+        b[i] = (crack * 0.45f + lp * expf(-t * 9.0f) * 0.3f + body * 0.45f) * 0.8f;
+    }
+}
+
 // Soft low thud.
 void genStep(std::vector<float>& b) {
     b = makeBuffer(0.08f);
@@ -172,6 +184,7 @@ bool Audio::init() {
         genShoot(gSounds[SND_SHOOT]);
     if (!loadWav("sounds/weapons/glock.wav", gSounds[SND_SHOOT_GLOCK]))
         genShoot(gSounds[SND_SHOOT_GLOCK]);
+    genRifle(gSounds[SND_SHOOT_KAR98]);
     genStep(gSounds[SND_STEP]);
     genDeath(gSounds[SND_DEATH]);
     genRespawn(gSounds[SND_RESPAWN]);
@@ -211,7 +224,8 @@ void audioPlay(SoundId id, float volume) {
 }
 
 SoundId weaponShootSound(uint8_t weaponId) {
-    return weaponId == WEP_GLOCK19 ? SND_SHOOT_GLOCK : SND_SHOOT;
+    return weaponId == WEP_KAR98 ? SND_SHOOT_KAR98 :
+           weaponId == WEP_GLOCK19 ? SND_SHOOT_GLOCK : SND_SHOOT;
 }
 
 void audioPlayAt(SoundId id, const glm::vec3& sourcePos, const glm::vec3& listenerPos,

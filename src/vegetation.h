@@ -109,7 +109,6 @@ struct Vegetation {
     };
     SpruceMesh trainingSpruce[TRAINING_TREE_TYPES];
     GLint locTrainingTree=-1, locTrainingTreeD=-1;
-    GLint locCoverage=-1, locImpCoverage=-1;
     bool initTrainingTrees(const char* base);
     void destroyTrainingTrees();
     enum TrainingPass { TRAINING_L0, TRAINING_L1, TRAINING_SHADOW, TRAINING_SHADOW_LOW, TRAINING_IMPOSTOR };

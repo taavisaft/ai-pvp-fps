@@ -66,14 +66,21 @@ inline constexpr WeaponDef GLOCK19 = {
     /*falloffMin*/    0.55f,
 };
 
-enum WeaponId : uint8_t { WEP_UZI = 0, WEP_GLOCK19 = 1, WEP_COUNT };
+// Kar98k — bolt-action rifle with a five-round internal magazine.
+inline constexpr WeaponDef KAR98 = {
+    "KAR98K", 760.0f, 4.0f, 85.0f, 5, 30, 3.2f,
+    1.2f, 1.2f, 1.2f, 1, true, 0.00022f,
+    180.0f, 700.0f, 0.75f,
+};
 
-inline const WeaponDef WEAPONS[WEP_COUNT] = { UZI, GLOCK19 };
+enum WeaponId : uint8_t { WEP_UZI = 0, WEP_GLOCK19 = 1, WEP_KAR98 = 2, WEP_COUNT };
+
+inline const WeaponDef WEAPONS[WEP_COUNT] = { UZI, GLOCK19, KAR98 };
 
 inline const WeaponDef& weaponDef(uint8_t id) {
     return WEAPONS[id < WEP_COUNT ? id : WEP_UZI];
 }
 
-// The local client's currently selected weapon (keys 1/2). Sent to the server,
+// The local client's currently selected weapon (keys 1/2/3). Sent to the server,
 // which is authoritative; offline it drives the practice weapon directly.
 inline uint8_t gWeaponId = WEP_UZI;

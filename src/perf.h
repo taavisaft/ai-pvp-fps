@@ -12,7 +12,6 @@ struct QualitySettings {
     QualityTier tier                = QUALITY_MED;
     const char* name                = "medium";
     int         shadowSize          = 2048;
-    int         msaaSamples         = 0;
     float       treeFade0           = 30.0f;
     float       treeL0End           = 42.0f;
     float       treeFade1           = 90.0f;
@@ -43,6 +42,7 @@ void          applyQuality(Renderer& r, const QualitySettings& q);
 
 enum RenderPass : uint8_t {
     PASS_SHADOW = 0,
+    PASS_REFLECTION,
     PASS_SKY,
     PASS_WORLD,
     PASS_WATER,
@@ -50,7 +50,18 @@ enum RenderPass : uint8_t {
     PASS_COUNT
 };
 
+enum BuildWork { BUILD_TERRAIN, BUILD_GRASS, BUILD_COUNT };
+struct ScopedBuildTimer {
+    explicit ScopedBuildTimer(BuildWork kind);
+    ~ScopedBuildTimer();
+    BuildWork kind;
+    uint64_t start=0;
+};
+
 struct FrameProfiler {
+    bool measureWork=false;
+    int builds[BUILD_COUNT]{};
+    float buildMs[BUILD_COUNT]{};
     float passMs[PASS_COUNT]     = {};  // exponential smooth
     float passMsRaw[PASS_COUNT]  = {};  // last frame
     float totalMsRaw             = 0.0f;

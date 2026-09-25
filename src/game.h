@@ -57,6 +57,8 @@ constexpr glm::vec3 GUN_HOLD_ADS = {0.00f, 0.54f, 0.21f};
 // Weapon: aim-down-sights vs hipfire (PUBG-style)
 constexpr float HIP_FOV        = 75.0f;  // degrees
 constexpr float ADS_FOV        = 55.0f;  // zoomed in
+// 8x angular magnification relative to the 75-degree hip view.
+constexpr float SCOPE_8X_FOV = 10.9576f;
 // The muzzle fires along the crosshair ray, so a stationary first shot is dead-on
 // at any range (minus drop). All inaccuracy comes from recoil and movement, not a
 // base cone, so both hip and ADS start at zero spread.
@@ -111,8 +113,8 @@ struct Player {
     int       reserve      = UZI.reservePerLife; // spare rounds (held weapon)
     // Per-weapon ammo so swapping preserves each gun's state instead of refilling.
     // mag/reserve above mirror the held weapon; the holstered weapons live here.
-    int       magW[WEP_COUNT]     = { UZI.magSize, GLOCK19.magSize };
-    int       reserveW[WEP_COUNT] = { UZI.reservePerLife, GLOCK19.reservePerLife };
+    int       magW[WEP_COUNT]     = { UZI.magSize, GLOCK19.magSize, KAR98.magSize };
+    int       reserveW[WEP_COUNT] = { UZI.reservePerLife, GLOCK19.reservePerLife, KAR98.reservePerLife };
     float     reloadTimer  = 0.0f;           // >0 while reloading (server sim)
     bool      reloading    = false;          // for HUD/clients (mirrors reloadTimer>0)
     int       kills        = 0;          // persists across respawns
@@ -155,14 +157,14 @@ struct InputState {
     float lean = 0.0f;             // smoothed lean -1 (left)..+1 (right), sent to server
     float yaw;
     float pitch;
-    uint8_t weaponId = WEP_UZI;    // selected weapon (1/2 keys), sent to server
+    uint8_t weaponId = WEP_UZI;    // selected weapon (1/2/3 keys), sent to server
     uint8_t fireMode = FIRE_SEMI;  // selected mode, validated by server
 };
 
 // Switch a player to weapon `id`: stash the held weapon's ammo, restore the
 // target weapon's saved ammo. No refill — swapping is not a faster reload.
 // A reload in progress is cancelled (it doesn't carry to the other gun).
-// Used on selection (1/2) and server adoption. Respawn resets via Player{}.
+// Used on selection (1/2/3) and server adoption. Respawn resets via Player{}.
 inline void giveWeapon(Player& p, uint8_t id) {
     if (id >= WEP_COUNT) id = WEP_UZI;
     if (id == p.weaponId) return;            // already holding it; no-op

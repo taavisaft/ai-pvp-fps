@@ -115,6 +115,9 @@ inline int buildPlayerPose(const glm::vec3& pos, float yaw, float pitch, float l
     if (weaponId == WEP_GLOCK19) {
         gun({0.0f,  0.00f, 0.10f}, {0.05f, 0.07f, 0.22f}, POSE_GUN_METAL);  // slide
         gun({0.0f, -0.10f, 0.04f}, {0.05f, 0.14f, 0.06f}, POSE_GUN_DARK);   // grip
+    } else if (weaponId == WEP_KAR98) {
+        gun({0.0f, 0.0f, 0.24f}, {0.09f, 0.12f, 0.90f}, POSE_GUN_METAL);
+        gun({0.0f, 0.15f, 0.18f}, {0.08f, 0.08f, 0.36f}, POSE_GUN_DARK);
     } else {                                                                // Uzi
         gun({0.0f,  0.02f, 0.16f}, {0.08f, 0.11f, 0.40f}, POSE_GUN_METAL);  // receiver + barrel
         gun({0.0f, -0.14f, 0.06f}, {0.05f, 0.22f, 0.05f}, POSE_GUN_DARK);   // magazine

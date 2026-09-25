@@ -5,11 +5,13 @@
 #include "uzi_mesh.h"
 #include "player_lod_mesh.h"
 #include "uzi_lod_mesh.h"
+#include "kar98_mesh.h"
 #include "texture.h"
 #include <cstdio>
+#include <cstdlib>
 #include <glm/gtc/matrix_transform.hpp>
 
-bool Renderer::init(const char* title, int w, int h, int msaaSamples) {
+bool Renderer::init(const char* title, int w, int h) {
     width = w;
     height = h;
 
@@ -20,20 +22,11 @@ bool Renderer::init(const char* title, int w, int h, int msaaSamples) {
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);   // planar mirror reflection mask
 
-    msaa = msaaSamples;
-    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, msaa > 0 ? 1 : 0);
-    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, msaa);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
     window = SDL_CreateWindow(title,
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h,
         SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI);
-    if (!window && msaa > 0) {
-        msaa = 0;
-        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
-        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
-        window = SDL_CreateWindow(title,
-            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h,
-            SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI);
-    }
     if (!window) {
         fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError());
         return false;
@@ -46,13 +39,19 @@ bool Renderer::init(const char* title, int w, int h, int msaaSamples) {
     }
     SDL_GL_SetSwapInterval(0);  // VSync off: uncapped frame rate
 
+#ifdef __APPLE__
+    // Desktop fullscreen keeps the display's native mode; ALLOW_HIGHDPI gives
+    // the OpenGL drawable its physical Retina pixel dimensions.
+    if (!getenv("FPS_WINDOWED") && SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP) != 0)
+        fprintf(stderr, "SDL_SetWindowFullscreen: %s\n", SDL_GetError());
+#endif
+
     if (!loadGLFunctions()) return false;
 
     refreshWindowSize();
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
-    if (msaa > 0) glEnable(GL_MULTISAMPLE);
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
 
     char base[512];
@@ -72,6 +71,13 @@ bool Renderer::init(const char* title, int w, int h, int msaaSamples) {
     if (!skyShader.load(skyv, skyf)) {
         if (!skyShader.load("shaders/sky.vert", "shaders/sky.frag")) return false;
     }
+    char scopef[600];
+    snprintf(scopef, sizeof(scopef), "%sshaders/scope.frag", base);
+    if (!scopeShader.load(skyv, scopef)) {
+        if (!scopeShader.load("shaders/sky.vert", "shaders/scope.frag")) return false;
+    }
+    scopeAspectLoc = glGetUniformLocation(scopeShader.program, "aspect");
+    scopeOpacityLoc = glGetUniformLocation(scopeShader.program, "opacity");
 
     char dpv[600], dpf[600];
     snprintf(dpv, sizeof(dpv), "%sshaders/depth.vert", base);
@@ -106,6 +112,7 @@ bool Renderer::init(const char* title, int w, int h, int msaaSamples) {
     if (!uziLod.create(WLOD_UZI_VERTS, sizeof(WLOD_UZI_VERTS) / sizeof(float),
                        WLOD_UZI_IDX, sizeof(WLOD_UZI_IDX) / sizeof(unsigned),
                        true, false, true)) return false;
+    if (!buildKar98Mesh(kar98)) return false;
     // Heightfield mesh: setMap must have run first (pads + terrain mode set) so the
     // mesh matches the ground the server simulates.
     // The 2 km taiga ground is chunk-built lazily (taigaTerrain); this single mesh
@@ -188,6 +195,8 @@ void Renderer::shutdown() {
     ground.destroy();
     stand.destroy();
     for (int i = 0; i < PART_COUNT; i++) playerPart[i].destroy();
+    scopeShader.destroy();
+    kar98.destroy();
     uzi.destroy();
     uziLod.destroy();
     for (int i = 0; i < PART_COUNT; i++) playerLod[i].destroy();

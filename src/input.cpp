@@ -6,6 +6,7 @@
 void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
     in.state.shoot      = false;
     in.wireframeToggle  = false;
+    in.fullscreenToggle = false;
     in.connectRequested = false;
     in.fireModeToggle   = false;
     in.clearRange       = false;
@@ -23,6 +24,12 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
 
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
+        if (e.type == SDL_KEYDOWN && !e.key.repeat &&
+            (e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_KP_ENTER) &&
+            (e.key.keysym.mod & KMOD_ALT)) {
+            in.fullscreenToggle = true;
+            continue;
+        }
         if (connectPrompt && connectPrompt->open) {
             switch (e.type) {
             case SDL_QUIT:
@@ -73,6 +80,7 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
             case SDLK_g:      in.clearRange      = true; break;
             case SDLK_1:      in.weaponSelect    = WEP_UZI;     break;
             case SDLK_2:      in.weaponSelect    = WEP_GLOCK19; break;
+            case SDLK_3:      in.weaponSelect    = WEP_KAR98;   break;
             case SDLK_h:      in.hitboxToggle    = true;        break;
             case SDLK_m:      in.mapToggle       = true;        break;
             case SDLK_j:      in.hudToggle       = true;        break;
@@ -101,8 +109,7 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
     }
 
     // Cycle weapon once when a scroll gesture starts. A trackpad/Magic-Mouse flick
-    // fires many wheel events with momentum; stepping per event would (with 2 guns)
-    // toggle an even number of times and net no change. Rising edge = one step/flick.
+    // fires many wheel events with momentum. Rising edge = one step/flick.
     static bool wheelWasActive = false;
     bool wheelActive = wheelAccum != 0.0f;
     if (wheelActive && !wheelWasActive && in.weaponSelect < 0) {

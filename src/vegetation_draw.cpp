@@ -57,9 +57,6 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     vegSh.setInt(vegSh.locShadowMap, 1);
     vegSh.setInt(vegSh.locUseShadow, 1);
     vegSh.setInt(locBake, 0);
-    const bool coverage = r.msaa > 0 && !r.reflectionPass;
-    vegSh.setInt(locCoverage, coverage ? 1 : 0);
-    if (coverage) glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     vegSh.setFloat(vegSh.locClipWater,r.reflectionPass ? TRAINING_POND_Y : 0);
     vegSh.setVec3(vegSh.locSunDir, r.sunDir);
     vegSh.setVec3(vegSh.locSunColor, r.sunColor);
@@ -103,7 +100,6 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     glUniform2f(locFadeOut, bushFade_, bushEnd_);
     drawStream(vaoBush, streamBush, bushIdx, bufBush);
 
-    if (coverage) glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     if(!r.reflectionPass) drawMeadow(r,fr,eye);
     glBindVertexArray(0);
 
@@ -111,8 +107,6 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     // always drawn somewhere, nothing appears out of thin air.
     {
         impSh.use();
-        impSh.setInt(locImpCoverage, coverage ? 1 : 0);
-        if (coverage) glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
         impSh.setFloat(impSh.locClipWater,r.reflectionPass ? TRAINING_POND_Y : 0);
         impSh.setMat4(impSh.locView, r.curView);
         impSh.setMat4(impSh.locProj, r.curProj);
@@ -135,7 +129,6 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
                 glUniform2f(locImpFadeIn, fade1, end1);
         glUniform2f(locImpFadeOut, treeImpFade_, treeImpEnd_);
         drawTrainingTreeStream(speciesImp,TRAINING_IMPOSTOR);
-        if (coverage) glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     }
 }
 
@@ -178,4 +171,3 @@ void Vegetation::drawShadow(const Frustum& sunFr, const glm::vec3& focus, float 
     drawStream(vaoBushShadow, streamBushShadow, bushIdx, bufBushShadow);
     // Grass receives world shadows in the lit pass, but does not cast them.
 }
-

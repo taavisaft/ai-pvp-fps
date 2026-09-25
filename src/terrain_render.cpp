@@ -1,4 +1,5 @@
 #include "terrain_render.h"
+#include "perf.h"
 #include "map.h"   // PALDISKI_HALF + terrainHeight
 
 constexpr float TerrainChunks::LOD_STEP[];
@@ -51,6 +52,7 @@ void TerrainChunks::draw(const Frustum& fr, const glm::vec3& eye, bool withVista
         // The coarse tier is cheap enough to build inline whenever it's missing —
         // it doubles as the instant fallback while finer tiers wait their turn.
         if (!c.built[LODS - 1]) {
+            ScopedBuildTimer timer(BUILD_TERRAIN);
             float mn, mx;
             createTerrainPatch(c.lod[LODS - 1], x0, z0, CHUNK_SIZE, CHUNK_SIZE, LOD_STEP[LODS - 1],
                                1.5f + LOD_STEP[LODS - 1] * 0.5f, terrainHeight, &mn, &mx);
@@ -60,6 +62,7 @@ void TerrainChunks::draw(const Frustum& fr, const glm::vec3& eye, bool withVista
         // Fine tiers: at most N expensive builds per frame; draw the best built
         // tier meanwhile (a one-frame-late LOD upgrade is invisible, a hitch isn't).
         if (want < LODS - 1 && !c.built[want] && builds < budget) {
+            ScopedBuildTimer timer(BUILD_TERRAIN);
             float step = want == 0 ? lod0Step(x0, z0) : LOD_STEP[want];
             createTerrainPatch(c.lod[want], x0, z0, CHUNK_SIZE, CHUNK_SIZE, step,
                                1.5f + step * 0.5f, terrainHeight);

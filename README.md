@@ -6,7 +6,7 @@
 
 An online first-person shooter built from scratch in **C++17**, using SDL2, OpenGL and raw UDP. No game engine.
 
-**16-player free-for-all** across Paldiski, a 2×2 km Baltic landscape. Fight with the Uzi and Glock 19, projectile ballistics, and an authoritative dedicated server. Players have **100 HP** and respawn after **3 seconds**. Practice offline or join an online match.
+**16-player free-for-all** across Paldiski, a 2×2 km Baltic landscape. Fight with the Uzi, Glock 19, and scoped Kar98k, projectile ballistics, and an authoritative dedicated server. Players have **100 HP** and respawn after **3 seconds**. Practice offline or join an online match.
 
 ![Golden hour in the training landscape](screenshot.jpg)
 
@@ -35,11 +35,18 @@ Offline practice spawns in a 2×2 km training landscape: shooting range at the o
 
 ```sh
 FPS_REF=meadow ./build/game          # fixed cameras: meadow|pond|canopy|range (training), shore|bog|forest|ridge|golden (Paldiski)
-FPS_MSAA=4 ./build/game              # 0|2|4; default 0 on low/medium, 4 on high (~+3 ms at 1440p)
 FPS_NOREFLECT=1 ./build/game         # pond mirror off, for comparisons
+FPS_BENCH_ROUTE=build/traversal.csv FPS_QUALITY=medium ./build/game
+# Native-resolution scripted pond approach, quick turns, forest traversal and scope cycles.
+# Writes per-frame CSV and prints p50/p95/p99/max; exits after all four scenarios.
+# FPS_BENCH_GPU=1 enables diagnostic GPU queries (substantial overhead on some drivers).
 ```
 
 You can also press **C** in-game to find and join a server. Multi-config builds place binaries under `build/Release/`.
+
+On macOS, the game starts in desktop fullscreen at the display's native Retina
+resolution. Press **Option+Return** to switch between fullscreen and the 1280×720
+window. Set `FPS_WINDOWED=1` to start windowed (useful for fixed-resolution benchmarks).
 
 ## Controls
 
@@ -50,13 +57,14 @@ You can also press **C** in-game to find and join a server. Multi-config builds 
 | Left Ctrl | Crouch |
 | Q / E | Lean left / right |
 | Left / right click | Fire / aim down sights |
-| 1 / 2 | Uzi / Glock 19 |
+| 1 / 2 / 3 | Uzi / Glock 19 / Kar98k (8× scope on right click) |
 | Scroll wheel | Cycle weapon |
 | R | Reload |
 | B | Cycle fire mode (Uzi: semi/burst/auto) |
 | Tab (hold) | Scoreboard |
 | C | Find and join a server |
 | M / J | Toggle map / HUD |
+| Option+Return | Toggle fullscreen |
 | K | Cycle atmosphere |
 | V | Toggle third-person view |
 | G | Clear bullet marks (offline) |

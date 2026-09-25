@@ -25,6 +25,7 @@ set(SHARED_SOURCES
 set(CLIENT_SOURCES
     src/main.cpp
     src/player_visual.cpp
+    src/kar98_mesh.cpp
     src/gl_loader.cpp
     src/shader.cpp
     src/font.cpp
@@ -51,6 +52,8 @@ set(CLIENT_SOURCES
     src/hud.cpp
     src/hud_panels.cpp
     src/perf.cpp
+    src/gpu_timing.cpp
+    src/traversal_benchmark.cpp
     src/camera.cpp
     src/input.cpp
     src/network.cpp
@@ -93,6 +96,9 @@ add_custom_command(TARGET game POST_BUILD
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(benchmark_route_tests tests/benchmark_route_tests.cpp)
+    target_include_directories(benchmark_route_tests PRIVATE src)
+    add_test(NAME benchmark_route COMMAND benchmark_route_tests)
     add_executable(pond_reflection_tests tests/pond_reflection_tests.cpp)
     target_include_directories(pond_reflection_tests PRIVATE src)
     target_link_libraries(pond_reflection_tests PRIVATE glm::glm)

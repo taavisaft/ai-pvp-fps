@@ -14,6 +14,7 @@ Current guide, reviewed against source on 2026-09-05. Build a realistic, perform
 - Keep each `.cpp` under 300 lines. Several inherited files exceed this limit; split touched responsibilities when appropriate rather than growing monoliths or doing unrelated cleanup.
 - Use `#pragma once` in headers and fixed-width types in wire packets.
 - Preserve user changes. Keep rendering and shared gameplay collision consistent.
+- Performance comes first. Flag substantial expected or measured frame-time costs before recommending or enabling visual features; show the cost in milliseconds and percent when measured.
 
 ## Current implementation
 
@@ -54,13 +55,14 @@ One build folder, always Release. Performance comparisons:
 ```sh
 FPS_REF=forest FPS_QUALITY=medium FPS_BENCH=1 ./build/game
 FPS_REF=meadow FPS_QUALITY=medium FPS_BENCH=1 ./build/game   # training: meadow|pond|canopy|range
+FPS_BENCH_ROUTE=build/traversal.csv FPS_QUALITY=medium ./build/game  # native-resolution camera traversal
 ```
 
 Multi-config generators put executables in their configuration subdirectory. See [README.md](README.md) for controls, dependencies, and debug commands.
 
 - Build both targets for shared gameplay/protocol changes. Bump the protocol version for wire-layout changes and world revision for deterministic world-generation changes.
 - Add focused headless regression proof for physics/network changes. Run `ctest --test-dir build --output-on-failure`; firing/client-epoch tests are headless, and the UDP integration test is included when Python3 is found. It launches its own temporary localhost server.
-- Compare identical quality, camera, drawable resolution, build type, and hardware for rendering work. Benchmark output is CPU submission/wait timing, not GPU pass time.
+- Compare identical quality, camera, drawable resolution, build type, and hardware for rendering work. Fixed-camera pass output is CPU submission/wait timing. The traversal benchmark supports opt-in asynchronous GPU queries with FPS_BENCH_GPU=1; these can substantially perturb frame time, so use the default untimed run for performance comparisons.
 - Exercise malformed/reordered/lost input and 16-client load before claiming online robustness. Existing latency simulation is a debug aid, not proof.
 - Do not reimplement finished starter stages or replace current shaders/packet structs with the historical examples.
 

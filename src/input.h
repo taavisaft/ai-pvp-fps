@@ -9,6 +9,7 @@ struct FrameInput {
     InputState state{};            // w/a/s/d held, shoot edge, yaw/pitch
     bool quit             = false;
     bool wireframeToggle  = false; // F pressed this frame
+    bool fullscreenToggle = false; // Option+Return pressed this frame
     bool connectRequested = false; // C pressed this frame
     bool scoreboardHeld   = false; // Tab held
     bool fireModeToggle   = false; // B pressed this frame

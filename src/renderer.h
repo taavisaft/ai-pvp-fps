@@ -38,6 +38,8 @@ struct Renderer {
     void drawPondReflection(const glm::mat4& view,const glm::mat4& proj,const glm::vec3& eye);
     void drawPond();
     Shader skyShader;    // fullscreen gradient sky + sun disk
+    Shader scopeShader;  // circular rifle optic mask and reticle
+    GLint scopeAspectLoc = -1, scopeOpacityLoc = -1;
     Shader depthShader;  // sun-POV depth pass for shadow mapping
     Shader texShader;    // textured HUD quad (satellite minimap)
     GLint  texUvCenterLoc = -1, texUvHalfLoc = -1;  // texShader custom uniforms
@@ -79,6 +81,7 @@ struct Renderer {
     void setShadowMapSize(int size);  // recreate sun shadow map (quality tier)
     Mesh   cube;     // unit cube, scaled per draw
     Mesh   ground;   // 100x100 quad at y=0 (water plane, scaled per draw)
+    Mesh   kar98;    // scoped bolt-action rifle, shared by both player views
     Mesh   terrain;        // small lobby heightfield (rebuilt on map switch)
     TerrainChunks taigaTerrain;  // chunked LOD 2 km ground + mountain vista
     Vegetation    veg;           // instanced grass + LOD spruce forest (taiga only)
@@ -97,8 +100,7 @@ struct Renderer {
 
     int    worldBuiltFor = -1;   // MapId the lazy caches (town/trees/props) were built for
 
-    bool  init(const char* title, int w, int h, int msaaSamples = 0);
-    int   msaa = 0;
+    bool  init(const char* title, int w, int h);
     float aspect() const;
     void  setTime(float t) { frameTime = t; }
     void  beginFrame(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& eye);
@@ -118,6 +120,7 @@ struct Renderer {
                                    float alpha);
     // Refresh logical/backing sizes after event polling, including monitor moves.
     void refreshWindowSize();
+    void toggleFullscreen();
     // Ground: chunked LOD taiga (+ vista in the lit pass) or the lobby mesh.
     void  drawTerrain(const Frustum& fr, const glm::vec3& eye);
     // Grass + trees for the taiga map, in whichever world pass is active (lit or
@@ -132,6 +135,7 @@ struct Renderer {
     void  drawWater();
     // HUD pass: depth off, blending on, coordinates in NDC [-1,1]
     void  beginHUD();
+    void  drawScope(float opacity);
     void  drawRect(const glm::vec2& center, const glm::vec2& size,
                    const glm::vec3& color, float alpha);
     // Like drawRect but rotated by angle (radians) about screen +Z. size is in
