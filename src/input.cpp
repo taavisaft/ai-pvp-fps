@@ -1,9 +1,12 @@
 #include "input.h"
 #include "camera.h"
+#include "settings_menu.h"
 #include "connect_prompt.h"
 #include <SDL.h>
 
-void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
+void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt, SettingsMenu* settings) {
+    bool menuCaptured = settings && settings->open;
+    static bool suppressMouseUntilRelease=false;
     in.state.shoot      = false;
     in.wireframeToggle  = false;
     in.fullscreenToggle = false;
@@ -31,6 +34,12 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
             in.fullscreenToggle = true;
             continue;
         }
+        if(settings && settings->open) {
+            settings->event(e,cam,in);
+            menuCaptured=true;
+            continue;
+        }
+        if(menuCaptured) { if(e.type==SDL_QUIT) in.quit=true; continue; }
         if (connectPrompt && connectPrompt->open) {
             switch (e.type) {
             case SDL_QUIT:
@@ -74,7 +83,10 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
         case SDL_KEYDOWN:
             if (e.key.repeat) break;
             switch (e.key.keysym.sym) {
-            case SDLK_ESCAPE: in.quit = true; break;
+            case SDLK_ESCAPE:
+                if(settings) { settings->setOpen(true); menuCaptured=true; }
+                else in.quit=true;
+                break;
             case SDLK_f:      in.wireframeToggle = true; break;
             case SDLK_c:      in.connectRequested = true; break;
             case SDLK_b:      in.fireModeToggle  = true; break;
@@ -120,8 +132,13 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
     }
     wheelWasActive = wheelActive;
 
-    if (connectPrompt && connectPrompt->open) {
+    if (menuCaptured || (connectPrompt && connectPrompt->open)) {
+        bool quit=in.quit, fullscreen=in.fullscreenToggle;
+        in=FrameInput{}; in.quit=quit; in.fullscreenToggle=fullscreen;
+        suppressMouseUntilRelease=true;
         in.state = InputState{};
+        in.state.yaw=cam.aimYaw();
+        in.state.pitch=cam.aimPitch();
         in.scoreboardHeld = false;
         return;
     }
@@ -138,6 +155,10 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt) {
     in.state.leanLeft  = keys[SDL_SCANCODE_Q];
     in.state.leanRight = keys[SDL_SCANCODE_E];
     Uint32 mouse = SDL_GetMouseState(nullptr, nullptr);
+    if(suppressMouseUntilRelease) {
+        suppressMouseUntilRelease=(mouse & (SDL_BUTTON(SDL_BUTTON_LEFT)|SDL_BUTTON(SDL_BUTTON_RIGHT)))!=0;
+        mouse=0; in.state.shoot=false;
+    }
     in.state.ads       = (mouse & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
     in.state.shootHeld = (mouse & SDL_BUTTON(SDL_BUTTON_LEFT))  != 0;
     in.scoreboardHeld = keys[SDL_SCANCODE_TAB];

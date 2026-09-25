@@ -27,5 +27,10 @@ int main() {
           "small events accumulate without truncation");
     scope.pitch=88.99f; scope.addLook(0,-1000);
     check(scope.pitch==89,"pitch remains clamped");
+    Camera custom; custom.yaw=0; custom.lookSensitivity=2; custom.adsSensitivity=.5f;
+    custom.addLook(1,0);
+    check(std::fabs(custom.yaw-.2f)<1e-6f,"ADS multiplier leaves hip aim unchanged");
+    custom.yaw=0; custom.fov=SCOPE_8X_FOV; custom.invertY=true; custom.addLook(1,1);
+    check(std::fabs(custom.yaw-.0125f)<1e-6f && custom.pitch>0,"custom sensitivity and invert Y apply while scoped");
     return failures ? 1 : 0;
 }

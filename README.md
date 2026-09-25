@@ -71,6 +71,8 @@ window. Set `FPS_WINDOWED=1` to start windowed (useful for fixed-resolution benc
 | G | Clear bullet marks (offline) |
 | H / F | Toggle hitboxes / wireframe (debug) |
 | F6 | Toggle 15 roaming practice players (offline only) |
-| Esc | Quit |
+| Esc | Settings / resume (mouse and ADS sensitivity, invert Y, fullscreen, quit) |
 
 [Roadmap](TODO.md) · [Development notes](docs/development.md) · [Contributing](AGENTS.md)
+
+Aim settings are saved locally when you close the settings menu. Use arrow keys or click the rows; the match continues while the menu is open.

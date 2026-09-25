@@ -5,6 +5,9 @@ struct Camera {
     float     yaw   = -90.0f;  // degrees; -90 looks down -Z (player mouse aim)
     float     pitch = 0.0f;    // degrees, clamped [-89, 89] (player mouse aim)
     float     fov   = 75.0f;   // vertical FOV, narrowed when aiming
+    float lookSensitivity = 1.0f;
+    float adsSensitivity = 1.0f;
+    bool invertY = false;
     glm::vec3 eye   = {0.0f, 1.7f, 0.0f};
 
     // Recoil offset added on top of the mouse aim; the sum is what's rendered and

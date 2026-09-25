@@ -9,9 +9,10 @@ void Camera::addLook(float xrel, float yrel) {
     // Match movement near the reticle across zoom levels, including ADS transitions.
     // Keep fractional degrees: at 8x one mouse count must turn only 1/8 as far.
     static const float hipTangent = tanf(glm::radians(HIP_FOV * 0.5f));
-    const float sensitivity = SENSITIVITY * tanf(glm::radians(fov * 0.5f)) / hipTangent;
+    const float adsBlend = glm::clamp((HIP_FOV-fov)/(HIP_FOV-ADS_FOV),0.0f,1.0f);
+    const float sensitivity = SENSITIVITY * lookSensitivity * glm::mix(1.0f,adsSensitivity,adsBlend) * tanf(glm::radians(fov * 0.5f)) / hipTangent;
     yaw   += xrel * sensitivity;
-    pitch -= yrel * sensitivity;
+    pitch -= yrel * sensitivity * (invertY ? -1.0f : 1.0f);
     if (pitch >  89.0f) pitch =  89.0f;
     if (pitch < -89.0f) pitch = -89.0f;
 }

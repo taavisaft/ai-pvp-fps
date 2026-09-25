@@ -28,6 +28,7 @@
 #include "perf.h"
 #include "traversal_benchmark.h"
 #include "practice_runners.h"
+#include "settings_menu.h"
 #include "app_resources.h"
 
 static const glm::vec3 COLOR_ENEMY        = {0.80f, 0.30f, 0.20f};
@@ -138,7 +139,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
                         const HudState& hud, bool scoreboard, bool online,
                         const ViewModel& vm,
                         const Decal* decals, int decalCount,
-                        const ConnectPrompt& connectPrompt, const Lobby& lobby,
+                        const ConnectPrompt& connectPrompt, const Lobby& lobby, const SettingsMenu& settings,
                         const float* walkPhase, const float* walkAmp,
                         const float* crouchAnim, const float* adsAnim,
                         bool showHitboxes, bool fullMap, bool showHud,
@@ -233,6 +234,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     }
     if (!diagOnce) printf("[diag] G: connect prompt\n");
     drawConnectPrompt(r, connectPrompt, lobby);
+    settings.draw(r,cam);
     if (!diagOnce) { printf("[diag] H: endFrame\n"); diagOnce = true; }
     gProfiler.endFrame();
     r.endFrame();
@@ -323,6 +325,9 @@ int main(int argc, char** argv) {
     const float PRED_SMOOTH_TAU = 0.08f;  // correction half-life (~smoothing window)
 
     Camera cam;
+    SettingsMenu settings;
+    settings.load(cam);
+    if(getenv("FPS_SETTINGS")) settings.setOpen(true);
 
     // Enter (or re-enter) offline practice on `offlineMap`: place self + dummy on
     // the map's first spawn and face the dummy (lobby: down the firing line).
@@ -454,7 +459,7 @@ int main(int argc, char** argv) {
     };
 
     printf("controls: WASD move, mouse look, LMB shoot, RMB aim, Q/E lean, 1/2/3 or scroll weapon "
-           "(Uzi/Glock/Kar98), C connect, V third-person, K atmosphere, F wireframe, H hitboxes, J toggle HUD, ESC quit\n");
+           "(Uzi/Glock/Kar98), C connect, V third-person, K atmosphere, F wireframe, H hitboxes, J toggle HUD, ESC settings\n");
     printf("lobby: shooting range + meadow landscape; press C to join a server (Paldiski)\n");
 
     const char* shotFrameEnv = getenv("FPS_SHOT_FRAME");
@@ -471,7 +476,7 @@ int main(int argc, char** argv) {
         }
         if (dt > 0.05f) dt = 0.05f;   // cap to avoid spiral
 
-        pollInput(input, cam, &connectPrompt);
+        pollInput(input, cam, &connectPrompt, &settings);
         if(traversal.enabled()) { bool quit=input.quit; input=FrameInput{}; input.quit=quit; }
         if (input.fullscreenToggle) renderer.toggleFullscreen();
         renderer.refreshWindowSize();
@@ -951,7 +956,7 @@ int main(int argc, char** argv) {
         traversal.beforeRender(renderer,cam,vm,hud);
         Uint64 renderStart = SDL_GetPerformanceCounter();
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
-                    decals, decalCount, connectPrompt, lobby, walkPhase, walkAmp,
+                    decals, decalCount, connectPrompt, lobby, settings, walkPhase, walkAmp,
                     crouchAnim, adsAnim, showHitboxes, fullMap, showHud, thirdPerson, ragdolls);
         float renderMs = (float)(SDL_GetPerformanceCounter() - renderStart) * 1000.0f /
                          (float)SDL_GetPerformanceFrequency();

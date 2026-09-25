@@ -24,6 +24,7 @@ set(SHARED_SOURCES
 
 set(CLIENT_SOURCES
     src/main.cpp
+    src/settings_menu.cpp
     src/random_runner.cpp
     src/practice_runners.cpp
     src/player_visual.cpp

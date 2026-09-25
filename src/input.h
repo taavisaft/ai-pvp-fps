@@ -2,6 +2,7 @@
 #include "game.h"
 
 struct Camera;
+struct SettingsMenu;
 struct ConnectPrompt;
 
 // Per-frame input snapshot + edge-triggered events
@@ -28,4 +29,4 @@ struct FrameInput {
 
 // Polls all pending SDL events. Updates camera look from mouse motion,
 // fills FrameInput. shoot is true only on the frame the button was pressed.
-void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt = nullptr);
+void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt = nullptr, SettingsMenu* settings = nullptr);
