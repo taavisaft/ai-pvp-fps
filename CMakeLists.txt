@@ -103,6 +103,11 @@ if(BUILD_TESTING)
     target_include_directories(camera_look_tests PRIVATE src)
     target_link_libraries(camera_look_tests PRIVATE glm::glm)
     add_test(NAME camera_look COMMAND camera_look_tests)
+    add_executable(connect_prompt_input_tests tests/connect_prompt_input_tests.cpp
+        src/input.cpp src/camera.cpp)
+    target_include_directories(connect_prompt_input_tests PRIVATE src)
+    target_link_libraries(connect_prompt_input_tests PRIVATE SDL2::SDL2 glm::glm)
+    add_test(NAME connect_prompt_input COMMAND connect_prompt_input_tests)
     add_executable(practice_runners_tests tests/practice_runners_tests.cpp
         src/practice_runners.cpp src/random_runner.cpp src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp)
     target_include_directories(practice_runners_tests PRIVATE src)

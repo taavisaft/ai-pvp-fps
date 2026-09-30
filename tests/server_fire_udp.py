@@ -87,6 +87,12 @@ def main():
                 break
         else:
             raise RuntimeError('No handshake')
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as browser:
+            browser.settimeout(1)
+            browser.sendto(bytes([8]), address)  # PKT_QUERY from the game list
+            info = browser.recv(1500)
+            check(len(info) == 20 and info[:4] == bytes([9, 0, 1, 16]),
+                  f'Game-list probe returned invalid server info: {info[:4]!r}')
         initial = wait(lambda s: s['epoch'] != 0)
         epoch = initial['epoch']
         send(20, epoch)  # previously emptied 20 rounds in less than 450 ms

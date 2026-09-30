@@ -134,7 +134,16 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt, Settin
 
     if (menuCaptured || (connectPrompt && connectPrompt->open)) {
         bool quit=in.quit, fullscreen=in.fullscreenToggle;
-        in=FrameInput{}; in.quit=quit; in.fullscreenToggle=fullscreen;
+        bool promptActive = !menuCaptured && connectPrompt && connectPrompt->open;
+        bool submit = promptActive && in.connectSubmit;
+        bool up = promptActive && in.promptUp;
+        bool down = promptActive && in.promptDown;
+        in=FrameInput{};
+        in.quit=quit;
+        in.fullscreenToggle=fullscreen;
+        in.connectSubmit=submit;
+        in.promptUp=up;
+        in.promptDown=down;
         suppressMouseUntilRelease=true;
         in.state = InputState{};
         in.state.yaw=cam.aimYaw();
