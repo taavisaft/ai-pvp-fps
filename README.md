@@ -19,35 +19,27 @@ Requires CMake 3.20+, a C++17 compiler, SDL2 and OpenGL. On macOS: `brew install
 ```sh
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
-./build/game                         # offline practice
-FPS_RUNNERS=1 ./build/game           # you + 15 random runners (16 players total)
+./build/game                         # test lobby
 ```
 
-For multiplayer, start a server and connect using its IP:
+The game always starts in the offline test lobby: a 2×2 km training landscape
+with a shooting range, meadow, pond and wooded hills. All new practice features
+are available here without launch flags.
+
+To play Paldiski online, start the dedicated server:
 
 ```sh
-./build/server                      # UDP port 7777
-./build/game 127.0.0.1
+./build/server                       # Paldiski, UDP port 7777
 ```
 
-Walk Paldiski offline with `FPS_MAP=paldiski ./build/game`. `FPS_NOMEADOW=1` disables grass for performance comparisons.
-
-Offline practice spawns in a 2×2 km training landscape: shooting range at the origin, meadow, pond and wooded hills to the north.
-
-```sh
-FPS_REF=meadow ./build/game          # fixed cameras: meadow|pond|canopy|range (training), shore|bog|forest|ridge|golden (Paldiski)
-FPS_NOREFLECT=1 ./build/game         # pond mirror off, for comparisons
-FPS_BENCH_ROUTE=build/traversal.csv FPS_QUALITY=medium ./build/game
-# Native-resolution scripted pond approach, quick turns, forest traversal and scope cycles.
-# Writes per-frame CSV and prints p50/p95/p99/max; exits after all four scenarios.
-# FPS_BENCH_GPU=1 enables diagnostic GPU queries (substantial overhead on some drivers).
-```
-
-You can also press **C** in-game to find and join a server. Multi-config builds place binaries under `build/Release/`.
+In the game, press **C**, confirm the pre-filled `127.0.0.1` for a local server
+(or enter another host), then select the server and connect. Disconnecting returns
+you to the test lobby. These are the game's two maps: the lobby and Paldiski.
+Multi-config builds place binaries under `build/Release/`.
 
 On macOS, the game starts in desktop fullscreen at the display's native Retina
-resolution. Press **Option+Return** to switch between fullscreen and the 1280×720
-window. Set `FPS_WINDOWED=1` to start windowed (useful for fixed-resolution benchmarks).
+resolution. Press **Option+Return** to switch to a window, or use the settings menu.
+Press **F6** in the lobby to toggle 15 roaming practice players.
 
 ## Controls
 

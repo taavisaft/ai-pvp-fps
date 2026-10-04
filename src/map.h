@@ -2,7 +2,6 @@
 #include <glm/glm.hpp>
 #include <cmath>
 #include <cstdint>
-#include <cstring>
 #include "terrain.h"
 #include "stand_col.h"
 #include "forest_site.h"
@@ -22,7 +21,7 @@ struct Box {
 
 // MAP_LOBBY is the client-only offline sandbox (flat pad, shooting range, test
 // cover) you sit in until you press C and pick a server. It is NOT a server map:
-// mapFromName never returns it and no server runs it — only real maps precede it.
+// no server runs it — Paldiski is the dedicated server map.
 enum MapId { MAP_PALDISKI = 0, MAP_LOBBY, MAP_COUNT_ };
 constexpr int MAP_COUNT = MAP_COUNT_;   // sizes client arrays (incl. the lobby)
 
@@ -121,15 +120,6 @@ inline float      gArenaHalf   = PALDISKI_HALF;   // hard clamp on X/Z
 // Half-extent (meters) the top-down map view / satellite texture covers. Shared by
 // the renderer's texture bake and the HUD full-map draw so image + overlays register.
 inline float mapViewHalf() { return gArenaHalf; }
-
-// Parse an FPS_MAP env string to a MapId. Shared by server + client so both honor
-// the same names. Returns `fallback` for null/unknown. One name today; future maps
-// add theirs here.
-inline MapId mapFromName(const char* s, MapId fallback) {
-    if (!s) return fallback;
-    if (strcmp(s, "paldiski") == 0) return MAP_PALDISKI;
-    return fallback;
-}
 
 inline void setMap(MapId id) {
     gMapId = id;

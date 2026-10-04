@@ -1,5 +1,6 @@
 #include "vegetation.h"
 #include "texture.h"
+#include "map.h"
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -42,6 +43,7 @@ bool Vegetation::initTrainingTrees(const char* base) {
         printf("[veg] training tree %s: %d triangles, low %d\n",TRAINING_TREE_NAMES[type],
                mesh.count/3,mesh.lowCount/3);
         if(!vegBakeImpostor(*this,256,512,type)) return false;
+        if(type>=4 && !vegBakeImpostor(*this,256,512,type,true)) return false;
     }
     return true;
 }
@@ -63,11 +65,13 @@ void Vegetation::drawTrainingTreeStream(const SpeciesStaging& staging,TrainingPa
         if(buf.empty()) continue;
         const auto& mesh=trainingSpruce[type];
         GLsizei count=(GLsizei)(buf.size()/8);
+        if (!shadow) glUniform1i(pass == TRAINING_IMPOSTOR ? locImpStableBroadleaf : locStableBroadleaf,
+                                 gMapId == MAP_LOBBY && type >= 4 ? 1 : 0);
         glBindBuffer(GL_ARRAY_BUFFER,streams[pass]);
         glBufferData(GL_ARRAY_BUFFER,buf.size()*sizeof(float),buf.data(),GL_STREAM_DRAW);
         if(pass==TRAINING_IMPOSTOR) {
             glUniform2f(locImpSize,trainingTreeWidth(type),1.10f);
-            glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D,mesh.impostor);
+            glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D,gMapId==MAP_LOBBY && type>=4 ? mesh.lobbyImpostor : mesh.impostor);
             glActiveTexture(GL_TEXTURE0); glBindVertexArray(vaoImp);
             glDrawArraysInstanced(GL_TRIANGLE_STRIP,0,4,count);
             continue;
@@ -79,6 +83,7 @@ void Vegetation::drawTrainingTreeStream(const SpeciesStaging& staging,TrainingPa
         glBindVertexArray(mesh.vao[pass]);
         glDrawElementsInstanced(GL_TRIANGLES,low ? mesh.lowCount : mesh.count,GL_UNSIGNED_INT,nullptr,count);
     }
+    if (!shadow) glUniform1i(pass == TRAINING_IMPOSTOR ? locImpStableBroadleaf : locStableBroadleaf, 0);
     glBindVertexArray(0);
 }
 
@@ -94,6 +99,7 @@ void Vegetation::destroyTrainingTrees() {
         for(auto& vao:mesh.vao) if(vao) glDeleteVertexArrays(1,&vao);
         for(GLuint buffer:{mesh.vbo,mesh.ebo,mesh.lowVbo,mesh.lowEbo}) if(buffer) glDeleteBuffers(1,&buffer);
         if(mesh.impostor) glDeleteTextures(1,&mesh.impostor);
+        if(mesh.lobbyImpostor) glDeleteTextures(1,&mesh.lobbyImpostor);
         mesh=SpruceMesh{};
     }
     if(trainingBranchTex) glDeleteTextures(1,&trainingBranchTex);

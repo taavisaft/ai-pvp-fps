@@ -20,7 +20,7 @@ inline int trainingTreeType(float x,float z) {
     uint32_t tree=trainingTreeHash(int32_t(floorf(x*8)),int32_t(floorf(z*8)));
     if(z>75 && fabsf(x)<90) {
         if(x<-30 && z<200) return 0;
-        return 4+int((tree/10)%3);
+        return 4+2*int((tree/10)%2); // lobby leafy mix: ash or oak, no white birch
     }
     uint32_t stand=trainingTreeHash(int32_t(floorf(x/40))+911,int32_t(floorf(z/40))-577);
     uint32_t pick=tree%4==0 ? tree/16 : stand;
@@ -28,7 +28,7 @@ inline int trainingTreeType(float x,float z) {
     float t=fminf(1.0f,fmaxf(0.0f,(reach-250.0f)/270.0f));
     float conifer=.30f+.55f*t*t*(3-2*t);
     if(float(pick%1000)*.001f<conifer) return int((pick/1000)%4);
-    return 4+int((pick/1000)%3);
+    return 4+2*int((pick/1000)%2);
 }
 inline int taigaTreeType(float x,float z,float forest) {
     uint32_t tree=trainingTreeHash(int32_t(floorf(x*8)),int32_t(floorf(z*8)));

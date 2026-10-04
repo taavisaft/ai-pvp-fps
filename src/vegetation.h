@@ -92,6 +92,7 @@ struct Vegetation {
     Shader vegDepthSh;   // instanced sun-depth pass (tree LOD0 shadow casters)
     // Custom uniforms not covered by Shader's standard cache:
     GLint locWind = -1, locRange = -1, locFadeIn = -1, locFadeOut = -1, locBake = -1;
+    GLint locStableBroadleaf = -1, locImpStableBroadleaf = -1;
     GLint locWindD = -1;                       // vegDepthSh windAmp
     GLint locImpSize = -1, locImpFadeIn = -1, locImpFadeOut = -1;  // impSh
 
@@ -104,7 +105,7 @@ struct Vegetation {
     GLuint  vaoBush = 0, vaoBushShadow = 0;
     GLuint trainingBranchTex=0,trainingBroadleafTex=0;
     struct SpruceMesh {
-        GLuint vbo=0,ebo=0,lowVbo=0,lowEbo=0,vao[4]{},impostor=0;
+        GLuint vbo=0,ebo=0,lowVbo=0,lowEbo=0,vao[4]{},impostor=0,lobbyImpostor=0;
         GLsizei count=0,lowCount=0;
     };
     SpruceMesh trainingSpruce[TRAINING_TREE_TYPES];
@@ -152,7 +153,7 @@ struct Vegetation {
 void   vegBuildTrainingMeadow(std::vector<float>& v, std::vector<unsigned>& idx, bool far);
 void   vegBuildBush(std::vector<float>& v, std::vector<unsigned>& idx);
 GLuint vegMakeVAO(GLuint vbo, GLuint ebo, GLuint inst);   // 10-float verts + stream
-bool   vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType);
+bool   vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType, bool lobbyAtlas=false);
 // GLSL-mirror of basic.frag's fbm (same float math) so CPU placement masks agree
 // with the shader's dirt-field / dry-patch regions.
 float  vegFbm(float x, float y);

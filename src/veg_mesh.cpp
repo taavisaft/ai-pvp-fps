@@ -122,13 +122,14 @@ GLuint vegMakeVAO(GLuint vbo, GLuint ebo, GLuint inst) {
 
 // Render the LOD0 spruce once into a texture — the far-tree billboard. Bake is
 // raw albedo (veg.frag bake=1); the impostor shader lights it at draw time.
-bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType) {
-    GLuint& texture=veg.trainingSpruce[trainingType].impostor;
+bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType, bool lobbyAtlas) {
+    GLuint& texture=lobbyAtlas ? veg.trainingSpruce[trainingType].lobbyImpostor : veg.trainingSpruce[trainingType].impostor;
+    const int views=lobbyAtlas ? 8 : 1;
     const glm::vec2 size(trainingTreeWidth(trainingType),1.10f);
     GLuint fbo = 0, depthRb = 0;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, texW, texH, 0, GL_RGBA,
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, texW*views, texH, 0, GL_RGBA,
                  GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -140,7 +141,7 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType) {
     glGenFramebuffers(1, &fbo);
     glGenRenderbuffers(1, &depthRb);
     glBindRenderbuffer(GL_RENDERBUFFER, depthRb);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, texW, texH);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, texW*views, texH);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
                            texture, 0);
@@ -148,7 +149,7 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType) {
                               depthRb);
     bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
     if (ok) {
-        glViewport(0, 0, texW, texH);
+        glViewport(0, 0, texW*views, texH);
         // Background: needle green at alpha 0, so linear filtering at the cutout
         // edge blends toward foliage instead of black fringes.
         glClearColor(0.08f, 0.13f, 0.07f, 0.0f);
@@ -183,7 +184,14 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType) {
         glBindBuffer(GL_ARRAY_BUFFER, veg.streamL0);
         glBufferData(GL_ARRAY_BUFFER, sizeof(inst), inst, GL_STREAM_DRAW);
         glBindVertexArray(veg.trainingSpruce[trainingType].vao[0]);
-        glDrawElementsInstanced(GL_TRIANGLES, veg.trainingSpruce[trainingType].count, GL_UNSIGNED_INT, nullptr, 1);
+        for(int direction=0; direction<views; ++direction) {
+            float angle=direction*6.2831853f/views;
+            glm::vec3 camera(4*cosf(angle),.55f,4*sinf(angle));
+            view=glm::lookAt(camera,glm::vec3(0,.55f,0),glm::vec3(0,1,0));
+            veg.vegSh.setMat4(veg.vegSh.locView,view);
+            glViewport(direction*texW,0,texW,texH);
+            glDrawElementsInstanced(GL_TRIANGLES, veg.trainingSpruce[trainingType].count, GL_UNSIGNED_INT, nullptr, 1);
+        }
         glBindVertexArray(0);
 
         veg.vegSh.setInt(veg.locBake, 0);

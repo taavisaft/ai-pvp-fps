@@ -64,6 +64,8 @@ bool Vegetation::init(const char* base, GLuint shadow) {
     locWindD   = glGetUniformLocation(vegDepthSh.program, "windAmp");
     locMeadowEye = glGetUniformLocation(vegDepthSh.program,"grassEye");
     locMeadowRange = glGetUniformLocation(vegDepthSh.program,"grassRange");
+    locStableBroadleaf = glGetUniformLocation(vegSh.program, "stableBroadleaf");
+    locImpStableBroadleaf = glGetUniformLocation(impSh.program, "stableBroadleaf");
     locImpSize    = glGetUniformLocation(impSh.program, "impSize");
     locImpFadeIn  = glGetUniformLocation(impSh.program, "fadeIn");
     locImpFadeOut = glGetUniformLocation(impSh.program, "fadeOut");

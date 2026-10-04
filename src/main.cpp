@@ -1,5 +1,4 @@
-// Client: starts in training mode (offline) by default. Auto-connects only with
-// `./game <ip>`. Press C for an in-game IP prompt (127.0.0.1 pre-filled).
+// Client: ./build/game starts in the test lobby. Press C to join a server in-game.
 #include <SDL.h>
 #include <cstdio>
 #include <cstdlib>
@@ -263,7 +262,7 @@ static void dumpFrame(const Renderer& r, const char* path) {
 
 static const char* DEFAULT_SERVER_IP = "127.0.0.1";
 
-int main(int argc, char** argv) {
+int main() {
     if (!prepareAppResources()) return 1;
     setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffered so logs flush when piped to a file
     platformSocketInit();
@@ -279,9 +278,8 @@ int main(int argc, char** argv) {
     // Offline you sit in the LOBBY (flat test range) until you press C and join a
     // server. setMap must run BEFORE the renderer: the Paldiski heightfield mesh is
     // baked at init (pads must exist), even though the lobby draws a flat quad.
-    // FPS_MAP=paldiski forces the real map offline (debug/screenshots).
     setMap(MAP_PALDISKI);                 // generate pads for the terrain-mesh bake
-    MapId offlineMap = mapFromName(getenv("FPS_MAP"), MAP_LOBBY);
+    MapId offlineMap = MAP_LOBBY;
 
     Renderer renderer;
     const QualitySettings quality = qualityFromEnv();
@@ -386,15 +384,7 @@ int main(int argc, char** argv) {
     FrameInput input;
 
 
-    // Default: training mode (offline). Only auto-connect when an IP arg is given;
-    // otherwise press C to connect to a server.
-    if (argc > 1 && !traversal.enabled()) {
-        printf("connecting to %s...\n", argv[1]);
-        if (!net.connect(argv[1]))
-            printf("connect failed — training mode\n");
-    } else {
-        printf("training mode — press C to connect to a server\n");
-    }
+    printf("test lobby — press C to connect to a Paldiski server\n");
 
     const float FIXED_DT    = 1.0f / PHYS_HZ;
     float       accumulator = 0.0f;

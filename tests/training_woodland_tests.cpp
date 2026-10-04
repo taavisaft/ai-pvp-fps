@@ -37,6 +37,13 @@ int main() {
         vegBuildBroadleaf(low,lowIdx,species,true);
         CHECK(checkTreeAttachments(low,lowIdx,species)==0);
         CHECK(lowIdx.size()<idx.size());
+        // The lobby's single mesh must retain every near-mesh leaf spray.
+        std::vector<float> nearLeaves, farLeaves;
+        for(size_t i=0;i<v.size();i+=12) if(v[i+10]>=0)
+            nearLeaves.insert(nearLeaves.end(),v.begin()+i,v.begin()+i+12);
+        for(size_t i=0;i<low.size();i+=12) if(low[i+10]>=0)
+            farLeaves.insert(farLeaves.end(),low.begin()+i,low.begin()+i+12);
+        CHECK(nearLeaves==farLeaves);
         // The proof must reject the old failure: a displaced, unsupported card.
         for(size_t i=0;i<v.size();i+=12) if(v[i+10]>=0) {
             for(size_t j=i;j<i+6*12;j+=12) v[j]+=1.0f;
@@ -50,11 +57,13 @@ int main() {
     for(int x=-900;x<=900;x+=7) for(int z=-900;z<=900;z+=7) {
         int type=trainingTreeType(float(x),float(z));
         CHECK(type>=0 && type<TRAINING_TREE_TYPES);
+        CHECK(type!=5); // white-trunk birch is excluded from the lobby
         if(type>=0 && type<TRAINING_TREE_TYPES) ++counts[type];
         sameNeighbour+=type==trainingTreeType(x+5.0f,z+3.0f); ++samples;
         if(abs(z)>600) { farSpruce+=type<4; ++farSamples; }
     }
-    for(int n:counts) CHECK(n>1000);
+    for(int type=0;type<TRAINING_TREE_TYPES;++type)
+        CHECK(type==5 ? counts[type]==0 : counts[type]>1000);
     CHECK(sameNeighbour*2>samples);
     CHECK(farSpruce*10>farSamples*7);
     for(int z=80;z<200;z+=5) CHECK(trainingTreeType(-50,float(z))==0);

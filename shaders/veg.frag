@@ -88,6 +88,8 @@ float canopyAccess() {
     return mix(.20,1.0,smoothstep(.22,1.05,length(q)));
 }
 
+uniform int stableBroadleaf;
+#include "broadleaf_light.glsl"
 uniform float clipWater;
 void main() {
     if(clipWater>0.0 && worldPos.y<clipWater) discard;
@@ -151,6 +153,10 @@ void main() {
         vec3 needleSun=sunColor*(diffuse*visible*mix(.35,1.0,access)+transmitted)*cloud;
         // Interior foliage receives less sky fill and less direct/transmitted sun.
         lit3=albedo*(needleSun+mix(skyHorizon,skyZenith,.65)*mix(.32,.72,access));
+    }
+    if (stableBroadleaf == 1 && crown) {
+        // Match the access retained by bake=1, without a separate distance palette.
+        lit3 = albedo * mix(.36, .87, access) * broadleafLight(cloud);
     }
     float dens = 1.0 + fogHeightAmt * exp(-max(worldPos.y, 0.0) / 12.0);
     float fog  = clamp(length(worldPos - eyePos) * dens / fogDist, 0.0, 1.0);

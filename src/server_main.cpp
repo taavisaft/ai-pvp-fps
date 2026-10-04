@@ -249,12 +249,9 @@ static void broadcast(int fd, uint32_t seq) {
 int main() {
     setvbuf(stdout, nullptr, _IOLBF, 0);  // line-buffered even when piped to a log
     srand((unsigned)time(nullptr));
-    // Paldiski is the map; FPS_MAP stays as the registry hook for future maps.
-    MapId mapSel = mapFromName(getenv("FPS_MAP"), MAP_PALDISKI);
-    setMap(mapSel);
-    printf("server: map = %s\n", mapLabel(mapSel));
-    // FPS_PORT lets several map servers share one host on distinct ports; the client
-    // lobby probe scans the range starting at UDP_PORT. Defaults to UDP_PORT.
+    setMap(MAP_PALDISKI);
+    printf("server: map = %s\n", mapLabel(MAP_PALDISKI));
+    // Test harnesses use an isolated port; normal launch always defaults to 7777.
     uint16_t port = UDP_PORT;
     if (const char* portEnv = getenv("FPS_PORT")) {
         int p = atoi(portEnv);

@@ -19,7 +19,7 @@ Current guide, reviewed against source on 2026-09-05. Build a realistic, perform
 ## Current implementation
 
 - `game` client and `server` executable; 16-player drop-in FFA, 100 HP, three-second respawn. No rounds or victory condition.
-- 60 Hz authoritative simulation and 20 Hz snapshots. Raw UDP defaults to port 7777; server accepts `FPS_PORT`.
+- 60 Hz authoritative simulation and 20 Hz snapshots. Raw UDP defaults to port 7777; `FPS_PORT` is reserved for isolated test servers.
 - Protocol v4 and world revision live in `src/protocol.h`. Snapshots contain all 16 player slots plus an occupied-slot mask and up to 63 bullet records; only the bullet tail is truncated. Simulation has 256 bullet slots.
 - Paldiski is the online map, approximately 2×2 km (±1024 m). Offline launch starts in the separate training lobby. Old warehouse/field maps are removed.
 - Shared terrain and tree scatter drive server/client placement. Tree trunks block movement and swept bullets; bullet collision matches the visible taper, while movement keeps a wider cylinder. Paldiski has a first forestry shelter and timber-cover layout near (325, 75); the lobby has cover and a hunting stand.
@@ -47,7 +47,7 @@ Current guide, reviewed against source on 2026-09-05. Build a realistic, perform
 ```sh
 cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
 ./build/server
-./build/game 127.0.0.1
+./build/game  # press C to connect in-game
 ```
 
 One build folder, always Release. Performance comparisons:

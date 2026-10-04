@@ -63,6 +63,14 @@ int main() {
     CHECK(spawn.x*spawn.x+spawn.z*spawn.z > 120*120);
     float spawnEye = terrainHeight(spawn.x,spawn.z)+1.7f;
     CHECK(terrainHeight(0,195) < TRAINING_POND_Y);
+    // Lobby overlooks give a substantial climb, with continuous walkable grades.
+    CHECK(terrainHeight(0,850)-terrainHeight(0,260) > 140.0f);
+    CHECK(terrainHeight(750,0)-terrainHeight(180,0) > 85.0f);
+    for (int z=260; z<850; ++z) {
+        float h=terrainHeight(0,(float)z);
+        CHECK(std::isfinite(h));
+        CHECK(fabsf(terrainHeight(0,(float)z+1)-h) < 1.0f);
+    }
     for (int i=1; i<100; ++i) {
         float t = i/100.0f, z = spawn.z+(195-spawn.z)*t;
         float sight = spawnEye+(TRAINING_POND_Y-spawnEye)*t;

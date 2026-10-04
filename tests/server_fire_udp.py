@@ -8,7 +8,7 @@ import time
 
 HELLO = struct.Struct('<BHI')
 INPUT = struct.Struct('<BIBffIIBBIBBb')
-VERSION, WORLD = 4, 0x20260918
+VERSION, WORLD = 4, 0x20261004
 
 
 def check(ok, message):
@@ -20,8 +20,7 @@ def main():
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as reserve:
         reserve.bind(('127.0.0.1', 0))
         port = reserve.getsockname()[1]
-    server = subprocess.Popen([sys.argv[1]], env={**os.environ, 'FPS_PORT': str(port),
-                                               'FPS_MAP': 'lobby'},
+    server = subprocess.Popen([sys.argv[1]], env={**os.environ, 'FPS_PORT': str(port)},
                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     client.bind(('127.0.0.1', 0))

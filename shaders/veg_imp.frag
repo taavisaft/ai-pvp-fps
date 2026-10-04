@@ -59,6 +59,8 @@ vec3 grade(vec3 c) {
     return clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0);
 }
 
+uniform int stableBroadleaf;
+#include "broadleaf_light.glsl"
 uniform float clipWater;
 void main() {
     if(clipWater>0.0 && worldPos.y<clipWater) discard;
@@ -69,13 +71,17 @@ void main() {
 
     // Flat light: averaged sun + hemispheric ambient, tuned to sit level with the
     // mesh LODs' per-normal lighting so the dither band doesn't shift brightness.
-    float side = clamp(0.5 + (vUV.x - 0.5) * 1.6 * vSide, 0.0, 1.0);
+    float localU=stableBroadleaf==1 ? fract(vUV.x*8.0) : vUV.x;
+    float side = clamp(0.5 + (localU - 0.5) * 1.6 * vSide, 0.0, 1.0);
     float crownLight = mix(0.22, 0.95, side) * mix(0.70, 1.10, vUV.y);
     float neighbours = 1.0 - 0.8 * vShade * (1.0 - 0.75 * vUV.y);
     vec3 hue = mix(vec3(0.94, 1.0, 0.92), vec3(1.06, 1.0, 0.90), vHue);
     vec3 lit3 = texel.rgb * vTint * hue
               * (sunColor * crownLight * neighbours * cloudShadow(worldPos.xz, time)
                  + mix(groundAmbient, skyZenith, 0.72) * mix(0.72, 1.0, vUV.y));
+
+    if (stableBroadleaf == 1)
+        lit3 = texel.rgb * vTint * broadleafLight(cloudShadow(worldPos.xz, time));
 
     float dens = 1.0 + fogHeightAmt * exp(-max(worldPos.y, 0.0) / 12.0);
     float fog  = clamp(length(worldPos - eyePos) * dens / fogDist, 0.0, 1.0);

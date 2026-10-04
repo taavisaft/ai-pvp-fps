@@ -11,10 +11,13 @@ inline float trainingPondRadius(float x,float z) {
 inline float trainingLandscapeHeight(float x,float z) {
     float h=12.0f+14.0f*terrValueNoise(x*.008f+7,z*.008f-2);
     h+=9.0f*sinf(x*.011f+z*.006f)*sinf(z*.012f+.4f);
-    // Open valley framed by overlapping, wooded ridges.
+    // Open valley framed by overlapping, wooded ridges. The broad extra rise
+    // starts beyond the pond/range so their established ground stays intact.
     float ridge=lobbySmooth(260,650,z);
     h+=ridge*(34+52*terrValueNoise(x*.0035f+41,z*.004f+13));
     h+=lobbySmooth(110,410,fabsf(x))*(18+24*terrValueNoise(x*.005f,z*.006f));
+    h+=140.0f*lobbySmooth(260,850,z);
+    h+=85.0f*lobbySmooth(180,750,fabsf(x));
     float r=trainingPondRadius(x,z);
     float basin=1-lobbySmooth(1.5f,5.5f,r);
     h=h*(1-basin)+(6.3f+2.2f*(r-1.0f)+.12f*(h-12.0f))*basin;

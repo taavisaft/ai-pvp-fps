@@ -11,6 +11,7 @@ uniform mat4  proj;
 uniform vec3  eyePos;
 uniform sampler2D landscapeMap;
 uniform vec3  sunDir;
+uniform int stableBroadleaf;
 uniform vec2  impSize;   // world width/height of the baked box at scale 1
 uniform vec2  fadeIn;    // dither-in band (complements mesh LOD1's fade-out)
 uniform vec2  fadeOut;   // far dither-out band toward the impostor cap (x<y = active)
@@ -32,6 +33,12 @@ void main() {
                      + vec3(0.0, aCorner.y * impSize.y * iA.w, 0.0);
     worldPos = wp;
     vUV      = aUV;
+    if(stableBroadleaf==1) {
+        // Eight baked directions, relative to the same instance yaw as the mesh.
+        float angle=atan(fwd.z,fwd.x)-iB.x;
+        float direction=mod(floor(angle*8.0/6.2831853+0.5)+8.0,8.0);
+        vUV.x=(direction+aUV.x)/8.0;
+    }
     vTint    = iB.z;
     vSide    = dot(right, normalize(vec3(sunDir.x, 0.0, sunDir.z)));
     vShade   = texture(landscapeMap, iA.xz / 2048.0 + 0.5).g;
