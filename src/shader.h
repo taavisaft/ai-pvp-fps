@@ -40,6 +40,7 @@ struct Shader {
     GLint  locAuthoredMaterial = -1;
     GLint  locHasNormal = -1;  // basic program; 1 = use supplied vertex normal
     // Terrain slope/height splat (basic program; terrain draw only)
+    GLint  locDistantGrassMute = -1;
     GLint  locSplat    = -1;   // 1 = blend grass/dirt/rock by slope+height
     GLint  locRockMap  = -1;   // sampler, texture unit 2
     GLint  locDirtMap  = -1;   // sampler, texture unit 3

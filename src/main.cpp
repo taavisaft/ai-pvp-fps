@@ -478,8 +478,7 @@ int main() {
         if (input.thirdPersonToggle) thirdPerson = !thirdPerson;
         if (input.atmoToggle) {
             renderer.setAtmosphere(renderer.atmoPreset + 1);
-            static const char* atmoNames[] = {"clear", "overcast", "golden hour"};
-            printf("atmosphere: %s\n", atmoNames[renderer.atmoPreset]);
+            printf("atmosphere: %s\n", renderer.atmosphereName());
         }
         if (input.clearRange) { decalCount = 0; decalHead = 0; }
         if(input.runnersToggle && !net.connected) {

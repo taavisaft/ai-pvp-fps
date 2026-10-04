@@ -224,6 +224,7 @@ float pineBiome(vec2 p) {
     return max(base, clump * 0.85);
 }
 
+uniform float distantGrassMute;
 uniform sampler2D meadowMap;
 vec3 meadowLayer(vec3 p) {
     float growth=lobbyGrowth(p.xz);
@@ -266,7 +267,14 @@ vec3 meadowLayer(vec3 p) {
         detail*=mix(1.0,clamp(.62+photo,.76,1.20),farField);
     }
     vec3 field=mix(lush,tips,tipMix)*detail;
-    return mix(meadow,field,smoothstep(12.0,55.0,distance)*.94);
+    vec3 result=mix(meadow,field,smoothstep(12.0,55.0,distance)*.94);
+    if(splat==2 && distantGrassMute>0.0) {
+        float mute=smoothstep(50.0,160.0,distance)*distantGrassMute;
+        float luminance=dot(result,vec3(.299,.587,.114));
+        vec3 olive=mix(vec3(luminance),result,.55)*vec3(.94,.88,.92);
+        result=mix(result,olive,mute);
+    }
+    return result;
 }
 // Blend grass/dirt/rock across the heightfield by surface slope (steep -> rock),
 // with a height bias (peaks rockier) and fbm-jittered band edges so the material

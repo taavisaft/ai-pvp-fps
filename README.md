@@ -58,7 +58,7 @@ Press **F6** in the lobby to toggle 15 roaming practice players.
 | C | Find and join a server |
 | M / J | Toggle map / HUD |
 | Option+Return | Toggle fullscreen |
-| K | Cycle atmosphere |
+| K | Cycle weather: Clear Day / Overcast / Golden Hour (current name shown on HUD) |
 | V | Toggle third-person view |
 | G | Clear bullet marks (offline) |
 | H / F | Toggle hitboxes / wireframe (debug) |

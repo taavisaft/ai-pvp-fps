@@ -251,6 +251,10 @@ void drawHUD(Renderer& r, const GameState& gs, int localID,
                    -0.98f, gProfiler.showHud ? 0.56f : 0.83f, 0.04f,
                    {0.8f, 0.8f, 0.8f}, 0.8f);
 
+    snprintf(buf, sizeof(buf), "WEATHER: %s (K)", r.atmosphereName());
+    r.drawText(buf, -0.98f, gProfiler.showHud ? 0.50f : 0.77f, 0.028f,
+               {0.8f, 0.85f, 0.9f}, 0.85f);
+
     int alive = 0;
     for (int i = 0; i < MAX_PLAYERS; i++)
         if ((gs.usedMask & (1u << i)) && gs.players[i].alive) alive++;

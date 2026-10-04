@@ -46,6 +46,12 @@ void Renderer::setAtmosphere(int preset) {
         groundAmbient = {0.26f, 0.27f, 0.24f};
         fogDist = 4500.0f; fogHeightAmt = 0.35f; cloudAmount = 0.20f;
         exposure = 0.82f; saturation = 1.12f;
+        if (gMapId == MAP_LOBBY) {
+            // Clear weather still has distance haze across the training valley.
+            // Existing squared fog falloff keeps the range/nearby forest crisp.
+            fogDist = 1900.0f;
+            fogHeightAmt = 0.65f;
+        }
         break;
     }
 }
@@ -66,6 +72,8 @@ void Renderer::beginFrame(const glm::mat4& view, const glm::mat4& proj, const gl
     shader.setInt(shader.locUseFacade, 0);   // facade UV sampling off except for buildings
     shader.setFloat(shader.locTime, frameTime);
     shader.setInt(shader.locGrass, 0);
+    shader.setFloat(shader.locDistantGrassMute,
+                    gMapId == MAP_LOBBY && atmoPreset == ATMO_CLEAR ? 1.0f : 0.0f);
     shader.setVec3(shader.locSunDir, sunDir);
     shader.setVec3(shader.locSkyZenith, skyZenith);
     shader.setVec3(shader.locSkyHorizon, skyHorizon);
