@@ -16,6 +16,7 @@
 #include "stand_mesh.h"
 #include "hud.h"
 #include "audio.h"
+#include "footsteps.h"
 #include "material.h"
 #include "connect_prompt.h"
 #include "lobby.h"
@@ -395,7 +396,7 @@ int main() {
     bool        prevOwnAlive = true;
     bool        offlineShoot = false;  // latch click until a physics tick consumes it
     ViewModel   vm;                     // first-person gun state
-    float       stepTimer    = 0.0f;    // footstep cadence
+    Footsteps   footsteps;
     uint8_t     prevRemoteShots[MAX_PLAYERS] = {0};  // last seen authoritative per-player shot counters
     bool        remoteShotsSeeded = false;           // seed once when entering online play
     int         fireMode     = FIRE_SEMI;
@@ -658,7 +659,11 @@ int main() {
         accumulator += dt;
         while (accumulator >= FIXED_DT) {
             if (online) {
-                if (prevOwnAlive) movePlayer(predicted, input.state, FIXED_DT);
+                if (prevOwnAlive) {
+                    glm::vec3 before = predicted.pos;
+                    movePlayer(predicted, input.state, FIXED_DT);
+                    footsteps.update(predicted, input.state, before);
+                } else { footsteps = {}; }
             } else {
                 Player& self  = offline.players[0];
                 Player& dummy = offline.players[1];
@@ -670,7 +675,9 @@ int main() {
                     spawnBullet(offline, origin, dir, 0);
                     offlineShoot = false;
                 }
+                glm::vec3 before = self.pos;
                 movePlayer(self, input.state, FIXED_DT);   // wall push-out via collideXZ
+                footsteps.update(self, input.state, before);
                 updateReload(self, input.state.reload, FIXED_DT);
                 runners.tick(offline,FIXED_DT);
                 if (self.mag == 0 && self.reserve == 0)                       // keep practice stocked
@@ -814,31 +821,6 @@ int main() {
         if (vm.flashTimer < 0.0f) vm.flashTimer = 0.0f;
         vm.recoilT -= dt * 8.0f;
         if (vm.recoilT < 0.0f) vm.recoilT = 0.0f;
-
-        // footsteps while moving on the ground. Airborne test = feet above the
-        // support height (terrain or box top under the footprint), mirroring
-        // physics supportHeight(). Frame-to-frame dY can't be used: walking up/down
-        // any sloped terrain changes Y every frame, which made onGround flicker and
-        // spam the "instant first step" reset (rapid-step bug on uneven ground).
-        float support = terrainHeight(own.pos.x, own.pos.z);
-        for (int i = 0; i < gMapBoxCount; i++) {
-            const Box& b = gMapBoxes[i];
-            if (fabsf(own.pos.x - b.center.x) >= b.half.x + 0.4f) continue;
-            if (fabsf(own.pos.z - b.center.z) >= b.half.z + 0.4f) continue;
-            float top = b.center.y + b.half.y;
-            if (top > support && own.pos.y >= top - 0.05f) support = top;
-        }
-        bool  onGround = (own.pos.y - support) < 0.12f;   // not jumping/falling
-        bool  moving   = input.state.w || input.state.a || input.state.s || input.state.d;
-        if (own.alive && moving && onGround) {
-            stepTimer -= dt;
-            if (stepTimer <= 0.0f) {
-                audioPlay(SND_STEP, input.state.crouch ? 0.4f : 0.7f);
-                stepTimer = input.state.sprint ? 0.28f : input.state.crouch ? 0.5f : 0.38f;
-            }
-        } else {
-            stepTimer = 0.0f;                              // first step fires instantly
-        }
 
         // Enemy gunshots: use per-player authoritative shot counters (from server).
         // This is robust under packet loss/jitter and independent from bullet replication.

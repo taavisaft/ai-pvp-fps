@@ -68,3 +68,7 @@ Press **F6** in the lobby to toggle 15 roaming practice players.
 [Roadmap](TODO.md) · [Development notes](docs/development.md) · [Contributing](AGENTS.md)
 
 Aim settings are saved locally when you close the settings menu. Use arrow keys or click the rows; the match continues while the menu is open.
+
+Footsteps use free CC0 grass and gravel sample banks, with distance-based local
+playback. The lobby range/trail use the gravel bank; meadow uses grass. Asset
+sources, rebuilding and current limits: [sounds/footsteps/README.md](sounds/footsteps/README.md).

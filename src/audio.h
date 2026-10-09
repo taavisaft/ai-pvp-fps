@@ -2,8 +2,8 @@
 #include <cstdint>
 #include <glm/vec3.hpp>
 
-// Tiny procedural sound engine: SDL audio device + a fixed voice mixer.
-// All sounds are synthesized in code at init (no asset files). Client-only.
+// SDL audio device + fixed voice mixer. WAV assets and procedural fallbacks
+// are prepared at startup. Client-only.
 
 enum SoundId {
     SND_SHOOT = 0,      // Uzi
@@ -14,7 +14,9 @@ enum SoundId {
     SND_RESPAWN,
     SND_RELOAD,
     SND_DRYFIRE,
-    SND_COUNT
+    SND_STEP_GRASS_0,
+    SND_STEP_GRAVEL_0 = SND_STEP_GRASS_0 + 8,
+    SND_COUNT = SND_STEP_GRAVEL_0 + 8
 };
 
 // Map a weapon id (WeaponId in weapon.h) to its gunshot sound.
@@ -32,3 +34,7 @@ void audioPlay(SoundId id, float volume = 1.0f);
 // attenuation and forwards to the mono mixer.
 void audioPlayAt(SoundId id, const glm::vec3& sourcePos, const glm::vec3& listenerPos,
                  const glm::vec3& listenerForward, float gain = 1.0f);
+
+constexpr int FOOTSTEP_VARIANTS = 8;
+enum class StepSurface { Grass, Gravel, Solid };
+void audioPlayFootstep(StepSurface surface, float gain);

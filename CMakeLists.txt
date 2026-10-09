@@ -61,7 +61,9 @@ set(CLIENT_SOURCES
     src/input.cpp
     src/network.cpp
     src/lobby.cpp
-    src/audio.cpp)
+    src/audio.cpp
+    src/footsteps.cpp
+    src/footstep_sound.cpp)
 
 add_executable(game ${CLIENT_SOURCES} ${SHARED_SOURCES})
 target_include_directories(game PRIVATE src)
@@ -92,13 +94,19 @@ add_custom_target(copy_textures ALL
 add_dependencies(copy_textures game)
 
 # Copy sound assets next to the binary (optional; synth fallback if absent)
-add_custom_command(TARGET game POST_BUILD
+add_custom_target(copy_sounds ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/sounds $<TARGET_FILE_DIR:game>/sounds)
+add_dependencies(copy_sounds game)
 
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(footsteps_tests tests/footsteps_tests.cpp src/footstep_sound.cpp
+        src/audio.cpp src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp)
+    target_include_directories(footsteps_tests PRIVATE src)
+    target_link_libraries(footsteps_tests PRIVATE SDL2::SDL2 glm::glm)
+    add_test(NAME footsteps COMMAND footsteps_tests)
     add_executable(camera_look_tests tests/camera_look_tests.cpp src/camera.cpp)
     target_include_directories(camera_look_tests PRIVATE src)
     target_link_libraries(camera_look_tests PRIVATE glm::glm)

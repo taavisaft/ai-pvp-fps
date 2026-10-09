@@ -44,7 +44,7 @@ For payload policy, follow [RFC 8085 message-size guidance](https://www.rfc-edit
 - [ ] Settings menu: sensitivity, FOV, volume, keybinds, quality, window mode and VSync; save locally. Current controls/settings are mostly hard-coded or environment variables.
 - [ ] Extend the existing server browser with last host, explicit full/incompatible/timeout messages and clean reconnect UX. Do not rebuild discovery: host entry and eight-port scan already exist.
 - [ ] Add Linux/Windows build and smoke CI; audit Winsock socket-handle types and deterministic terrain behavior across compilers. Current source has platform branches, not verified platform parity.
-- [ ] Package shaders/textures/sounds reliably. Shader copies run every build; texture/sound copies currently depend on relinking the game.
+- [ ] Package shaders/textures/sounds reliably. Shader, texture and sound copies run every build.
 - [ ] Make licensed asset provenance explicit: exact source, author, license and modifications. The current ground image attribution is only a provider label; do not infer its license.
 
 ## Later, after the combat area plays well

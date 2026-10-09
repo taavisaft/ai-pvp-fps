@@ -1,5 +1,6 @@
 #include "audio.h"
 #include "weapon.h"
+#include "footstep_sound.h"
 #include <SDL.h>
 #include <glm/geometric.hpp>
 #include <vector>
@@ -14,7 +15,8 @@ constexpr int   MAX_VOICE = 16;      // simultaneous sounds
 struct Voice {
     const float* data   = nullptr;
     int          len    = 0;
-    int          pos    = 0;
+    float        pos    = 0;
+    float        rate   = 1.0f;
     float        vol    = 1.0f;
     bool         active = false;
 };
@@ -22,6 +24,7 @@ struct Voice {
 SDL_AudioDeviceID gDevice = 0;
 std::vector<float> gSounds[SND_COUNT];   // generated once at init
 Voice              gVoices[MAX_VOICE];
+int                gStepCount[2]{};
 
 float randf() { return (float)rand() / (float)RAND_MAX; }
 float noise() { return randf() * 2.0f - 1.0f; }
@@ -34,8 +37,12 @@ void mixCallback(void*, Uint8* stream, int bytes) {
 
     for (Voice& v : gVoices) {
         if (!v.active) continue;
-        for (int i = 0; i < n && v.pos < v.len; i++)
-            out[i] += v.data[v.pos++] * v.vol;
+        for (int i = 0; i < n && v.pos < v.len; i++) {
+            int a = (int)v.pos, b = a+1 < v.len ? a+1 : a;
+            float f = v.pos-a;
+            out[i] += (v.data[a]+(v.data[b]-v.data[a])*f)*v.vol;
+            v.pos += v.rate;
+        }
         if (v.pos >= v.len) v.active = false;
     }
     for (int i = 0; i < n; i++) {            // soft clamp
@@ -186,6 +193,23 @@ bool Audio::init() {
         genShoot(gSounds[SND_SHOOT_GLOCK]);
     genRifle(gSounds[SND_SHOOT_KAR98]);
     genStep(gSounds[SND_STEP]);
+    for (int material = 0; material < 2; ++material) {
+        int base = material ? SND_STEP_GRAVEL_0 : SND_STEP_GRASS_0;
+        int& count = gStepCount[material];
+        count = 0;
+        for (int variant = 0; variant < FOOTSTEP_VARIANTS; ++variant) {
+            char path[128];
+            snprintf(path, sizeof(path), "sounds/footsteps/%s_%02d.wav",
+                     material ? "gravel" : "grass", variant+1);
+            auto& buffer = gSounds[base+count];
+            if (loadWav(path, buffer) && !buffer.empty()) ++count;
+        }
+        if (!count) {
+            for (int variant = 0; variant < FOOTSTEP_VARIANTS; ++variant)
+                buildFootstepFallback(gSounds[base+variant], material != 0, variant);
+            count = FOOTSTEP_VARIANTS;
+        }
+    }
     genDeath(gSounds[SND_DEATH]);
     genRespawn(gSounds[SND_RESPAWN]);
     genReload(gSounds[SND_RELOAD]);
@@ -198,9 +222,10 @@ bool Audio::init() {
 void Audio::shutdown() {
     if (gDevice) SDL_CloseAudioDevice(gDevice);
     gDevice = 0;
+    for (Voice& v : gVoices) v = {};
 }
 
-void audioPlay(SoundId id, float volume) {
+static void playBuffer(SoundId id, float volume, float rate) {
     if (gDevice == 0 || id < 0 || id >= SND_COUNT) return;
     const std::vector<float>& buf = gSounds[id];
     if (buf.empty()) return;
@@ -218,9 +243,29 @@ void audioPlay(SoundId id, float volume) {
     slot->data   = buf.data();
     slot->len    = (int)buf.size();
     slot->pos    = 0;
+    slot->rate   = rate;
     slot->vol    = volume;
     slot->active = true;
     SDL_UnlockAudioDevice(gDevice);
+}
+
+void audioPlay(SoundId id, float volume) { playBuffer(id, volume, 1.0f); }
+
+void audioPlayFootstep(StepSurface surface, float gain) {
+    if (surface == StepSurface::Solid) { audioPlay(SND_STEP, gain); return; }
+    static uint32_t state = 0x6d2b79f5u;
+    static int previous[2] = {-1, -1};
+    state ^= state << 13; state ^= state >> 17; state ^= state << 5;
+    int material = surface == StepSurface::Gravel ? 1 : 0;
+    int count = gStepCount[material];
+    if (gDevice == 0 || count == 0) return;
+    int variant = count == 1 ? 0 : (int)(state % (count-1));
+    if (count > 1 && previous[material] >= 0 && previous[material] < count &&
+        variant >= previous[material]) ++variant;
+    previous[material] = variant;
+    float variation = float((state >> 8) & 255u)/255.0f;
+    SoundId id = (SoundId)((material ? SND_STEP_GRAVEL_0 : SND_STEP_GRASS_0)+variant);
+    playBuffer(id, gain*(0.92f+variation*0.08f), 0.97f+variation*0.06f);
 }
 
 SoundId weaponShootSound(uint8_t weaponId) {
