@@ -11,7 +11,9 @@ int main() {
     for(MapId map:{MAP_LOBBY,MAP_PALDISKI}) {
         setMap(map);
         game=GameState{}; game.usedMask=3;
-        glm::vec3 home=gMapSpawns[0]; home.y=terrainHeight(home.x,home.z);
+        // Exercise free roaming away from the intentionally enclosed catalogue.
+        glm::vec3 home=map==MAP_LOBBY ? glm::vec3(-70,0,80) : gMapSpawns[0];
+        home.y=terrainHeight(home.x,home.z);
         game.players[0].pos=home;
         PracticeRunners crowd,again;
         CHECK(crowd.start(game,home)); CHECK(game.usedMask==0xffff);

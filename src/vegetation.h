@@ -9,6 +9,7 @@
 #include "spatial.h"
 #include "meadow_timer.h"
 #include "training_woodland.h"
+#include "nature_plants.h"
 
 struct Renderer;
 struct QualitySettings;
@@ -119,6 +120,9 @@ struct Vegetation {
     void reserveTrainingStaging();
     void drawTrainingTreeStream(const SpeciesStaging& staging,TrainingPass pass);
     void logTrainingTreeMix() const;
+    GLsizei natureFirst[NATURE_PLANT_TYPES]{},natureCount[NATURE_PLANT_TYPES]{};
+    std::array<std::vector<float>,NATURE_PLANT_TYPES> natureLit,natureShadow;
+    void drawNaturePlants(bool shadow);
     GLuint  bushTex = 0;                          // berry-bush photo, alpha cutout
     GLuint  shadowTex = 0;                        // shadow map texture reference for impostor bake
 

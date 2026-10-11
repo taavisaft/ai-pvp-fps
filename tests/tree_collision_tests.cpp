@@ -1,6 +1,7 @@
 #include "physics.h"
 #include "map.h"
 #include "tree_collision.h"
+#include "training_woodland.h"
 #include <cstdio>
 #include <cmath>
 #include <chrono>
@@ -119,6 +120,31 @@ static void nearestAndRewind() {
     }
 }
 
+static void naturePreview() {
+    setMap(MAP_LOBBY);
+    int found[TRAINING_TREE_TYPES]{};
+    for(const auto& tree:gTrees) {
+        if(!naturePreviewArea(tree.x,tree.z)) continue;
+        int type=naturePreviewTreeType(tree.x,tree.z);
+        CHECK(type>=0 && type<TRAINING_TREE_TYPES);
+        if(type<0) continue;
+        ++found[type];
+        CHECK(trainingTreeType(tree.x,tree.z)==type);
+        CHECK(tree.scale==NATURE_TREE_HEIGHT);
+        CHECK(fabsf(tree.y-(terrainHeight(tree.x,tree.z)-.15f))<.001f);
+        float fraction; glm::vec3 normal;
+        CHECK(sweepTreeTrunks({tree.x-1,tree.y+1,tree.z},
+                             {tree.x+1,tree.y+1,tree.z},fraction,normal));
+        Player p{}; p.pos={tree.x-1,terrainHeight(tree.x-1,tree.z),tree.z};
+        InputState in{}; in.w=true; in.yaw=0;
+        for(int frame=0;frame<60;++frame) movePlayer(p,in,1.0f/60);
+        CHECK(p.pos.x<tree.x);
+    }
+    for(int count:found) CHECK(count==1);
+    CHECK(naturePreviewBareGround(18,100)==0);
+    for(float x:{32.0f,46.0f,60.0f}) CHECK(naturePreviewBareGround(x,100)==1);
+}
+
 static void benchmark() {
     setMap(MAP_PALDISKI);
     // Use the densest occupied spatial bucket in the actual deterministic map.
@@ -161,7 +187,7 @@ static void benchmark() {
 }
 
 int main(int argc, char** argv) {
-    protectedTarget(); geometry(); nearestAndRewind();
+    protectedTarget(); geometry(); nearestAndRewind(); naturePreview();
     if (argc > 1 && std::strcmp(argv[1], "--bench") == 0) benchmark();
     return failures ? 1 : 0;
 }

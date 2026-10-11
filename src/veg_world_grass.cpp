@@ -25,8 +25,12 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
         float x=x0+mapRand(key,tz,211)*5, z=z0+mapRand(key,tz,212)*5;
         if(fabsf(x)>gArenaHalf || fabsf(z)>gArenaHalf) continue;
         float h=terrainHeight(x,z);
+        if(gMapId==MAP_LOBBY && naturePlantClearing(x,z)>mapRand(key,tz,219)) continue;
         if(gMapId==MAP_LOBBY) {
             if(khrushchevkaClearance(x,z,.6f)) continue;
+            if(naturePreviewArea(x,z) &&
+               (naturePreviewBareGround(x,z)>mapRand(key,tz,218) ||
+                hypotf(x-NATURE_MEADOW_X,z-NATURE_MEADOW_Z)<1.5f)) continue;
             if(trainingPondRadius(x,z)<1.8f && h<TRAINING_POND_Y+.12f) continue;
         } else if(h<1.25f || h>115.0f) continue;
         bool blocked=false;
@@ -57,6 +61,13 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
         plants[count++]={x,h-.025f,z,scale,
                          mapRand(key,tz,215)*6.2831853f,mapRand(key,tz,216),
                          .85f+.25f*mapRand(key,tz,217),packedNormal};
+        tile.minY=fminf(tile.minY,h); tile.maxY=fmaxf(tile.maxY,h);
+    }
+    // A single fully decorated clump shows blades, straw, seed heads and leaves.
+    if(gMapId==MAP_LOBBY && tx==int(NATURE_MEADOW_X/5) && tz==int(NATURE_MEADOW_Z/5)) {
+        float h=terrainHeight(NATURE_MEADOW_X,NATURE_MEADOW_Z);
+        if(count==MEADOW_CAPACITY) --count;
+        plants[count++]={NATURE_MEADOW_X,h-.025f,NATURE_MEADOW_Z,1.0f,0,13.0f/13.37f,1,32896};
         tile.minY=fminf(tile.minY,h); tile.maxY=fmaxf(tile.maxY,h);
     }
     std::sort(plants.begin(),plants.begin()+count,[](const auto& a,const auto& b) {

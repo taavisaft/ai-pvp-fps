@@ -17,7 +17,8 @@ int main() {
     setMap(MAP_LOBBY);
     CHECK(gKhrushBoxCount>1800);
     CHECK(gMapBoxCount<MAX_MAP_BOXES-100);
-    CHECK(gKhrushBoxFirst+gKhrushBoxCount==gMapBoxCount);
+    CHECK(gKhrushBoxFirst+gKhrushBoxCount==gNatureFenceFirst);
+    CHECK(gNatureFenceFirst+gNatureFenceCount==gMapBoxCount);
     for(int s=0;s<KHRUSH_SECTIONS;++s) {
         float left=-KHRUSH_LENGTH*.5f+s*KHRUSH_SECTION, entry=left+7.1f;
         // All entrance openings are clear at standing height; piers are solid.

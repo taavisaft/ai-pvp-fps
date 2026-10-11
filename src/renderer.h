@@ -93,6 +93,9 @@ struct Renderer {
     Mesh   terrain;        // small lobby heightfield (rebuilt on map switch)
     TerrainChunks taigaTerrain;  // chunked LOD 2 km ground + mountain vista
     Vegetation    veg;           // instanced grass + LOD spruce forest (taiga only)
+    Mesh natureFence;
+    bool initNatureFence();
+    void drawNatureFence(const Frustum& fr);
     Mesh   stand;
     KhrushVisual building;
     // Blender-authored player body parts (tools/player_model.py), unit-box space —

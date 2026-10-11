@@ -81,3 +81,32 @@ sources, rebuilding and current limits: [sounds/footsteps/README.md](sounds/foot
 
 The top-left stats show game CPU usage (100% = one CPU core) and resident RAM
 in MiB, refreshed once per second, alongside FPS and frame/render timings.
+
+### Nature preview
+
+In the offline lobby, turn right (east) from the default spawn at `(0,136)`.
+The small clearing at `x=6–70, z=92–148` contains one 10 m example of each
+existing tree: full, narrow, drooping and high-crown spruce in the southern
+row; ash, birch and oak in the northern row. A single berry bush and a mixed
+meadow clump (green blades, straw, seed heads and broad leaves) sit by the
+entrance. Four ground patches at `z=100`, west to east, show meadow, dirt,
+exposed rock and forest floor. Rock is an existing terrain surface; there is
+currently no standalone boulder asset. The pond and its taller shore grass
+remain just north of spawn.
+
+Use `FPS_REF=nature ./build/game` for a fixed preview view. Preview tree trunks
+use the same movement and projectile collision as the surrounding forest.
+
+The entrance now also has one juniper, hazel and flowering wild rose at
+`(8,132)`, `(12,132)` and `(16,132)`. The flower row at the same X coordinates,
+`z=140`, shows oxeye daisy, buttercup and fireweed. Each sample is a single
+clump at its authored size, with pass-through foliage like the berry bush.
+These six plants use simple 3D leaves, needles and petals, with no extra
+textures. Use `FPS_REF=flowers ./build/game` for the entrance view.
+
+A weathered two-rail timber fence encloses the nature catalogue (`x=4–70`,
+`z=92–148`), with an eight-metre opening in its west side (`z=132–140`)
+facing the default spawn. Walk straight east through it; no vaulting is needed.
+The posts and terrain-following rails share their exact solid boxes with
+movement and projectile collision. The fence includes grain, checks, lichen,
+uneven caps and rusty fasteners, rendered as one static mesh per world pass.

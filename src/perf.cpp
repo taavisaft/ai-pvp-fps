@@ -140,6 +140,8 @@ static const RefCameraPreset kRefCameras[] = {
     {"pond",    {-46.0f, 0.0f, 140.0f},   48.0f,  -6.0f,  Renderer::ATMO_GOLDEN, true},
     {"canopy",  {0.0f, 0.0f, 620.0f},    270.0f,  -6.0f,  Renderer::ATMO_GOLDEN, true},
     {"range",   {10.0f, 0.0f, 30.0f},     90.0f,   5.0f,  Renderer::ATMO_GOLDEN, true},
+    {"flowers", {2.0f, 0.0f, 136.0f},      0.0f, -20.0f, Renderer::ATMO_CLEAR, true},
+    {"nature",  {0.0f, 0.0f, 136.0f},      0.0f,  8.0f,  Renderer::ATMO_GOLDEN, true},
     {"building", {68.0f, 0.0f, -133.0f}, 146.0f, 8.0f, Renderer::ATMO_CLEAR, true},
 };
 

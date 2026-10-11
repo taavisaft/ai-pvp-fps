@@ -1,5 +1,6 @@
 #include "tree_collision.h"
 #include "map.h"       // gMapId, mapRand, PALDISKI_HALF, LOBBY_HALF, MAP_LOBBY
+#include "nature_preview.h"
 #include "terrain.h"   // terrainHeight, pineForestBiome
 #include <cmath>
 #include <algorithm>
@@ -29,7 +30,7 @@ static void scatterTrees(std::vector<TreeInstance>& out) {
             out.push_back(t);
         }
         auto open=[](float x,float z) {
-            if(fabsf(x)>1016 || fabsf(z)>1016) return false;
+            if(fabsf(x)>1016 || fabsf(z)>1016 || naturePreviewArea(x,z)) return false;
             if(x*x+z*z<75*75 || trainingPondRadius(x,z)<1.15f) return false;
             return !(fabsf(x)<30 && z>95 && z<166);
         };
@@ -91,8 +92,10 @@ static void scatterTrees(std::vector<TreeInstance>& out) {
             out.push_back({p[0],terrainHeight(p[0],p[1])-.15f,p[1],p[2],
                            mapRand(int(p[0]),int(p[1]),310)*6.2831853f,.91f});
         out.erase(std::remove_if(out.begin(),out.end(),[](const TreeInstance& t) {
-            return khrushchevkaClearance(t.x,t.z,3.0f);
+            return khrushchevkaClearance(t.x,t.z,3.0f) || naturePreviewArea(t.x,t.z) || natureFenceClearance(t.x,t.z,2.0f);
         }),out.end());
+        for(const auto& p:NATURE_TREES)
+            out.push_back({p.x,terrainHeight(p.x,p.z)-.15f,p.z,NATURE_TREE_HEIGHT,0,.94f});
         return;
     }
     const float STEP = 5.0f;

@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cmath>
 #include "training_spruce.h"
+#include "nature_preview.h"
 
 constexpr int TRAINING_TREE_TYPES=7;
 inline constexpr const char* TRAINING_TREE_NAMES[]={
@@ -17,6 +18,8 @@ inline uint32_t trainingTreeHash(int32_t a,int32_t b) {
     return n^(n>>16);
 }
 inline int trainingTreeType(float x,float z) {
+    int sample=naturePreviewTreeType(x,z);
+    if(sample>=0) return sample;
     uint32_t tree=trainingTreeHash(int32_t(floorf(x*8)),int32_t(floorf(z*8)));
     if(z>75 && fabsf(x)<90) {
         if(x<-30 && z<200) return 0;

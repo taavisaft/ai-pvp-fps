@@ -113,5 +113,29 @@ int main() {
         CHECK(p.pos.y >= terrainHeight(p.pos.x,p.pos.z)-.001f);
     }
     CHECK(p.pos.z > 30);
+    CHECK(gNatureFenceCount>800 && gTownBoxCount<MAX_MAP_BOXES);
+    for(float z:{124.0f,136.0f}) {
+        Player walker{}; walker.pos={0,terrainHeight(0,z),z};
+        InputState east{}; east.w=true; east.yaw=0;
+        for(int frame=0;frame<120;++frame) movePlayer(walker,east,1.0f/60);
+        CHECK(z==136 ? walker.pos.x>6 : walker.pos.x<4);
+        float y=terrainHeight(4,z)+1.08f;
+        bool hit=false;
+        for(int i=gNatureFenceFirst;i<gNatureFenceFirst+gNatureFenceCount;++i) {
+            float fraction;
+            const auto& b=gMapBoxes[i];
+            hit|=segmentAabb({2,y,z},{6,y,z},b.center,b.half,fraction);
+        }
+        CHECK(hit==(z==124));
+    }
+    int part=0;
+    struct Verify { int* part; } verify{&part};
+    visitNatureFence([](const NatureFencePart& p,void* context) {
+        auto& v=*static_cast<Verify*>(context);
+        const auto& b=gMapBoxes[gNatureFenceFirst+(*v.part)++];
+        CHECK(glm::length(b.center-p.center)<.0001f);
+        CHECK(glm::length(b.half-p.half)<.0001f);
+    },&verify,trainingHeight);
+    CHECK(part==gNatureFenceCount);
     return failures ? 1 : 0;
 }

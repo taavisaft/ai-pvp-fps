@@ -86,7 +86,18 @@ bool Vegetation::init(const char* base, GLuint shadow) {
     std::vector<float> v;
     std::vector<unsigned> idx;
     vegBuildBush(v, idx);
-    uploadMesh(bushVbo, bushEbo, bushIdx, v, idx);
+    bushes.reserve(1+NATURE_PLANT_TYPES);
+    bufBush.reserve(8); bufBushShadow.reserve(8);
+    bushIdx=(GLsizei)idx.size();
+    for(int type=0;type<NATURE_PLANT_TYPES;++type) {
+        natureFirst[type]=(GLsizei)idx.size();
+        vegBuildNaturePlant(v,idx,type);
+        natureCount[type]=(GLsizei)idx.size()-natureFirst[type];
+        printf("[veg] nature %s: %d triangles\n",NATURE_PLANTS[type].name,natureCount[type]/3);
+        natureLit[type].reserve(8); natureShadow[type].reserve(8);
+    }
+    GLsizei total=0;
+    uploadMesh(bushVbo, bushEbo, total, v, idx);
 
     glGenBuffers(1, &streamL0);
     glGenBuffers(1, &streamL1);
@@ -158,9 +169,15 @@ void Vegetation::buildTrees() {
 void Vegetation::buildBushes() {
     bushes.clear();
     if (gMapId == MAP_LOBBY) {
-        // Training keeps the meadow and trees without standalone berry bushes.
-        // Keep a valid empty grid for the lit and shadow visibility traversals.
-        bushGrid.init(LOBBY_HALF, 16, 0.0f, 2.0f);
+        bushes.push_back({{NATURE_BUSH_X,terrainHeight(NATURE_BUSH_X,NATURE_BUSH_Z)-.04f,
+                           NATURE_BUSH_Z},1.0f,0,1.0f});
+        bushGrid.init(LOBBY_HALF, 16, 0.0f, 32.0f);
+        for(int type=0;type<NATURE_PLANT_TYPES;++type) {
+            const auto& p=NATURE_PLANTS[type];
+            bushes.push_back({{p.x,terrainHeight(p.x,p.z)-.01f,p.z},1,0,1,uint8_t(type+1)});
+        }
+        for(int i=0;i<int(bushes.size());++i)
+            bushGrid.insert(bushes[i].pos.x,bushes[i].pos.z,i);
         return;
     }
     const float STEP = 7.0f;

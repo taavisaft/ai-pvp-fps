@@ -92,6 +92,7 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
         // Flat pad + plain material boxes (target wall, test cover).
         r.drawTerrain(fr, eye);
         for (int i = 0; i < gMapBoxCount; i++) {
+            if (i >= gNatureFenceFirst && i < gNatureFenceFirst + gNatureFenceCount) continue;
             if (i >= gStandBoxFirst && i < gStandBoxFirst + gStandBoxCount) continue;
             if (i >= gKhrushBoxFirst && i < gKhrushBoxFirst + gKhrushBoxCount) continue;
             const Box& b = gMapBoxes[i];
@@ -108,6 +109,7 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
                                  STAND_MAX[2] - STAND_MIN[2]) * 0.5f;
         if (fr.aabbVisible(sc, sh)) r.drawMesh(r.stand, sp, MAT_WOOD);
         r.building.draw(r, fr, eye);
+        r.drawNatureFence(fr);
     } else {
         r.drawTerrain(fr, eye);
         for (int i = 0; i < gMapBoxCount; ++i) {

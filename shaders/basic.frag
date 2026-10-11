@@ -356,6 +356,19 @@ vec3 lobbyTerrain(vec3 p, vec3 an) {
     vec3 ground = mix(meadow,soil,wear);
     float rock = smoothstep(.16,.38,1.0-normalize(vNormal).y);
     ground = mix(ground,antiTile(rockMap,p,1.4,an)*.75,rock);
+    // Offline catalogue swatches, matching nature_preview.h's grass mask.
+    if(p.x>6.0 && p.x<70.0 && p.z>92.0 && p.z<148.0) {
+        for(int i=0;i<4;++i) {
+            float patch=1.0-smoothstep(2.5,3.0,length(p.xz-vec2(18.0+14.0*float(i),100.0)));
+            if(patch<=0.0) continue;
+            vec3 sample=meadow;
+            if(i==1) sample=soil;
+            if(i==2) sample=antiTile(rockMap,p,1.4,an)*.75;
+            if(i==3) sample=mix(texture(forestMap,p.xz/forestTile).rgb,
+                               texture(forestMap,p.xz/(forestTile*3.17)).rgb,.46)*vec3(.72,.80,.66);
+            ground=mix(ground,sample,patch);
+        }
+    }
     return ground;
 }
 
@@ -374,6 +387,19 @@ void main() {
         float weave = sin(vAssetPos.x * 1800.0) * sin(vAssetPos.y * 1800.0);
         float footprint = max(length(dFdx(vAssetPos)), length(dFdy(vAssetPos)));
         c *= 1.0 + .035 * weave * (1.0 - smoothstep(.001,.004,footprint));
+    }
+    // Fence-only material tags (2/3/4): longitudinal grain, checks and lichen.
+    if(authoredMaterial==1 && vMaterial.a>=2.0) {
+        float along=vMaterial.a<2.5 ? worldPos.y : vMaterial.a<3.5 ? worldPos.x : worldPos.z;
+        float across=vMaterial.a<2.5 ? worldPos.x+worldPos.z : worldPos.y;
+        vec2 grain=vec2(along*.8,across*95.0);
+        float detail=1.0-smoothstep(.3,1.5,length(fwidth(grain)));
+        float lines=vnoise(grain+vec2(0.0,vnoise(vec2(along*.6,across*9.0))*3.0));
+        c*=mix(1.0,.55+.65*lines,detail);
+        float cracks=(1.0-smoothstep(.10,.19,lines))*vnoise(vec2(along*3.0,across*14.0));
+        c*=1.0-cracks*.7*detail;
+        float weather=vnoise(worldPos.xz*4.0+worldPos.y*vec2(.8,.3));
+        c=mix(c,vec3(.10,.115,.065),smoothstep(.69,.84,weather)*.45);
     }
     if (lit == 1 && useFacade == 1) {
         vec4 texel = texture(diffuseMap, vUV);
@@ -430,7 +456,7 @@ void main() {
         ambient     *= 1.0 - .25 * canopy;
         vec3 lit3    = c * (sun + ambient);
 
-        float surfaceSpec = authoredMaterial == 1 ? abs(vMaterial.a) : specular;
+        float surfaceSpec = authoredMaterial == 1 ? (vMaterial.a>=2.0 ? .015 : abs(vMaterial.a)) : specular;
         if (surfaceSpec > 0.0) {
             vec3 V = normalize(eyePos - worldPos);
             vec3 H = normalize(L + V);

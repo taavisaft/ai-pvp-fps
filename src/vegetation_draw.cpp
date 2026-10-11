@@ -29,6 +29,7 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     // Bucket visible trees by distance. Buckets OVERLAP across the fade bands —
     // both LODs of a transitioning tree draw, split per-pixel by the dither.
     bufBush.clear();
+    for(auto& buf:natureLit) buf.clear();
     for (SpeciesStaging* staging : {&speciesL0, &speciesL1, &speciesImp, &speciesShrub})
         for (auto& buf : *staging) buf.clear();
     const float reach = r.reflectionPass ? 420.0f : treeImpEnd_;
@@ -45,7 +46,7 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     bushGrid.forEachVisible(fr, [&](int i) {
         const Tree& t = bushes[i];
         glm::vec3 d = t.pos - eye;
-        if (glm::dot(d, d) < bushEnd_ * bushEnd_) { pushTree(bufBush, t); gVegStats.bushes++; }
+        if (glm::dot(d, d) < bushEnd_ * bushEnd_) { pushTree(t.type ? natureLit[t.type-1] : bufBush, t); gVegStats.bushes++; }
     });
 
     vegSh.use();
@@ -99,6 +100,7 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     glUniform2f(locFadeIn, 0.0f, 0.0f);
     glUniform2f(locFadeOut, bushFade_, bushEnd_);
     drawStream(vaoBush, streamBush, bushIdx, bufBush);
+    drawNaturePlants(false);
 
     if(!r.reflectionPass) drawMeadow(r,fr,eye);
     glBindVertexArray(0);
@@ -137,6 +139,7 @@ void Vegetation::drawShadow(const Frustum& sunFr, const glm::vec3& focus, float 
     if (!placed) { buildTrees(); buildBushes(); }
 
     bufBushShadow.clear();
+    for(auto& buf:natureShadow) buf.clear();
     for (SpeciesStaging* staging : {&speciesShadow, &speciesShadowLow})
         for (auto& buf : *staging) buf.clear();
     const float shadowDetail = treeFade0_ * .4f;
@@ -152,9 +155,11 @@ void Vegetation::drawShadow(const Frustum& sunFr, const glm::vec3& focus, float 
         const Tree& t = bushes[i];
         glm::vec3 d = t.pos - focus;
         if (glm::dot(d, d) < bushShadowRange_ * bushShadowRange_)
-            pushTree(bufBushShadow, t);
+            pushTree(t.type ? natureShadow[t.type-1] : bufBushShadow, t);
     });
-    if (!anyTree && bufBushShadow.empty()) return;
+    bool anyNature=false;
+    for(const auto& buf:natureShadow) anyNature|=!buf.empty();
+    if (!anyTree && bufBushShadow.empty() && !anyNature) return;
     vegDepthSh.use();
     vegDepthSh.setMat4(vegDepthSh.locLightSpace, lightSpace);
     vegDepthSh.setFloat(vegDepthSh.locTime, time);
@@ -169,5 +174,23 @@ void Vegetation::drawShadow(const Frustum& sunFr, const glm::vec3& focus, float 
     glBindTexture(GL_TEXTURE_2D, bushTex);
     glActiveTexture(GL_TEXTURE0);
     drawStream(vaoBushShadow, streamBushShadow, bushIdx, bufBushShadow);
+    drawNaturePlants(true);
     // Grass receives world shadows in the lit pass, but does not cast them.
+}
+
+void Vegetation::drawNaturePlants(bool shadow) {
+    auto& staging=shadow ? natureShadow : natureLit;
+    GLuint stream=shadow ? streamBushShadow : streamBush;
+    GLuint vao=shadow ? vaoBushShadow : vaoBush;
+    for(int type=0;type<NATURE_PLANT_TYPES;++type) {
+        const auto& buf=staging[type];
+        if(buf.empty()) continue;
+        glBindBuffer(GL_ARRAY_BUFFER,stream);
+        glBufferData(GL_ARRAY_BUFFER,buf.size()*sizeof(float),buf.data(),GL_STREAM_DRAW);
+        glBindVertexArray(vao);
+        glDrawElementsInstanced(GL_TRIANGLES,natureCount[type],GL_UNSIGNED_INT,
+            reinterpret_cast<const void*>(size_t(natureFirst[type])*sizeof(unsigned)),
+            GLsizei(buf.size()/8));
+    }
+    glBindVertexArray(0);
 }

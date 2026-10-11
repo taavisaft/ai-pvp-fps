@@ -8,7 +8,7 @@ import time
 
 HELLO = struct.Struct('<BHI')
 INPUT = struct.Struct('<BIBffIIBBIBBb')
-VERSION, WORLD = 4, 0x20261009
+VERSION, WORLD = 4, 0x20261011
 
 
 def check(ok, message):

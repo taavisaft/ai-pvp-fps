@@ -6,6 +6,7 @@
 #include "stand_col.h"
 #include "forest_site.h"
 #include "khrushchevka.h"
+#include "nature_fence.h"
 
 // Shared static geometry for Paldiski (2 x 2 km) and the offline training lobby.
 // Deterministic generation keeps rendering and authoritative collision aligned.
@@ -57,6 +58,7 @@ inline void townPush(const Box& b, uint8_t surf) {
 
 // Paldiski terrain with the first shared forestry combat site.
 inline void generatePaldiski() {
+    gNatureFenceFirst=gNatureFenceCount=0;
     gKhrushBoxFirst = gKhrushBoxCount = 0;
     gTownBoxCount    = 0;
     gMapSpawnCount   = 0;
@@ -111,6 +113,11 @@ inline void generateLobby() {
     }
     gStandBoxCount = gTownBoxCount - gStandBoxFirst;
     buildKhrushchevkaCollision();
+    gNatureFenceFirst=gTownBoxCount;
+    visitNatureFence([](const NatureFencePart& p,void*) {
+        townPush({p.center,p.half},SURF_WOOD);
+    },nullptr,terrainHeight);
+    gNatureFenceCount=gTownBoxCount-gNatureFenceFirst;
     gMapSpawns[gMapSpawnCount++] = {0.0f, 0.0f, 136.0f};
 }
 

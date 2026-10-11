@@ -46,6 +46,8 @@ set(CLIENT_SOURCES
     src/veg_meadow.cpp
     src/veg_world_grass.cpp
     src/veg_mesh.cpp
+    src/nature_plants.cpp
+    src/nature_fence_visual.cpp
     src/renderer.cpp
     src/renderer_passes.cpp
     src/renderer_draw.cpp
