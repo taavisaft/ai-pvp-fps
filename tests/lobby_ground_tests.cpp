@@ -79,6 +79,9 @@ int main() {
     for (int a=0; a<360; a+=3) for (float r=56; r<142; r+=1) {
         float c=cosf(a*.0174533f), s=sinf(a*.0174533f);
         float x0=c*r, z0=s*r, x1=c*(r+1), z1=s*(r+1);
+        // New building apron intentionally replaces this part of the old blend.
+        // Its height continuity is checked by khrushchevka_tests.
+        if(fabsf(x0-KHRUSH_X)<KHRUSH_LENGTH*.5f+43 && fabsf(z0-KHRUSH_Z)<50) continue;
         float range=fabsf(trainingRangeHeight(x1,z1)-trainingRangeHeight(x0,z0));
         float land=fabsf(trainingLandscapeHeight(x1,z1)-trainingLandscapeHeight(x0,z0));
         CHECK(fabsf(terrainHeight(x1,z1)-terrainHeight(x0,z0)) < fmaxf(range,land)+.55f);

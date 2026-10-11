@@ -2,6 +2,7 @@
 #include "renderer.h"
 #include "game.h"
 #include "protocol.h"
+#include "process_usage.h"
 
 struct ConnectPrompt;
 struct Lobby;
@@ -20,6 +21,7 @@ struct KillFeed {
 struct HudState {
     float    flashTimer = 0.0f;   // red hit flash
     float    deathTimer = 0.0f;   // local respawn countdown while dead
+    ProcessUsage processUsage;
     float    fps        = 0.0f;   // smoothed frames/sec, top-left readout
     float    frameMs    = 0.0f;   // smoothed wall-clock frame duration
     float    renderCpuMs= 0.0f;   // CPU time spent submitting the previous scene
@@ -42,3 +44,5 @@ struct HudState {
 void drawHUD(Renderer& r, const GameState& gs, int localID,
              const HudState& hud, bool scoreboard, bool online, bool fullMap);
 void drawConnectPrompt(Renderer& r, const ConnectPrompt& prompt, const Lobby& lobby);
+
+void drawHUDStats(Renderer& r, const HudState& hud, bool online);

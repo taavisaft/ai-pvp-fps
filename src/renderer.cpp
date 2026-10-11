@@ -122,6 +122,7 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!initLandscape(base)) return false;
     if (!font.init()) return false;
     if (!materials.init()) return false;
+    if (!building.init(base)) return false;
 
     // Shadow map: a depth-only texture rendered from the sun each frame.
     // Created before veg.init so unit 1 is valid and loaded during impostor baking.
@@ -194,6 +195,7 @@ void Renderer::shutdown() {
     taigaTerrain.destroy();
     ground.destroy();
     stand.destroy();
+    building.destroy();
     for (int i = 0; i < PART_COUNT; i++) playerPart[i].destroy();
     scopeShader.destroy();
     kar98.destroy();

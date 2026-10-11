@@ -2,6 +2,8 @@
 
 Use dated reports for measurements and inspections; [TODO.md](TODO.md) owns current priorities. Old reports describe the state when measured and should not silently be rewritten as current claims.
 
+- [2026-10-09: five-storey Khrushchevka exterior](docs/khrushchevka-exterior-2026-10-09.md) — eight sections, real apertures and shared collision, batched distance meshes, training placement and regression checks.
+
 - [2026-09-25: native-resolution traversal baseline](docs/traversal-performance-2026-09-25.md) — repeatable pond/forest/scope routes, per-frame CSV, opt-in GPU diagnostics, and grass cost isolation. Grass rendering is the next measured target.
 
 - [2026-09-22: spruce crown density](docs/spruce-density-2026-09-22.md) — overlapping inner foliage retained across LODs, distant needle-area regression checks.

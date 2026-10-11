@@ -26,6 +26,7 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
         if(fabsf(x)>gArenaHalf || fabsf(z)>gArenaHalf) continue;
         float h=terrainHeight(x,z);
         if(gMapId==MAP_LOBBY) {
+            if(khrushchevkaClearance(x,z,.6f)) continue;
             if(trainingPondRadius(x,z)<1.8f && h<TRAINING_POND_Y+.12f) continue;
         } else if(h<1.25f || h>115.0f) continue;
         bool blocked=false;

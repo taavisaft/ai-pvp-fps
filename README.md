@@ -26,6 +26,12 @@ The game always starts in the offline test lobby: a 2×2 km training landscape
 with a shooting range, meadow, pond and wooded hills. All new practice features
 are available here without launch flags.
 
+The training map also has a five-storey, 113.6 m Khrushchevka exterior at
+`(0, -110)`, south of the range. Eight entrances open into an empty shell;
+apartment interiors and stairs are not finished. Start at its exterior review
+view with `FPS_REF=building ./build/game`. See the
+[building record](docs/khrushchevka-exterior-2026-10-09.md) for assets and checks.
+
 To play Paldiski online, start the dedicated server:
 
 ```sh
@@ -72,3 +78,6 @@ Aim settings are saved locally when you close the settings menu. Use arrow keys 
 Footsteps use free CC0 grass and gravel sample banks, with distance-based local
 playback. The lobby range/trail use the gravel bank; meadow uses grass. Asset
 sources, rebuilding and current limits: [sounds/footsteps/README.md](sounds/footsteps/README.md).
+
+The top-left stats show game CPU usage (100% = one CPU core) and resident RAM
+in MiB, refreshed once per second, alongside FPS and frame/render timings.

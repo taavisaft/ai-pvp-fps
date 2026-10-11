@@ -18,7 +18,7 @@ set(SHARED_SOURCES
     src/physics.cpp
     src/projectiles.cpp
     src/tree_collision.cpp
-    src/forest_site.cpp
+    src/forest_site.cpp src/khrushchevka.cpp src/khrushchevka_details.cpp
     src/net_common.cpp
     src/tree_scatter.cpp)
 
@@ -49,10 +49,13 @@ set(CLIENT_SOURCES
     src/renderer.cpp
     src/renderer_passes.cpp
     src/renderer_draw.cpp
+    src/khrushchevka_visual.cpp
     src/renderer_world.cpp
     src/renderer_landscape.cpp
     src/renderer_window.cpp
     src/hud.cpp
+    src/hud_stats.cpp
+    src/process_usage.cpp
     src/hud_panels.cpp
     src/perf.cpp
     src/gpu_timing.cpp
@@ -74,7 +77,7 @@ target_include_directories(server PRIVATE src)
 target_link_libraries(server PRIVATE glm::glm)
 
 if(WIN32)
-    target_link_libraries(game PRIVATE ws2_32)
+    target_link_libraries(game PRIVATE ws2_32 psapi)
     target_link_libraries(server PRIVATE ws2_32)
     target_compile_definitions(game PRIVATE _WIN32_WINNT=0x0601)
     target_compile_definitions(server PRIVATE _WIN32_WINNT=0x0601)
@@ -90,7 +93,7 @@ add_dependencies(copy_shaders game)
 # Refresh textures on asset-only edits too, just like shaders.
 add_custom_target(copy_textures ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/textures $<TARGET_FILE_DIR:game>/textures)
+        ${CMAKE_SOURCE_DIR}/models/textures $<TARGET_FILE_DIR:game>/textures)
 add_dependencies(copy_textures game)
 
 # Copy sound assets next to the binary (optional; synth fallback if absent)
@@ -102,8 +105,14 @@ add_dependencies(copy_sounds game)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(khrushchevka_tests tests/khrushchevka_tests.cpp
+        src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp
+        src/khrushchevka.cpp src/khrushchevka_details.cpp)
+    target_include_directories(khrushchevka_tests PRIVATE src)
+    target_link_libraries(khrushchevka_tests PRIVATE glm::glm)
+    add_test(NAME khrushchevka COMMAND khrushchevka_tests)
     add_executable(footsteps_tests tests/footsteps_tests.cpp src/footstep_sound.cpp
-        src/audio.cpp src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp)
+        src/audio.cpp src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp src/khrushchevka.cpp src/khrushchevka_details.cpp)
     target_include_directories(footsteps_tests PRIVATE src)
     target_link_libraries(footsteps_tests PRIVATE SDL2::SDL2 glm::glm)
     add_test(NAME footsteps COMMAND footsteps_tests)
@@ -117,7 +126,7 @@ if(BUILD_TESTING)
     target_link_libraries(connect_prompt_input_tests PRIVATE SDL2::SDL2 glm::glm)
     add_test(NAME connect_prompt_input COMMAND connect_prompt_input_tests)
     add_executable(practice_runners_tests tests/practice_runners_tests.cpp
-        src/practice_runners.cpp src/random_runner.cpp src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp)
+        src/practice_runners.cpp src/random_runner.cpp src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp src/khrushchevka.cpp src/khrushchevka_details.cpp)
     target_include_directories(practice_runners_tests PRIVATE src)
     target_link_libraries(practice_runners_tests PRIVATE glm::glm)
     add_test(NAME practice_runners COMMAND practice_runners_tests)
@@ -129,7 +138,7 @@ if(BUILD_TESTING)
     target_link_libraries(pond_reflection_tests PRIVATE glm::glm)
     add_test(NAME pond_reflection COMMAND pond_reflection_tests)
     add_executable(server_fire_tests tests/server_fire_tests.cpp src/server_fire.cpp src/server_rewind.cpp
-        src/physics.cpp src/projectiles.cpp src/tree_collision.cpp src/tree_scatter.cpp src/forest_site.cpp)
+        src/physics.cpp src/projectiles.cpp src/tree_collision.cpp src/tree_scatter.cpp src/forest_site.cpp src/khrushchevka.cpp src/khrushchevka_details.cpp)
     target_include_directories(server_fire_tests PRIVATE src)
     target_link_libraries(server_fire_tests PRIVATE glm::glm)
     add_test(NAME server_fire COMMAND server_fire_tests)
@@ -141,17 +150,17 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME client_fire COMMAND client_fire_tests)
     add_executable(tree_collision_tests tests/tree_collision_tests.cpp
-        src/physics.cpp src/projectiles.cpp src/tree_collision.cpp src/tree_scatter.cpp src/forest_site.cpp)
+        src/physics.cpp src/projectiles.cpp src/tree_collision.cpp src/tree_scatter.cpp src/forest_site.cpp src/khrushchevka.cpp src/khrushchevka_details.cpp)
     target_include_directories(tree_collision_tests PRIVATE src)
     target_link_libraries(tree_collision_tests PRIVATE glm::glm)
     add_test(NAME tree_collision COMMAND tree_collision_tests)
     add_executable(forest_site_tests tests/forest_site_tests.cpp
-        src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp)
+        src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp src/khrushchevka.cpp src/khrushchevka_details.cpp)
     target_include_directories(forest_site_tests PRIVATE src)
     target_link_libraries(forest_site_tests PRIVATE glm::glm)
     add_test(NAME forest_site COMMAND forest_site_tests)
     add_executable(lobby_ground_tests tests/lobby_ground_tests.cpp
-        src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp)
+        src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp src/khrushchevka.cpp src/khrushchevka_details.cpp)
     target_include_directories(lobby_ground_tests PRIVATE src)
     target_link_libraries(lobby_ground_tests PRIVATE glm::glm)
     add_test(NAME lobby_ground COMMAND lobby_ground_tests)

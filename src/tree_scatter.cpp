@@ -2,6 +2,7 @@
 #include "map.h"       // gMapId, mapRand, PALDISKI_HALF, LOBBY_HALF, MAP_LOBBY
 #include "terrain.h"   // terrainHeight, pineForestBiome
 #include <cmath>
+#include <algorithm>
 
 std::vector<TreeInstance> gTrees;
 std::vector<TreeCol>      gTreeCols;
@@ -89,6 +90,9 @@ static void scatterTrees(std::vector<TreeInstance>& out) {
         for(const auto& p:landmarks)
             out.push_back({p[0],terrainHeight(p[0],p[1])-.15f,p[1],p[2],
                            mapRand(int(p[0]),int(p[1]),310)*6.2831853f,.91f});
+        out.erase(std::remove_if(out.begin(),out.end(),[](const TreeInstance& t) {
+            return khrushchevkaClearance(t.x,t.z,3.0f);
+        }),out.end());
         return;
     }
     const float STEP = 5.0f;

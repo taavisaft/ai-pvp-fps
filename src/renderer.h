@@ -10,6 +10,7 @@
 #include "frustum.h"
 #include "terrain_render.h"
 #include "vegetation.h"
+#include "khrushchevka_visual.h"
 
 struct Box;  // map.h; for the satellite map-texture bake
 
@@ -93,6 +94,7 @@ struct Renderer {
     TerrainChunks taigaTerrain;  // chunked LOD 2 km ground + mountain vista
     Vegetation    veg;           // instanced grass + LOD spruce forest (taiga only)
     Mesh   stand;
+    KhrushVisual building;
     // Blender-authored player body parts (tools/player_model.py), unit-box space —
     // drawn with the same M * scale(2*half) transform as the plain cube, so the
     // pose boxes/hitboxes are unchanged. Order matches PMESH_PARTS in player_mesh.h.

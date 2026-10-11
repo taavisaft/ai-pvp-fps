@@ -1,4 +1,5 @@
 #pragma once
+#include "khrushchevka.h"
 // Included after terrain noise helpers. Shared by rendering and collision.
 constexpr float TRAINING_POND_Y=6.0f;
 constexpr float TRAINING_POND_Z=184.0f;
@@ -67,7 +68,9 @@ inline float trainingRangeHeight(float x, float z) {
 
 inline float trainingHeight(float x,float z) {
     float blend=lobbySmooth(58,140,sqrtf(x*x+z*z));
-    if(blend==0) return trainingRangeHeight(x,z);
-    if(blend==1) return trainingLandscapeHeight(x,z);
-    return trainingRangeHeight(x,z)*(1-blend)+trainingLandscapeHeight(x,z)*blend;
+    float h=blend==0 ? trainingRangeHeight(x,z) : blend==1 ? trainingLandscapeHeight(x,z)
+        : trainingRangeHeight(x,z)*(1-blend)+trainingLandscapeHeight(x,z)*blend;
+    float edge=fmaxf(fabsf(x-KHRUSH_X)-(KHRUSH_LENGTH*.5f+6),fabsf(z-KHRUSH_Z)-13);
+    float pad=1-lobbySmooth(0,36,edge);
+    return h*(1-pad)+KHRUSH_Y*pad;
 }

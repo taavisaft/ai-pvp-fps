@@ -5,6 +5,7 @@
 #include "terrain.h"
 #include "stand_col.h"
 #include "forest_site.h"
+#include "khrushchevka.h"
 
 // Shared static geometry for Paldiski (2 x 2 km) and the offline training lobby.
 // Deterministic generation keeps rendering and authoritative collision aligned.
@@ -27,7 +28,7 @@ constexpr int MAP_COUNT = MAP_COUNT_;   // sizes client arrays (incl. the lobby)
 
 inline constexpr float PALDISKI_HALF = 1024.0f;  // 2x2 km play area, clamp at +/-1024
 inline constexpr float SEA_LEVEL     = 0.0f;     // water plane height
-inline constexpr int   MAX_MAP_BOXES = 1024;
+inline constexpr int   MAX_MAP_BOXES = 4096;
 
 // Per-box surface tag (decoupled from the renderer's MaterialId; material.h maps it).
 enum BoxSurface : uint8_t { SURF_CONCRETE = 0, SURF_METAL, SURF_WOOD };
@@ -56,6 +57,7 @@ inline void townPush(const Box& b, uint8_t surf) {
 
 // Paldiski terrain with the first shared forestry combat site.
 inline void generatePaldiski() {
+    gKhrushBoxFirst = gKhrushBoxCount = 0;
     gTownBoxCount    = 0;
     gMapSpawnCount   = 0;
     gTerrainPadCount = 0;
@@ -108,6 +110,7 @@ inline void generateLobby() {
                   {c[3], c[4], c[5]}}, SURF_WOOD);
     }
     gStandBoxCount = gTownBoxCount - gStandBoxFirst;
+    buildKhrushchevkaCollision();
     gMapSpawns[gMapSpawnCount++] = {0.0f, 0.0f, 136.0f};
 }
 

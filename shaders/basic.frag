@@ -395,7 +395,17 @@ void main() {
     } else if (lit == 1 && grass == 1) {
         c = grassColor(worldPos.xz, time);
     } else if (lit == 1 && useTexture != 0) {
-        c = triplanar(worldPos, tileSize) * tint;
+        vec3 texel = triplanar(worldPos, tileSize);
+        if (authoredMaterial == 1) {
+            // Authored concrete batches: retain per-panel colour variations.
+            // Fine aggregate and runoff fade out before subpixel shimmer.
+            c *= mix(vec3(.70), pow(texel, vec3(2.2)), .50);
+            float grain = vnoise(worldPos.xy * 75.0 + worldPos.z * 29.0);
+            float near = 1.0-smoothstep(8.0,35.0,camDist);
+            c *= 1.0 + (grain-.5)*.22*near;
+            float runoff = vnoise(worldPos.xz*vec2(2.1,.7));
+            c *= .90+.10*runoff;
+        } else c = texel * tint;
     }
 
     if (lit == 1) {

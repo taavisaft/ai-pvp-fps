@@ -93,6 +93,7 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
         r.drawTerrain(fr, eye);
         for (int i = 0; i < gMapBoxCount; i++) {
             if (i >= gStandBoxFirst && i < gStandBoxFirst + gStandBoxCount) continue;
+            if (i >= gKhrushBoxFirst && i < gKhrushBoxFirst + gKhrushBoxCount) continue;
             const Box& b = gMapBoxes[i];
             if (!fr.aabbVisible(b.center, b.half)) continue;
             r.drawCube(b.center, b.half * 2.0f, mapBoxMaterial(i));
@@ -106,6 +107,7 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
                                  STAND_MAX[1] - STAND_MIN[1],
                                  STAND_MAX[2] - STAND_MIN[2]) * 0.5f;
         if (fr.aabbVisible(sc, sh)) r.drawMesh(r.stand, sp, MAT_WOOD);
+        r.building.draw(r, fr, eye);
     } else {
         r.drawTerrain(fr, eye);
         for (int i = 0; i < gMapBoxCount; ++i) {
@@ -219,7 +221,8 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     }
     if (!diagOnce) printf("[diag] E: viewmodel\n");
     // First-person gun is an overlay — don't world-shadow it (FPS convention).
-    if (gs.players[localID].alive && !connectPrompt.open && !thirdPerson) {
+    static const bool noViewModel = getenv("FPS_NOVIEWMODEL") != nullptr;
+    if (gs.players[localID].alive && !connectPrompt.open && !thirdPerson && !noViewModel) {
         r.shader.setInt(r.shader.locUseShadow, 0);
         drawViewModel(r, cam, vm, gWeaponId);
         r.shader.setInt(r.shader.locUseShadow, 1);
@@ -465,6 +468,7 @@ int main() {
             hud.frameMs = hud.frameMs <= 0.0f ? ms : hud.frameMs + (ms - hud.frameMs) * 0.1f;
             hud.fps = 1000.0f / hud.frameMs;
         }
+        hud.processUsage.update(dt);
         if (dt > 0.05f) dt = 0.05f;   // cap to avoid spiral
 
         pollInput(input, cam, &connectPrompt, &settings);

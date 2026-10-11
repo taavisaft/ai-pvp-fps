@@ -54,7 +54,8 @@ def main():
     binary = contents / 'MacOS/game'
     shutil.copy2(BUILD / 'game', binary)
     for folder in ('shaders', 'textures', 'sounds'):
-        shutil.copytree(ROOT / folder, resources / folder)
+        source = ROOT / 'models/textures' if folder == 'textures' else ROOT / folder
+        shutil.copytree(source, resources / folder)
     # Repository attribution explicitly requires verification before redistribution.
     (resources / 'textures/ground.jpg').unlink(missing_ok=True)
     iconset = WORK / 'AppIcon.iconset'

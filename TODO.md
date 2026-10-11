@@ -4,6 +4,12 @@ Reviewed against source on 2026-09-05. This is the active roadmap; ordering is a
 
 ## First three tasks
 
+Current building slice: **Khrushchevka exterior implemented** in the training map.
+Next: actual apartment partitions, switchback stairs and doors, followed by
+movement/projectile proof on every floor and section collision-query profiling.
+See [the exterior record](docs/khrushchevka-exterior-2026-10-09.md). All rooms
+accessible is the target; the present shell does not meet that criterion yet.
+
 1. **Completed: server firing rules.** Per-mode cooldowns, bounded/expiring requests, firing-state epochs, and regression tests are implemented. See [the implementation record](docs/server-firing-2026-09-05.md).
 2. **Completed: tree cover.** Swept bullets hit the visible tapered trunk; gaps and foliage remain shootable. Shared simulation tests and a dense-stand microbenchmark pass. See [the implementation record](docs/tree-cover-2026-09-05.md).
 3. **In progress: forest combat area.** First stage: an enterable forestry shelter, eight timber stacks and clear approaches near (325, 75), with shared collision and movement tests. Next: varied ground, natural rock cover, understory refinement and a two-player sightline/spawn playtest. See [record](docs/forest-site-2026-09-05.md).
