@@ -2,17 +2,31 @@
 
 Reviewed against source on 2026-09-05. This is the active roadmap; ordering is a recommendation, not a claim that the work is already implemented. Aim for convincing close-range combat on a stable 16-player server, then expand the world.
 
+## Active world direction — 2026-10-15
+
+Build the world in the offline lobby first, then promote that same world to online
+play when ready. Maintain one world/content implementation, with shared deterministic
+placement and collision; avoid parallel Paldiski and lobby content passes. Keep
+practice-only features separate so promotion can disable them without rebuilding
+the landscape. See [the project workflow](AGENTS.md#world-development-workflow).
+
+The current world focus is nature: terrain, trees, undergrowth, ground materials
+and satellite-map presentation. Further building work is deferred until requested.
+The eventual promotion gate includes visual/performance review, headless collision
+and spawn checks, an updated world revision, and online validation. The server map
+has not been switched to the lobby by this workflow decision.
+
 ## First three tasks
 
-Current building slice: **Khrushchevka exterior implemented** in the training map.
-Next: actual apartment partitions, switchback stairs and doors, followed by
-movement/projectile proof on every floor and section collision-query profiling.
+Deferred building slice: **Khrushchevka exterior implemented** in the training map.
+Possible follow-up when resumed: apartment partitions, switchback stairs and doors,
+then movement/projectile proof and section collision-query profiling.
 See [the exterior record](docs/khrushchevka-exterior-2026-10-09.md). All rooms
 accessible is the target; the present shell does not meet that criterion yet.
 
 1. **Completed: server firing rules.** Per-mode cooldowns, bounded/expiring requests, firing-state epochs, and regression tests are implemented. See [the implementation record](docs/server-firing-2026-09-05.md).
 2. **Completed: tree cover.** Swept bullets hit the visible tapered trunk; gaps and foliage remain shootable. Shared simulation tests and a dense-stand microbenchmark pass. See [the implementation record](docs/tree-cover-2026-09-05.md).
-3. **In progress: forest combat area.** First stage: an enterable forestry shelter, eight timber stacks and clear approaches near (325, 75), with shared collision and movement tests. Next: varied ground, natural rock cover, understory refinement and a two-player sightline/spawn playtest. See [record](docs/forest-site-2026-09-05.md).
+3. **Superseded: separate Paldiski forest combat area.** The forestry shelter and timber stacks were removed for the nature-only map. Continue world development in the offline lobby under the active direction above. The [forestry-site record](docs/forest-site-2026-09-05.md) is historical.
 
 Work on input replay and repeatable performance tests alongside these milestones before treating the slice as online-ready.
 
@@ -66,7 +80,7 @@ For payload policy, follow [RFC 8085 message-size guidance](https://www.rfc-edit
 
 Dedicated server; 16-player FFA; three-second respawn; Paldiski plus offline lobby; sprint/jump/crouch/lean/ADS; Uzi, Glock and 8× scoped Kar98 with per-weapon ammunition/reload; sticky recoil; projectile travel/gravity/drag/falloff; swept box/terrain/posed-body hits; target rewind; snapshot interpolation; basic prediction/error smoothing; host-entry/server discovery; minimap/scoreboard/kill feed; decals; audio; character posing/ragdolls; terrain chunks; instanced trees/bushes and impostors; shadow map/clouds/fog/atmosphere; quality presets; reference captures and corrected frame benchmarks.
 
-These are implemented features, not claims of production readiness. Trees stop movement and bullets at the trunk; grass is being tested in the lobby and on Paldiski; Paldiski has one forestry shelter; no four-hit universal damage rule, fixed ammo-per-life total, or round end exists.
+These are implemented features, not claims of production readiness. Trees stop movement and bullets at the trunk; grass is being tested in the lobby and on Paldiski; Paldiski is nature-only; no four-hit universal damage rule, fixed ammo-per-life total, or round end exists.
 
 ## How to finish each task
 

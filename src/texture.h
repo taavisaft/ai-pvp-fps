@@ -10,10 +10,9 @@ GLuint loadTexture(const char* path);
 // Load an RGBA texture for alpha-tested/blended atlases such as environment decals.
 GLuint loadTextureRGBA(const char* path);
 
-// Top-down "satellite" map texture baked from the arena box layout: muted terrain
-// noise + box footprints shaded by height with drop shadows. Spans world XZ in
-// [-worldHalf, worldHalf]^2, north (+Z) at the top row. boxes may be null (count 0).
-// Used as a fallback when no hand-made textures/map_<name>.png exists.
+// Cached satellite-style map from the active heightfield, habitats, real tree
+// crowns and static geometry. GL bottom row is -Z; north (+Z) is at the top.
+// Bake at map setup only; no per-frame generation or extra scene rendering.
 struct Box;
 GLuint makeMapTexture(const Box* boxes, int count, float worldHalf);
 

@@ -93,6 +93,13 @@ while tree trunks keep shared movement and projectile collision. Spawn pockets
 stay clear of trunks. Online grass retains its 50 m range; detailed shrubs fade
 at 45–60 m and flowers at 18–28 m. Preview with `FPS_REF=forest ./build/game`.
 
+The minimap and M-key map share a cached satellite-style image baked from the
+active heightfield and actual tree scatter. Coastlines, rivers, the lobby pond,
+meadow, woodland floor, exposed slopes, shaded relief and individual tree crowns
+follow the playable landscape. The 1024×1024 image covers the full map at 2 m per
+pixel and is generated once per map; it adds no recurring scene pass. Use
+`FPS_REF=forest FPS_FULLMAP=1 ./build/game` to preview the full Paldiski map.
+
 ### Nature preview
 
 The offline lobby uses a patchy woodland floor in forest interiors: moss, needle litter,

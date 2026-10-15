@@ -34,6 +34,8 @@ set(CLIENT_SOURCES
     src/font.cpp
     src/mesh.cpp
     src/texture.cpp
+    src/texture_map.cpp
+    src/satellite_map.cpp
     src/material.cpp
     src/terrain_render.cpp
     src/vegetation.cpp
@@ -107,6 +109,11 @@ add_dependencies(copy_sounds game)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(satellite_map_tests tests/satellite_map_tests.cpp src/satellite_map.cpp
+        src/tree_scatter.cpp src/forest_site.cpp src/khrushchevka.cpp src/khrushchevka_details.cpp)
+    target_include_directories(satellite_map_tests PRIVATE src)
+    target_link_libraries(satellite_map_tests PRIVATE glm::glm)
+    add_test(NAME satellite_map COMMAND satellite_map_tests)
     add_executable(khrushchevka_tests tests/khrushchevka_tests.cpp
         src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp
         src/khrushchevka.cpp src/khrushchevka_details.cpp)

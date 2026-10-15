@@ -14,6 +14,7 @@ void Renderer::invalidateWorldOnMapChange() {
     taigaTerrain.destroy();
     if(gMapId==MAP_LOBBY) taigaTerrain.prepareTraining();
     veg.prepareMeadow();
+    mapTexture(gMapId, gMapBoxes, gMapBoxCount, mapViewHalf());
 }
 
 void Renderer::drawVegetation(const Frustum& fr, const glm::vec3& eye) {

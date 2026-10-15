@@ -72,14 +72,10 @@ void Renderer::drawTexQuad(const glm::vec2& center, const glm::vec2& size, unsig
 }
 
 unsigned int Renderer::mapTexture(int mapId, const Box* boxes, int count, float worldHalf) {
-    if (mapId < 0 || mapId > 2) return 0;
-    if (!mapTexTried[mapId]) {
+    if (mapId < 0 || mapId >= MAP_COUNT) return 0;
+    if (!mapTexTried[mapId] && mapId == int(gMapId)) {
         mapTexTried[mapId] = true;
-        static const char* names[3] = {"training", "warehouse", "field"};
-        char path[64];
-        snprintf(path, sizeof(path), "textures/map_%s.png", names[mapId]);
-        GLuint t = loadTexture(path);                       // hand-made art if present
-        if (!t) t = makeMapTexture(boxes, count, worldHalf); // else procedural bake
+        GLuint t = makeMapTexture(boxes, count, worldHalf);
         if (t) {   // clamp so corner-minimap sub-rect sampling doesn't wrap at edges
             glBindTexture(GL_TEXTURE_2D, t);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);

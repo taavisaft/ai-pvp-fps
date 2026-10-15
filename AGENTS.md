@@ -16,13 +16,30 @@ Current guide, reviewed against source on 2026-09-05. Build a realistic, perform
 - Preserve user changes. Keep rendering and shared gameplay collision consistent.
 - Performance comes first. Flag substantial expected or measured frame-time costs before recommending or enabling visual features; show the cost in milliseconds and percent when measured.
 
+## World development workflow
+
+- Develop and review all new world content in the offline lobby first: terrain,
+  vegetation, materials, weather, structures when requested, and map presentation.
+  Do not maintain parallel lobby and Paldiski implementations or duplicate content
+  to keep two landscapes visually up to date.
+- Keep reusable world generation, placement and collision shared and deterministic.
+  The offline world is the source for the eventual live map; promotion must reuse
+  that world definition rather than recreate or manually port it.
+- Treat offline practice features (targets, dummy/runners, range helpers and UI)
+  separately from the world content so they can be disabled for online play.
+  Keep authoritative world/collision code independent of SDL and OpenGL.
+- Promote the offline world to the live map when requested and ready for online
+  validation. This workflow decision does not itself switch the server map.
+- Validate visuals and performance offline; at promotion, also verify shared
+  collision, spawn safety and networking, and bump the world revision as needed.
+
 ## Current implementation
 
 - `game` client and `server` executable; 16-player drop-in FFA, 100 HP, three-second respawn. No rounds or victory condition.
 - 60 Hz authoritative simulation and 20 Hz snapshots. Raw UDP defaults to port 7777; `FPS_PORT` is reserved for isolated test servers.
 - Protocol v4 and world revision live in `src/protocol.h`. Snapshots contain all 16 player slots plus an occupied-slot mask and up to 63 bullet records; only the bullet tail is truncated. Simulation has 256 bullet slots.
 - Paldiski is the online map, approximately 2×2 km (±1024 m). Offline launch starts in the separate training lobby. Old warehouse/field maps are removed.
-- Shared terrain and tree scatter drive server/client placement. Tree trunks block movement and swept bullets; bullet collision matches the visible taper, while movement keeps a wider cylinder. Paldiski has a first forestry shelter and timber-cover layout near (325, 75); the lobby has cover and a hunting stand.
+- Shared terrain and tree scatter drive server/client placement. Tree trunks block movement and swept bullets; bullet collision matches the visible taper, while movement keeps a wider cylinder. Paldiski is nature-only, with no forestry shelter or timber cover; the lobby has practice cover and a hunting stand.
 - Sprint, jump, crouch, lean, ADS, Uzi/Glock, preserved per-weapon ammo, manual/automatic reload, sticky recoil, swept projectile collision, drag/falloff, posed regional hitboxes, and target rewind exist.
 - Client prediction currently smooths position corrections; it does not replay acknowledged/unacknowledged input history. Shot cadence, bounded queues and state epochs are enforced by `server_fire.cpp`; broader packet validation/rate limits remain unfinished.
 - Segmented Blender-authored tactical soldier and classic Uzi use normals/material vertex data, local camouflage, and reduced meshes beyond 15 m. The Uzi is shared by first-/third-person views; gameplay hitboxes are unchanged. Editable source and export instructions: `tools/soldier/README.md`. No skinned deformation or magazine/reload animation yet.

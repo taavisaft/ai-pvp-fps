@@ -433,7 +433,7 @@ int main() {
     bool      prevAlive[MAX_PLAYERS];         // last frame's alive flag, for the edge
     for (int i = 0; i < MAX_PLAYERS; i++) prevAlive[i] = true;
     bool      showHitboxes = false;           // H: overlay translucent hit regions
-    bool      fullMap      = false;           // M: full-screen map overlay
+    bool      fullMap      = getenv("FPS_FULLMAP") != nullptr;           // M: full-screen map overlay
     bool      showHud      = getenv("FPS_NOHUD") == nullptr;            // J: hide whole HUD for immersion
     bool      thirdPerson  = getenv("FPS_TPP") != nullptr;  // V: orbit self-view (see your own body)
 
