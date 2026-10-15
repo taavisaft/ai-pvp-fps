@@ -3,6 +3,7 @@
 #include "map.h"
 #include "meadow_density.h"
 #include "lobby_growth.h"
+#include "forest_floor.h"
 #include <algorithm>
 #include <array>
 
@@ -48,15 +49,17 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
         float rock=lobbySmooth(.30f,.55f,slope);
         float dirt=lobbySmooth(.52f,.70f,vegFbm(x*.004f,z*.004f))*.35f;
         float growth=lobbyGrowth(x,z);
-        float keep=(1-rock)*(1-dirt)*(1-.8f*pineForestBiome(x,z))*(.32f+.68f*growth);
+        float woodland=forestFloorCover(x,z,h);
+        float keep=(1-rock)*(1-dirt)*(1-.97f*woodland)*(.32f+.68f*growth);
         if(gMapId==MAP_LOBBY) {
-            keep=(.32f+.68f*growth)*(1-lobbyWear(x,z))*(1-.7f*trainingForest(x,z));
+            keep=(.32f+.68f*growth)*(1-lobbyWear(x,z))*(1-.97f*woodland);
             keep=fmaxf(keep,trainingReeds(x,z));
         }
         if(mapRand(key,tz,213)>=keep) continue;
         int nx=(int)((n.x*.5f+.5f)*255+.5f), nz=(int)((n.z*.5f+.5f)*255+.5f);
         float packedNormal=(float)(nx+256*nz);
         float scale=(.70f+.45f*growth)*(.8f+.4f*mapRand(key,tz,214));
+        scale*=1-.65f*woodland;  // Occasional short tufts, not meadow-height blades.
         if(gMapId==MAP_LOBBY) scale*=1+.9f*trainingReeds(x,z);
         plants[count++]={x,h-.025f,z,scale,
                          mapRand(key,tz,215)*6.2831853f,mapRand(key,tz,216),

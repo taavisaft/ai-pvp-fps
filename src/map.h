@@ -56,17 +56,15 @@ inline void townPush(const Box& b, uint8_t surf) {
     gTownBoxCount++;
 }
 
-// Paldiski terrain with the first shared forestry combat site.
+// Nature-only Paldiski: retain the full coastal heightfield without structures.
 inline void generatePaldiski() {
-    gNatureFenceFirst=gNatureFenceCount=0;
+    gNatureFenceFirst=gNatureFenceCount=gNatureLogCount=0;
     gKhrushBoxFirst = gKhrushBoxCount = 0;
     gTownBoxCount    = 0;
     gMapSpawnCount   = 0;
     gTerrainPadCount = 0;
 
-    buildForestSite();
-
-    // First join starts at the forestry site; wider map spawns remain available.
+    // Start inland; wider map spawns remain available.
     gMapSpawns[gMapSpawnCount++] = {FOREST_SITE_X - 20, 0.0f, FOREST_SITE_Z + 18};
 
     for (int i = 0; i < 24 && gMapSpawnCount < 64; i++) {
@@ -78,6 +76,15 @@ inline void generatePaldiski() {
         if (paldiskiElevation(sx, sz) < 1.0f) continue;
         gMapSpawns[gMapSpawnCount++] = {sx, 0.0f, sz};
     }
+}
+
+// Reserve a small walkable pocket at every online spawn before scattering trunks.
+inline bool paldiskiSpawnClearance(float x, float z, float radius) {
+    for (int i = 0; i < gMapSpawnCount; ++i) {
+        float dx = x-gMapSpawns[i].x, dz = z-gMapSpawns[i].z;
+        if (dx*dx+dz*dz < radius*radius) return true;
+    }
+    return false;
 }
 
 // Build the offline lobby: a flat 120x120 m pad with a shooting-range target wall
@@ -114,7 +121,12 @@ inline void generateLobby() {
     gStandBoxCount = gTownBoxCount - gStandBoxFirst;
     buildKhrushchevkaCollision();
     gNatureFenceFirst=gTownBoxCount;
+    gNatureLogCount=0;
     visitNatureFence([](const NatureFencePart& p,void*) {
+        if(p.grain>=3 && gNatureLogCount<200) gNatureLogs[gNatureLogCount++]=p;
+    },nullptr,terrainHeight);
+    visitNatureFenceColliders([](const NatureFencePart& p,void*) {
+        gNatureRailBox[gTownBoxCount]=p.grain>=3;
         townPush({p.center,p.half},SURF_WOOD);
     },nullptr,terrainHeight);
     gNatureFenceCount=gTownBoxCount-gNatureFenceFirst;

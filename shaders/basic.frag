@@ -225,6 +225,7 @@ float pineBiome(vec2 p) {
 }
 
 uniform float distantGrassMute;
+#include "forest_floor.glsl"
 uniform sampler2D meadowMap;
 vec3 meadowLayer(vec3 p) {
     float growth=lobbyGrowth(p.xz);
@@ -238,7 +239,7 @@ vec3 meadowLayer(vec3 p) {
     // while retaining local growth variation; avoid straw-colored hill bands.
     float farField=smoothstep(30.0,90.0,distance);
     vec3 lush=growthColorOf(growth);
-    if (splat==2) lush=mix(lush,vec3(.15,.23,.065),farField*.9);
+    lush=mix(lush,vec3(.15,.23,.065),farField*.9);
     vec3 deepGround=lush*(.65+fibre*1.15);
     vec3 meadow=mix(dryGround,deepGround,growth*.85);
     float macro=growthNoise(p.xz*.018+vec2(4,9));
@@ -246,7 +247,7 @@ vec3 meadowLayer(vec3 p) {
     // Keep a few-meter-scale field pattern after the grass cards thin out. Fade
     // it when a noise cell approaches a pixel so distant hills do not shimmer.
     float grain=.5;
-    if (splat==2) {
+    {
         grain=growthNoise(p.xz*.30+vec2(-13,21));
         float grainFootprint=max(fwidth(p.x*.30),fwidth(p.z*.30));
         grain=mix(.5,grain,1.0-smoothstep(.5,1.5,grainFootprint));
@@ -254,12 +255,11 @@ vec3 meadowLayer(vec3 p) {
     vec3 toEye=normalize(eyePos-p);
     float grazing=1.0-smoothstep(.04,.42,dot(normalize(vNormal),toEye));
     vec3 tips=mix(vec3(.43,.41,.17),vec3(.30,.37,.13),growth);
-    // Training's distant cards converge to lush ground color. Strong slope-based
+    // Distant cards converge to lush ground color. Strong slope-based
     // tip tint made the bare hillside look like broad tan contour bands.
-    float tipMix=grazing*(splat==2 ? .24*(1.0-farField) : .85);
-    float detail=splat==2 ? .64+.08*macro+.20*patches+.48*grain
-                          : .80+.26*macro+.14*patches;
-    if (splat==2) {
+    float tipMix=grazing*.24*(1.0-farField);
+    float detail=.64+.08*macro+.20*patches+.48*grain;
+    {
         // A larger, warped sample of the scanned meadow supplies irregular
         // mid-distance structure instead of more smooth value-noise bands.
         vec2 photoUV=p.xz/20.0+vec2(macro,patches)*.23;
@@ -280,9 +280,6 @@ vec3 meadowLayer(vec3 p) {
 // with a height bias (peaks rockier) and fbm-jittered band edges so the material
 // transitions look organic instead of contour-line clean. Erangel/Miramar look.
 vec3 splatTerrain(vec3 p, vec3 an) {
-    vec3 grassC = meadowLayer(p);
-    vec3 dirtC  = antiTile(dirtMap, p, dirtTile, an);
-    vec3 rockC  = antiTile(rockMap, p, rockTile, an);
     // Slope: steep faces -> rock. The heightfield is gentle (~few deg), so amplify
     // the slope before thresholding, plus a height term for whatever peaks exist.
     float slope  = 1.0 - clamp(normalize(vNormal).y, 0.0, 1.0);  // 0 flat .. 1 vertical
@@ -291,6 +288,15 @@ vec3 splatTerrain(vec3 p, vec3 an) {
     float rw = smoothstep(0.30, 0.55, s);
     rw = max(rw, smoothstep(115.0, 175.0, p.y));  // bare rock on the mountain slopes
     // (band sits above the ~85 m playable ridge tops so they stay grassy)
+
+    float woodland = woodlandCover(p.xz) * (1.0 - rw);
+    // Full woodland hides the other layers; avoid sampling meadow/dirt/rock.
+    // Habitat height is below the snowline and above the coastal sand band.
+    if (woodland > .999)
+        return woodlandFloor(p) * (.90 + .20 * fbm(p.xz * .03));
+    vec3 grassC = meadowLayer(p);
+    vec3 dirtC  = antiTile(dirtMap, p, dirtTile, an);
+    vec3 rockC  = antiTile(rockMap, p, rockTile, an);
 
     // Large-scale "biome" mask (~250 m features): bare dirt fields vs lush grass,
     // so the ground reads as varied terrain even where it is near-flat.
@@ -306,18 +312,7 @@ vec3 splatTerrain(vec3 p, vec3 an) {
     vec3 dirtCol = dirtC * vec3(0.86, 0.90, 0.66);
     vec3 ground  = heightBlend(grassC, dirtCol, dirtField);
     vec3 col     = heightBlend(ground, rockC, rw);
-    float pine = pineBiome(p.xz) * (1.0 - rw);
-    if (pine > 0.001) {
-        // Terrain is predominantly upward-facing, so two XZ samples replace another
-        // triplanar set. This branch means non-pine environments pay no texture cost.
-        vec3 forestA = texture(forestMap, p.xz / forestTile).rgb;
-        vec3 forestB = texture(forestMap, p.xz / (forestTile * 3.17)).rgb;
-        vec3 forestF = mix(forestA, forestB, 0.46);
-        if (gFar > 0.0)   // same far de-moire as antiTile
-            forestF = mix(forestF, textureLod(forestMap, p.xz / (forestTile * 23.0), 4.0).rgb, gFar);
-        vec3 forestC = forestF * vec3(0.72, 0.80, 0.66);
-        col = mix(col, forestC, pine);
-    }
+    if (woodland > 0.001) col = heightBlend(col, woodlandFloor(p), woodland);
 
     // Beach: below ~1.2 m the ground fades to wet sand (tinted dirt), continuing
     // under the waterline so the shallows read as seabed through the water plane.
@@ -348,13 +343,18 @@ float lobbyWear(vec2 p) {
     return max(range, trail*.92);
 }
 vec3 lobbyTerrain(vec3 p, vec3 an) {
+    float wear=lobbyWear(p.xz);
+    float woodland=woodlandCover(p.xz);
+    float rock=smoothstep(.16,.38,1.0-normalize(vNormal).y);
+    // A full woodland interior needs no meadow or dirt triplanar sampling.
+    if(woodland*(1.0-wear)>.999 && rock<.001) return woodlandFloor(p);
     vec3 meadow=meadowLayer(p);
     vec3 soil=antiTile(dirtMap,p,.85,an)*vec3(.65,.58,.46);
     meadow=mix(meadow,soil,.18*(1.0-lobbyGrowth(p.xz)));
-    float wear = lobbyWear(p.xz);
     wear = clamp(wear+(vnoise(p.xz*2.4)-.5)*.20*wear,0.0,1.0);
     vec3 ground = mix(meadow,soil,wear);
-    float rock = smoothstep(.16,.38,1.0-normalize(vNormal).y);
+    woodland*=1.0-wear;
+    if(woodland>.001) ground=heightBlend(ground,woodlandFloor(p),woodland);
     ground = mix(ground,antiTile(rockMap,p,1.4,an)*.75,rock);
     // Offline catalogue swatches, matching nature_preview.h's grass mask.
     if(p.x>6.0 && p.x<70.0 && p.z>92.0 && p.z<148.0) {
@@ -364,8 +364,7 @@ vec3 lobbyTerrain(vec3 p, vec3 an) {
             vec3 sample=meadow;
             if(i==1) sample=soil;
             if(i==2) sample=antiTile(rockMap,p,1.4,an)*.75;
-            if(i==3) sample=mix(texture(forestMap,p.xz/forestTile).rgb,
-                               texture(forestMap,p.xz/(forestTile*3.17)).rgb,.46)*vec3(.72,.80,.66);
+            if(i==3) sample=woodlandFloor(p);
             ground=mix(ground,sample,patch);
         }
     }

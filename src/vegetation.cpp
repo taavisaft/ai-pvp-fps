@@ -186,7 +186,6 @@ void Vegetation::buildBushes() {
         for (int ix = 0; ix < n; ix++) {
             float x = -PALDISKI_HALF + (ix + 0.5f) * STEP + (mapRand(ix, iz, 51) - 0.5f) * 6.0f;
             float z = -PALDISKI_HALF + (iz + 0.5f) * STEP + (mapRand(ix, iz, 52) - 0.5f) * 6.0f;
-            if (forestSiteClearance(x, z, 1.2f)) continue;
             float b = pineForestBiome(x, z);
             float dens = b * (1.0f - b) * 2.4f + 0.028f;
             if (mapRand(ix, iz, 53) > dens) continue;
@@ -200,9 +199,31 @@ void Vegetation::buildBushes() {
             t.scale = 0.5f + mapRand(ix, iz, 54) * 0.7f;   // 0.5-1.2 m tall
             t.yaw   = mapRand(ix, iz, 55) * 6.2831853f;
             t.tint  = 0.85f + mapRand(ix, iz, 56) * 0.35f;
+            // Reuse the lobby's authored shrubs and flowers in their habitats.
+            // Detailed plants stay sparse and keep their shorter draw distances.
+            float pick = mapRand(ix, iz, 57);
+            if (b < .35f && pick < .55f) {
+                t.type = uint8_t(4 + int(mapRand(ix, iz, 58) * 2.99f));
+                t.scale = .80f + mapRand(ix, iz, 54) * .35f;
+            } else if (pick < .22f) {
+                t.type = uint8_t(1 + int(mapRand(ix, iz, 58) * 2.99f));
+                t.scale = .70f + mapRand(ix, iz, 54) * .40f;
+            }
             bushes.push_back(t);
         }
-    bushGrid.init(PALDISKI_HALF, 32, 0.0f, 3.0f);
+    float minY=0, maxY=3;
+    size_t counts[1+NATURE_PLANT_TYPES]{};
+    for (const Tree& t : bushes) {
+        minY=fminf(minY,t.pos.y); maxY=fmaxf(maxY,t.pos.y+3);
+        ++counts[t.type];
+    }
+    // Reserve every staging bucket before the first visible/shadow pass.
+    bufBush.reserve(counts[0]*8); bufBushShadow.reserve(counts[0]*8);
+    for(int type=0;type<NATURE_PLANT_TYPES;++type) {
+        natureLit[type].reserve(counts[type+1]*8);
+        natureShadow[type].reserve(counts[type+1]*8);
+    }
+    bushGrid.init(PALDISKI_HALF, 32, minY, maxY);
     for (int i = 0; i < (int)bushes.size(); i++)
         bushGrid.insert(bushes[i].pos.x, bushes[i].pos.z, i);
     printf("[veg] scattered %d bushes\n", (int)bushes.size());

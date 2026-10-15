@@ -24,7 +24,8 @@ struct Material {
 struct MaterialLib {
     Material mats[MAT_COUNT]{};
     bool     groundHasImage = false;   // true if textures/ground.* loaded (vs procedural grass)
-    GLuint   forestGroundTex = 0;      // needle/moss floor used by the pine biome
+    GLuint   forestGroundTex = 0;      // original Paldiski forest-floor photograph
+    GLuint   woodlandGroundTex = 0;    // lobby moss/needles/leaves/soil atlas
     GLuint   trainingGroundTex = 0;    // separate meadow trial; online map unchanged
 
     bool init();                       // image textures if present, else procedural

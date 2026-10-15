@@ -99,13 +99,20 @@ void updateBullets(GameState& gs, float dt, RewindLookup lookup, const void* ctx
         glm::vec3 treeNormal(0, 1, 0);
         float t;
         for (int m = 0; m < gMapBoxCount; m++)
-            if (segmentAabb(p0, p1, gMapBoxes[m].center, gMapBoxes[m].half, t) && t < bestT) {
+            if (!(m>=gNatureFenceFirst && m<gNatureFenceFirst+gNatureFenceCount && gNatureRailBox[m]) && segmentAabb(p0, p1, gMapBoxes[m].center, gMapBoxes[m].half, t) && t < bestT) {
                 bestT = t; hitPid = -1; hitBox = m;
             }
+        for(int i=0;i<gNatureLogCount;++i) {
+            glm::vec3 normal;
+            if(segmentNatureLog(gNatureLogs[i],p0,p1,t,normal) && t<bestT) {
+                bestT=t; hitBox=-3; treeNormal=normal;
+            }
+        }
         if (segmentGround(p0, p1, t) && t < bestT) { bestT = t; hitPid = -1; hitBox = -1; }
 
-        if (sweepTreeTrunks(p0, p1, t, treeNormal) && t < bestT) {
-            bestT = t; hitBox = -3;
+        glm::vec3 trunkNormal;
+        if (sweepTreeTrunks(p0, p1, t, trunkNormal) && t < bestT) {
+            bestT = t; hitBox = -3; treeNormal=trunkNormal;
         }
 
         for (int pid = 0; pid < MAX_PLAYERS; pid++) {

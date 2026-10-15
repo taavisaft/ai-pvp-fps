@@ -64,20 +64,28 @@ bool MaterialLib::init() {
         }
     }
 
-    // Pine forest floor: photographic needles, moss and tiny plants replace blade
-    // geometry in this biome. Prefer the packaged copy beside the executable.
+    // Four woodland floor materials in one binding: moss/needles/leaves/soil.
     char forestPath[768];
     const char* exeBase = SDL_GetBasePath();
-    snprintf(forestPath, sizeof(forestPath), "%stextures/environment/forest_ground_1k.jpg",
+    snprintf(forestPath,sizeof(forestPath),"%stextures/environment/forest_ground_1k.jpg",
              exeBase ? exeBase : "");
-    forestGroundTex = loadTexture(forestPath);
-    if (!forestGroundTex)
-        forestGroundTex = loadTexture("textures/environment/forest_ground_1k.jpg");
-    if (!forestGroundTex) {
-        fprintf(stderr, "material: pine forest floor missing, using ground fallback\n");
-        forestGroundTex = mats[MAT_GROUND].tex;
+    forestGroundTex=loadTexture(forestPath);
+    if(!forestGroundTex) forestGroundTex=loadTexture("textures/environment/forest_ground_1k.jpg");
+    if(!forestGroundTex) forestGroundTex=mats[MAT_GROUND].tex;
+    snprintf(forestPath, sizeof(forestPath), "%stextures/environment/woodland_floor_atlas.png",
+             exeBase ? exeBase : "");
+    woodlandGroundTex = loadTexture(forestPath);
+    if (!woodlandGroundTex)
+        woodlandGroundTex = loadTexture("textures/environment/woodland_floor_atlas.png");
+    if (!woodlandGroundTex) {
+        fprintf(stderr, "material: woodland floor atlas missing, using ground fallback\n");
+        woodlandGroundTex = mats[MAT_GROUND].tex;
     } else {
-        printf("material: loaded pine forest floor\n");
+        glBindTexture(GL_TEXTURE_2D,woodlandGroundTex);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAX_LEVEL,6);
+        // Atlas filtering uses explicit, quadrant-safe footprints in the shader.
+        glTexParameterf(GL_TEXTURE_2D,0x84FE /* GL_TEXTURE_MAX_ANISOTROPY_EXT */,1.0f);
+        printf("material: loaded woodland floor atlas\n");
     }
     snprintf(forestPath, sizeof(forestPath), "%stextures/training_meadow_ground.png",
              exeBase ? exeBase : "");
@@ -95,6 +103,9 @@ void MaterialLib::bind(MaterialId id) const {
 }
 
 void MaterialLib::destroy() {
+    if(woodlandGroundTex && woodlandGroundTex!=mats[MAT_GROUND].tex)
+        destroyTexture(woodlandGroundTex);
+    woodlandGroundTex=0;
     if (trainingGroundTex) destroyTexture(trainingGroundTex);
     trainingGroundTex = 0;
     if (forestGroundTex && forestGroundTex != mats[MAT_GROUND].tex)

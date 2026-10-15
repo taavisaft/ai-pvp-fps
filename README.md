@@ -82,7 +82,25 @@ sources, rebuilding and current limits: [sounds/footsteps/README.md](sounds/foot
 The top-left stats show game CPU usage (100% = one CPU core) and resident RAM
 in MiB, refreshed once per second, alongside FPS and frame/render timings.
 
+### Paldiski wilderness
+
+The online map is a nature-only 2×2 km coastal landscape: no shelter, timber
+cover or building pads. It uses the lobby's seven tree meshes, stable leafy
+canopies, moss/litter/soil forest floor, and streamed meadow. Forest edges mix
+birch, ash and oak into the spruce stands. Juniper, hazel, wild rose, daisies,
+buttercups and fireweed grow among the existing bushes; foliage is pass-through,
+while tree trunks keep shared movement and projectile collision. Spawn pockets
+stay clear of trunks. Online grass retains its 50 m range; detailed shrubs fade
+at 45–60 m and flowers at 18–28 m. Preview with `FPS_REF=forest ./build/game`.
+
 ### Nature preview
+
+The offline lobby uses a patchy woodland floor in forest interiors: moss, needle litter,
+weathered leaves and exposed sandy soil share one material atlas. The ground
+blend and streamed grass share the forest boundary, with sparse short tufts
+inside and taller grass returning through the edges into meadow. The four
+materials use the existing terrain draw and texture binding. The forest-floor
+swatch below also previews this blend.
 
 In the offline lobby, turn right (east) from the default spawn at `(0,136)`.
 The small clearing at `x=6–70, z=92–148` contains one 10 m example of each
@@ -101,12 +119,17 @@ The entrance now also has one juniper, hazel and flowering wild rose at
 `(8,132)`, `(12,132)` and `(16,132)`. The flower row at the same X coordinates,
 `z=140`, shows oxeye daisy, buttercup and fireweed. Each sample is a single
 clump at its authored size, with pass-through foliage like the berry bush.
-These six plants use simple 3D leaves, needles and petals, with no extra
-textures. Use `FPS_REF=flowers ./build/game` for the entrance view.
+These six plants have curved stems, attached side shoots, folded leaves
+and cupped petals. Juniper combines short geometric needles with the existing
+needle photo texture; hazel has broad leaves and curved coppice stems; wild
+rose has arching canes and seven-leaflet compound foliage. The flowers use
+smaller heads with distinct petals and outward-facing fireweed blossoms.
+No new textures are loaded. Flowers fade at 18–28 m; shrubs at 45–60 m. Use `FPS_REF=flowers ./build/game` for the entrance view.
 
 A weathered two-rail timber fence encloses the nature catalogue (`x=4–70`,
 `z=92–148`), with an eight-metre opening in its west side (`z=132–140`)
 facing the default spawn. Walk straight east through it; no vaulting is needed.
-The posts and terrain-following rails share their exact solid boxes with
-movement and projectile collision. The fence includes grain, checks, lichen,
+The rails are continuous round logs between posts, sloping with the terrain.
+Shots collide with their rendered twelve-sided surfaces; movement uses close
+conservative slices along the logs. The posts use shared solid boxes. The fence includes grain, checks, lichen,
 uneven caps and rusty fasteners, rendered as one static mesh per world pass.

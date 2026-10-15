@@ -46,7 +46,8 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     bushGrid.forEachVisible(fr, [&](int i) {
         const Tree& t = bushes[i];
         glm::vec3 d = t.pos - eye;
-        if (glm::dot(d, d) < bushEnd_ * bushEnd_) { pushTree(t.type ? natureLit[t.type-1] : bufBush, t); gVegStats.bushes++; }
+        float end=t.type ? (t.type<=3 ? 60.0f : 28.0f) : bushEnd_;
+        if (glm::dot(d, d) < end * end) { pushTree(t.type ? natureLit[t.type-1] : bufBush, t); gVegStats.bushes++; }
     });
 
     vegSh.use();
@@ -185,6 +186,10 @@ void Vegetation::drawNaturePlants(bool shadow) {
     for(int type=0;type<NATURE_PLANT_TYPES;++type) {
         const auto& buf=staging[type];
         if(buf.empty()) continue;
+        glActiveTexture(GL_TEXTURE6);
+        glBindTexture(GL_TEXTURE_2D,type==0 ? trainingBranchTex : bushTex);
+        glActiveTexture(GL_TEXTURE0);
+        if(!shadow) glUniform2f(locFadeOut,type<3 ? 45.0f : 18.0f,type<3 ? 60.0f : 28.0f);
         glBindBuffer(GL_ARRAY_BUFFER,stream);
         glBufferData(GL_ARRAY_BUFFER,buf.size()*sizeof(float),buf.data(),GL_STREAM_DRAW);
         glBindVertexArray(vao);

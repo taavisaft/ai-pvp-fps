@@ -104,7 +104,7 @@ static void scatterTrees(std::vector<TreeInstance>& out) {
         for (int ix = 0; ix < n; ix++) {
             float x = -PALDISKI_HALF + (ix + 0.5f) * STEP + (mapRand(ix, iz, 41) - 0.5f) * 4.2f;
             float z = -PALDISKI_HALF + (iz + 0.5f) * STEP + (mapRand(ix, iz, 42) - 0.5f) * 4.2f;
-            if (forestSiteClearance(x, z, 1.0f)) continue;
+            if (paldiskiSpawnClearance(x, z, 2.5f)) continue;
             float b = pineForestBiome(x, z);
             float dens = (b * b * 2.2f + b * 0.30f) * 0.42f + 0.040f;
             if (mapRand(ix, iz, 43) > dens) continue;

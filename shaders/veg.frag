@@ -97,6 +97,14 @@ void main() {
     // -1) shade from the vertex color alone. vColor is the card's shade jitter.
     vec3 albedo = vColor;
     float coverage = 1.0;
+    bool natureLeaf=vUV.x<=-2.0 && vUV.x>=-2.4;
+    if(natureLeaf) {
+        float u=(-vUV.x-2.0)*2.5;
+        float vein=1.0-smoothstep(.018,.045,abs(u-.5));
+        float ribs=pow(max(0.0,cos((vUV.y*9.0-abs(u-.5)*3.0)*6.2831)),18.0);
+        float near=1.0-smoothstep(3.0,12.0,length(worldPos-eyePos));
+        albedo*=1.0+near*(vein*.14+ribs*.045);
+    }
     if (vUV.x >= 0.0) {
         vec4 t = texture(branchTex, vUV);
         float cut = trainingTree==1 ? 0.22 : trainingTree>0 ? 0.30 : 0.42;
@@ -138,7 +146,7 @@ void main() {
 
     vec3 V = normalize(eyePos - worldPos);
     vec3 n = normalize(vNormal);
-    if (vUV.x >= -1.5 && !(trainingTree>0 && vUV.x>=0.0) && dot(n, V) < 0.0) n = -n;
+    if ((vUV.x >= -1.5 || natureLeaf) && !(trainingTree>0 && vUV.x>=0.0) && dot(n, V) < 0.0) n = -n;
     vec3 L = normalize(sunDir);
 
     float cloud = cloudShadow(worldPos.xz, time);
@@ -146,6 +154,11 @@ void main() {
     vec3 sun     = sunColor * max(dot(n, L), 0.0) * visible * cloud;
     vec3 ambient = mix(groundAmbient, skyZenith, n.y * 0.5 + 0.5);
     vec3 lit3    = albedo * (sun + ambient);
+    if(natureLeaf) {
+        float diffuse=.65*max(dot(n,L),0.0)+.35*abs(dot(n,L));
+        float through=pow(max(dot(-L,V),0.0),2.0)*.12;
+        lit3=albedo*(sunColor*(diffuse+through)*visible*cloud+ambient*.85);
+    }
     if(trainingTree>0 && vUV.x>=0.0) {
         // A spray is a volume of needles, not a sheet that turns black from below.
         float diffuse=.55*max(dot(n,L),0.0)+.45*abs(dot(n,L));

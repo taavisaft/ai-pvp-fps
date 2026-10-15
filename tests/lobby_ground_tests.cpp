@@ -113,7 +113,7 @@ int main() {
         CHECK(p.pos.y >= terrainHeight(p.pos.x,p.pos.z)-.001f);
     }
     CHECK(p.pos.z > 30);
-    CHECK(gNatureFenceCount>800 && gTownBoxCount<MAX_MAP_BOXES);
+    CHECK(gNatureFenceCount>700 && gTownBoxCount<MAX_MAP_BOXES);
     for(float z:{124.0f,136.0f}) {
         Player walker{}; walker.pos={0,terrainHeight(0,z),z};
         InputState east{}; east.w=true; east.yaw=0;
@@ -130,12 +130,26 @@ int main() {
     }
     int part=0;
     struct Verify { int* part; } verify{&part};
-    visitNatureFence([](const NatureFencePart& p,void* context) {
+    visitNatureFenceColliders([](const NatureFencePart& p,void* context) {
         auto& v=*static_cast<Verify*>(context);
         const auto& b=gMapBoxes[gNatureFenceFirst+(*v.part)++];
         CHECK(glm::length(b.center-p.center)<.0001f);
         CHECK(glm::length(b.half-p.half)<.0001f);
     },&verify,trainingHeight);
     CHECK(part==gNatureFenceCount);
+    CHECK(gNatureLogCount>100 && gNatureLogCount<200);
+    for(int i=0;i<gNatureLogCount;++i) {
+        const auto& log=gNatureLogs[i];
+        glm::vec3 axis=glm::normalize(log.axis);
+        glm::vec3 side=glm::normalize(glm::cross(axis,glm::vec3(0,1,0)));
+        // A continuous rail at both post ends and its midpoint; no stair risers.
+        for(float along:{-.9f,0.0f,.9f}) {
+            glm::vec3 p=log.center+log.axis*along,n; float t;
+            CHECK(segmentNatureLog(log,p-side,p+side,t,n));
+            CHECK(t>.45f && t<.5f);
+            CHECK(!segmentNatureLog(log,p+glm::vec3(0,.2f,0)-side,
+                                         p+glm::vec3(0,.2f,0)+side,t,n));
+        }
+    }
     return failures ? 1 : 0;
 }

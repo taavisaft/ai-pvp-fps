@@ -66,12 +66,12 @@ void Vegetation::drawTrainingTreeStream(const SpeciesStaging& staging,TrainingPa
         const auto& mesh=trainingSpruce[type];
         GLsizei count=(GLsizei)(buf.size()/8);
         if (!shadow) glUniform1i(pass == TRAINING_IMPOSTOR ? locImpStableBroadleaf : locStableBroadleaf,
-                                 gMapId == MAP_LOBBY && type >= 4 ? 1 : 0);
+                                 type >= 4 ? 1 : 0);
         glBindBuffer(GL_ARRAY_BUFFER,streams[pass]);
         glBufferData(GL_ARRAY_BUFFER,buf.size()*sizeof(float),buf.data(),GL_STREAM_DRAW);
         if(pass==TRAINING_IMPOSTOR) {
             glUniform2f(locImpSize,trainingTreeWidth(type),1.10f);
-            glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D,gMapId==MAP_LOBBY && type>=4 ? mesh.lobbyImpostor : mesh.impostor);
+            glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D,type>=4 ? mesh.lobbyImpostor : mesh.impostor);
             glActiveTexture(GL_TEXTURE0); glBindVertexArray(vaoImp);
             glDrawArraysInstanced(GL_TRIANGLE_STRIP,0,4,count);
             continue;

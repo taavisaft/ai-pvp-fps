@@ -156,11 +156,11 @@ if(BUILD_TESTING)
     target_include_directories(tree_collision_tests PRIVATE src)
     target_link_libraries(tree_collision_tests PRIVATE glm::glm)
     add_test(NAME tree_collision COMMAND tree_collision_tests)
-    add_executable(forest_site_tests tests/forest_site_tests.cpp
+    add_executable(paldiski_nature_tests tests/paldiski_nature_tests.cpp
         src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp src/khrushchevka.cpp src/khrushchevka_details.cpp)
-    target_include_directories(forest_site_tests PRIVATE src)
-    target_link_libraries(forest_site_tests PRIVATE glm::glm)
-    add_test(NAME forest_site COMMAND forest_site_tests)
+    target_include_directories(paldiski_nature_tests PRIVATE src)
+    target_link_libraries(paldiski_nature_tests PRIVATE glm::glm)
+    add_test(NAME paldiski_nature COMMAND paldiski_nature_tests)
     add_executable(lobby_ground_tests tests/lobby_ground_tests.cpp
         src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp src/khrushchevka.cpp src/khrushchevka_details.cpp)
     target_include_directories(lobby_ground_tests PRIVATE src)

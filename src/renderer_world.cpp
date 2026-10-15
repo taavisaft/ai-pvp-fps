@@ -78,7 +78,7 @@ void Renderer::drawTerrain(const Frustum& fr, const glm::vec3& eye) {
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D, materials.mats[MAT_DIRT].tex);
     glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, materials.forestGroundTex);
+    glBindTexture(GL_TEXTURE_2D,materials.woodlandGroundTex);
     glActiveTexture(GL_TEXTURE9);
     glBindTexture(GL_TEXTURE_2D, materials.trainingGroundTex ? materials.trainingGroundTex
                                                               : materials.mats[MAT_GROUND].tex);

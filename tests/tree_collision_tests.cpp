@@ -141,6 +141,15 @@ static void naturePreview() {
         CHECK(p.pos.x<tree.x);
     }
     for(int count:found) CHECK(count==1);
+    const auto& rail=gNatureLogs[1];
+    glm::vec3 direction=glm::normalize(glm::cross(rail.axis,glm::vec3(0,1,0)));
+    GameState gs{}; gs.usedMask=1;
+    CHECK(spawnBullet(gs,rail.center-direction,direction,0));
+    Impact impact{}; int impacts=0;
+    updateBullets(gs,1.0f/60,nullptr,nullptr,&impact,&impacts,1);
+    CHECK(!gs.bullets[0].active && impacts==1);
+    CHECK(glm::length(impact.pos-rail.center)<.09f);
+    CHECK(glm::dot(impact.normal,direction)<-.9f);
     CHECK(naturePreviewBareGround(18,100)==0);
     for(float x:{32.0f,46.0f,60.0f}) CHECK(naturePreviewBareGround(x,100)==1);
 }
