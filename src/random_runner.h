@@ -10,10 +10,10 @@ private:
     uint32_t randomState=1;
     glm::vec3 home{0},target{0},lastPos{0};
     float decisionTimer=0,stuckTimer=0;
-    bool sprint=false;
+    bool sprint=false,standing=false;
     float random();
     void chooseTarget();
 };
 
-// Startup/respawn placement only: bounded search, dry ground and shared collision.
+// Startup/respawn placement across map sectors: bounded search, dry ground and shared collision.
 bool findRunnerSpawn(const GameState& game,int slot,const glm::vec3& home,glm::vec3& result);

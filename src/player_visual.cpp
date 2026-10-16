@@ -9,10 +9,7 @@ static void drawKar98(Renderer& r, const glm::mat4& mount) {
 }
 
 
-// Draws the held weapon anchored to the camera and
-// lerped between hipfire (lower-right) and ADS (centered under crosshair).
-void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm, uint8_t weaponId) {
-    if (weaponId == WEP_KAR98 && vm.adsT > 0.85f) return;
+glm::mat4 viewWeaponMount(const Camera& cam,const ViewModel& vm,uint8_t weaponId) {
     glm::vec3 front = cam.front();
     glm::vec3 up    = cam.up();                                   // rolled by lean
     glm::vec3 right = glm::normalize(glm::cross(front, up));
@@ -20,7 +17,7 @@ void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm, uint8_t 
     glm::vec3 hipOff = weaponId == WEP_KAR98
         ? right * 0.23f - up * 0.27f + front * 0.65f
         : right * 0.17f - up * 0.20f + front * 0.48f;
-    // Uzi iron sight aperture and front post share local y=0.080.
+    // Imported sights align at ~80 mm, matching the existing ADS anchor.
     glm::vec3 adsOff = (weaponId == WEP_UZI)
         ? (-up * 0.080f + front * 0.32f)
         : (-up * 0.05f + front * 0.30f);
@@ -31,6 +28,16 @@ void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm, uint8_t 
                     glm::vec4(front, 0), glm::vec4(0, 0, 0, 1));
     glm::mat4 anchorM = glm::translate(glm::mat4(1.0f), anchor) * basis;
     if (weaponId == WEP_KAR98) anchorM = glm::scale(anchorM, glm::vec3(0.62f));
+    return anchorM;
+}
+
+// Draws the held weapon anchored to the camera and
+// lerped between hipfire (lower-right) and ADS (centered under crosshair).
+void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm, uint8_t weaponId) {
+    if (weaponId == WEP_KAR98 && vm.adsT > 0.85f) return;
+    glm::vec3 front=cam.front(),up=cam.up();
+    glm::mat4 anchorM=viewWeaponMount(cam,vm,weaponId);
+    glm::vec3 anchor(anchorM[3]);
     // Camera right/up/forward reflects the authored +Z-forward mesh basis.
     // Reverse winding for this pass, then restore before any world/HUD drawing.
     glFrontFace(GL_CW);
@@ -51,7 +58,8 @@ void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm, uint8_t 
         part({0.0f, -0.12f, -0.05f}, {0.050f, 0.130f, 0.06f}, poly);  // grip
         part({0.0f, -0.18f, -0.05f}, {0.046f, 0.040f, 0.05f}, metal); // mag base
     } else {
-        r.drawMeshModel(r.uzi, anchorM, glm::vec3(1.0f));
+        if(useImportedUzi()) r.importedUzi.draw(r,anchorM,vm.uzi.boltOffset(),false,true);
+        else r.drawMeshModel(r.uzi, anchorM, glm::vec3(1.0f));
     }
 
     // Grip + muzzle come from the shared per-weapon anchor table (weapon_visual.h), so
@@ -78,7 +86,9 @@ void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm, uint8_t 
 
     if (vm.flashTimer > 0.0f) {                                    // muzzle flash
         float modelScale = weaponId == WEP_KAR98 ? 0.62f : 1.0f;
-        glm::vec3 muzzle = anchor + up * wv.fpMuzzle.y * modelScale + front * wv.fpMuzzle.z * modelScale;
+        glm::vec3 muzzle = weaponId==WEP_UZI && useImportedUzi()
+            ? glm::vec3(anchorM*glm::vec4(0,.042f,.263f,1))
+            : anchor + up * wv.fpMuzzle.y * modelScale + front * wv.fpMuzzle.z * modelScale;
         r.drawCube(muzzle, glm::vec3(0.16f), {1.0f, 0.85f, 0.35f});
     }
 }
@@ -87,7 +97,7 @@ void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm, uint8_t 
 // Render authored segmented geometry using the shared gameplay pose.
 void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, float pitch,
                                float lean, uint8_t weaponId, float crouch, float ads,
-                               float phase, float amp, const glm::vec3& bodyCol, bool lowDetail) {
+                               float phase, float amp, const glm::vec3& bodyCol, bool lowDetail, float uziBolt) {
     const glm::vec3 limb     = bodyCol * 0.85f;
     const glm::vec3 skin     = {0.90f, 0.78f, 0.62f};
     const glm::vec3 handCol  = {0.30f, 0.30f, 0.33f};
@@ -108,8 +118,9 @@ void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, float pitc
         if (weaponId == WEP_UZI && boxes[i].part == POSE_GUN_METAL) {
             // Recover hold from the shared weapon proxy, align its firing grip.
             glm::mat4 hold = glm::translate(boxes[i].M, glm::vec3(0, -.02f, -.16f));
-            r.drawMeshModel(lowDetail ? r.uziLod : r.uzi, glm::translate(hold, glm::vec3(0, .03f, .06f)),
-                            glm::vec3(1.0f));
+            glm::mat4 mount=glm::translate(hold,glm::vec3(0,.03f,.06f));
+            if(useImportedUzi()) r.importedUzi.draw(r,mount,uziBolt,lowDetail);
+            else r.drawMeshModel(lowDetail ? r.uziLod : r.uzi,mount,glm::vec3(1));
             continue;
         }
         glm::vec3 c;

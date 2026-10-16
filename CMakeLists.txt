@@ -25,9 +25,13 @@ set(SHARED_SOURCES
 set(CLIENT_SOURCES
     src/main.cpp
     src/settings_menu.cpp
+    src/offline_teleport.cpp
     src/random_runner.cpp
     src/practice_runners.cpp
     src/player_visual.cpp
+    src/player_visual_effects.cpp
+    src/imported_uzi.cpp
+    src/uzi_effects.cpp
     src/kar98_mesh.cpp
     src/gl_loader.cpp
     src/shader.cpp
@@ -109,6 +113,15 @@ add_dependencies(copy_sounds game)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(uzi_effects_tests tests/uzi_effects_tests.cpp src/uzi_effects.cpp)
+    target_include_directories(uzi_effects_tests PRIVATE src)
+    target_link_libraries(uzi_effects_tests PRIVATE glm::glm)
+    add_test(NAME uzi_effects COMMAND uzi_effects_tests)
+    add_executable(offline_teleport_tests tests/offline_teleport_tests.cpp src/offline_teleport.cpp
+        src/physics.cpp src/tree_scatter.cpp src/forest_site.cpp src/khrushchevka.cpp src/khrushchevka_details.cpp)
+    target_include_directories(offline_teleport_tests PRIVATE src)
+    target_link_libraries(offline_teleport_tests PRIVATE glm::glm)
+    add_test(NAME offline_teleport COMMAND offline_teleport_tests)
     add_executable(satellite_map_tests tests/satellite_map_tests.cpp src/satellite_map.cpp
         src/tree_scatter.cpp src/forest_site.cpp src/khrushchevka.cpp src/khrushchevka_details.cpp)
     target_include_directories(satellite_map_tests PRIVATE src)

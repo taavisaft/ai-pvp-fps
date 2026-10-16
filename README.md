@@ -45,7 +45,9 @@ Multi-config builds place binaries under `build/Release/`.
 
 On macOS, the game starts in desktop fullscreen at the display's native Retina
 resolution. Press **Option+Return** to switch to a window, or use the settings menu.
-Press **F6** in the lobby to toggle 15 roaming practice players.
+Press **F6** in the lobby to toggle 15 bots spread across the map (16 players
+including you). They alternate standing, walking and running, and respawn after
+being shot. Use **T** to explore their areas and **M** to find them on the map.
 
 ## Controls
 
@@ -67,8 +69,9 @@ Press **F6** in the lobby to toggle 15 roaming practice players.
 | K | Cycle weather: Clear Day / Overcast / Golden Hour (current name shown on HUD) |
 | V | Toggle third-person view |
 | G | Clear bullet marks (offline) |
+| T | Teleport to a random safe map location (offline only) |
 | H / F | Toggle hitboxes / wireframe (debug) |
-| F6 | Toggle 15 roaming practice players (offline only) |
+| F6 | Toggle 15 bots across the map: standing, walking and running (offline only) |
 | Esc | Settings / resume (mouse and ADS sensitivity, invert Y, fullscreen, quit) |
 
 [Roadmap](TODO.md) · [Development notes](docs/development.md) · [Contributing](AGENTS.md)

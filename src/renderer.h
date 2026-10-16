@@ -11,6 +11,7 @@
 #include "terrain_render.h"
 #include "vegetation.h"
 #include "khrushchevka_visual.h"
+#include "imported_uzi.h"
 
 struct Box;  // map.h; for the satellite map-texture bake
 
@@ -105,6 +106,7 @@ struct Renderer {
                         PART_ARM, PART_HAND, PART_LEG, PART_FOOT, PART_FOREARM, PART_SHIN, PART_COUNT };
     Mesh   playerPart[PART_COUNT];
     Mesh   uzi, uziLod;
+    ImportedUzi importedUzi;
     Mesh   playerLod[PART_COUNT];
     Mesh   quad2d;   // unit quad for HUD rects
     Font   font;     // bitmap text, HUD pass only

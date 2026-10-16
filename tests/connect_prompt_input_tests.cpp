@@ -38,6 +38,20 @@ int main() {
     if (!press(SDLK_DOWN, input, camera, prompt) || !input.promptDown) ++failures;
     if (!press(SDLK_KP_ENTER, input, camera, prompt) || !input.connectSubmit)
         ++failures;
+    if (!press(SDLK_t, input, camera, prompt) || input.teleportRequested) ++failures;
+    prompt.close();
+    if (!press(SDLK_t, input, camera, prompt) || !input.teleportRequested) ++failures;
+    pollInput(input, camera, &prompt, nullptr);
+    if (input.teleportRequested) ++failures;
+    SDL_Event repeat{}; repeat.type=SDL_KEYDOWN; repeat.key.keysym.sym=SDLK_t; repeat.key.repeat=1;
+    SDL_PushEvent(&repeat);
+    pollInput(input, camera, &prompt, nullptr);
+    if (input.teleportRequested) ++failures;
+    SettingsMenu settings; settings.open=true;
+    SDL_Event key{}; key.type=SDL_KEYDOWN; key.key.keysym.sym=SDLK_t;
+    SDL_PushEvent(&key);
+    pollInput(input,camera,&prompt,&settings);
+    if (input.teleportRequested) ++failures;
     SDL_Quit();
     if (failures) std::fprintf(stderr, "connect prompt input: %d failures\n", failures);
     return failures ? 1 : 0;

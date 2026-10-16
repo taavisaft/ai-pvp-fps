@@ -112,6 +112,7 @@ bool Renderer::init(const char* title, int w, int h) {
     if (!uziLod.create(WLOD_UZI_VERTS, sizeof(WLOD_UZI_VERTS) / sizeof(float),
                        WLOD_UZI_IDX, sizeof(WLOD_UZI_IDX) / sizeof(unsigned),
                        true, false, true)) return false;
+    if (!importedUzi.init(base)) return false;
     if (!buildKar98Mesh(kar98)) return false;
     // Heightfield mesh: setMap must have run first (pads + terrain mode set) so the
     // mesh matches the ground the server simulates.
@@ -201,6 +202,7 @@ void Renderer::shutdown() {
     for (int i = 0; i < PART_COUNT; i++) playerPart[i].destroy();
     scopeShader.destroy();
     kar98.destroy();
+    importedUzi.destroy();
     uzi.destroy();
     uziLod.destroy();
     for (int i = 0; i < PART_COUNT; i++) playerLod[i].destroy();

@@ -9,6 +9,6 @@ public:
     void tick(GameState& game,float dt);
 private:
     bool active=false;
-    glm::vec3 home{0};
+    glm::vec3 home[MAX_PLAYERS]{};
     RandomRunner runners[MAX_PLAYERS];
 };

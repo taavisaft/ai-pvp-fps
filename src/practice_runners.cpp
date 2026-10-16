@@ -1,14 +1,17 @@
 #include "practice_runners.h"
 #include "physics.h"
+#include "map.h"
 #include <cstdio>
 
 bool PracticeRunners::start(GameState& game,const glm::vec3& center) {
+    if(!std::isfinite(center.x+center.y+center.z) ||
+       fabsf(center.x)>=gArenaHalf || fabsf(center.z)>=gArenaHalf) return false;
     GameState staged=game;
     staged.usedMask=1;
     for(int i=1;i<MAX_PLAYERS;++i) {
         glm::vec3 spawn;
         if(!findRunnerSpawn(staged,i,center,spawn)) {
-            fprintf(stderr,"[runners] no clear spawn for player %d; move to a more open area\n",i);
+            fprintf(stderr,"[runners] no clear spawn for player %d; map has insufficient safe ground\n",i);
             return false;
         }
         staged.players[i]=Player{};
@@ -16,13 +19,13 @@ bool PracticeRunners::start(GameState& game,const glm::vec3& center) {
         staged.players[i].yaw=float(i)*360.0f/MAX_PLAYERS;
         staged.usedMask|=uint16_t(1u<<i);
     }
-    home=center;
     for(int i=1;i<MAX_PLAYERS;++i) {
         game.players[i]=staged.players[i];
-        runners[i].reset(0x71a91u+uint32_t(i)*7919u,home);
+        home[i]=game.players[i].pos;
+        runners[i].reset(0x71a91u+uint32_t(i)*7919u,home[i]);
     }
     game.usedMask=staged.usedMask; active=true;
-    printf("[runners] 15 runners + you = 16 players; offline, movement only\n");
+    printf("[runners] 15 bots across the map + you = 16 players; standing/walking/running, offline only\n");
     return true;
 }
 
@@ -41,10 +44,11 @@ void PracticeRunners::tick(GameState& game,float dt) {
             p.respawnTimer-=dt;
             if(p.respawnTimer>0) continue;
             glm::vec3 spawn;
-            if(!findRunnerSpawn(game,i,home,spawn)) { p.respawnTimer=1; continue; }
+            if(!findRunnerSpawn(game,i,home[i],spawn)) { p.respawnTimer=1; continue; }
             int kills=p.kills,deaths=p.deaths;
             p=Player{}; p.pos=spawn; p.kills=kills; p.deaths=deaths;
-            runners[i].reset(0x71a91u+uint32_t(i)*7919u+uint32_t(deaths),home);
+            runners[i].reset(0x71a91u+uint32_t(i)*7919u+uint32_t(deaths),spawn);
+            home[i]=spawn;
         }
         movePlayer(p,runners[i].input(p,dt),dt);
     }

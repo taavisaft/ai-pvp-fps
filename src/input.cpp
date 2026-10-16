@@ -20,6 +20,7 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt, Settin
     in.hitboxToggle     = false;
     in.runnersToggle    = false;
     in.mapToggle        = false;
+    in.teleportRequested = false;
     in.hudToggle        = false;
     in.atmoToggle       = false;
     in.thirdPersonToggle = false;
@@ -96,6 +97,7 @@ void pollInput(FrameInput& in, Camera& cam, ConnectPrompt* connectPrompt, Settin
             case SDLK_3:      in.weaponSelect    = WEP_KAR98;   break;
             case SDLK_h:      in.hitboxToggle    = true;        break;
             case SDLK_F6:     in.runnersToggle   = true;        break;
+            case SDLK_t:      in.teleportRequested = true;      break;
             case SDLK_m:      in.mapToggle       = true;        break;
             case SDLK_j:      in.hudToggle       = true;        break;
             case SDLK_k:      in.atmoToggle      = true;        break;

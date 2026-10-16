@@ -66,14 +66,15 @@ void drawScoreboard(Renderer& r, const GameState& gs, int localID);
 //   full-screen map -> centered on the arena origin, whole map fits the panel,
 //                       the local dot moves to its real position.
 // Obstacle boxes (gMapBoxes) are clipped to the panel; off-window enemies clamp
-// to the edge (gives bearing). yaw forward = (cos,sin) in world XZ = screen right,up.
+// to the edge (gives bearing). Facing north puts world +X on the player's left
+// (camera right = cross(front, up)), so world X maps to screen LEFT.
 static void drawMapView(Renderer& r, const GameState& gs, int localID,
                         glm::vec2 c, float halfY, float worldHalf, bool playerCentric,
                         unsigned int satTex, float satHalf) {
     float ia    = 1.0f / r.aspect();
     float halfX = halfY * ia;                 // square on screen
     const Player& me = gs.players[localID];
-    float sx = halfX / worldHalf;             // NDC per meter, world X -> screen right
+    float sx = -halfX / worldHalf;            // NDC per meter, world X -> screen left
     float sy = halfY / worldHalf;             // NDC per meter, world Z -> screen up (north)
     float ex = playerCentric ? me.pos.x : 0.0f;   // world point at panel center
     float ez = playerCentric ? me.pos.z : 0.0f;
@@ -85,7 +86,7 @@ static void drawMapView(Renderer& r, const GameState& gs, int localID,
         // satellite image fills the panel; corner view samples the sub-rect of the
         // texture (baked over [-satHalf,satHalf]) that the world window covers.
         glm::vec2 uvC = { 0.5f + ex / (2.0f * satHalf), 0.5f + ez / (2.0f * satHalf) };
-        glm::vec2 uvH = { worldHalf / (2.0f * satHalf), worldHalf / (2.0f * satHalf) };
+        glm::vec2 uvH = { -worldHalf / (2.0f * satHalf), worldHalf / (2.0f * satHalf) };
         r.drawTexQuad(c, {2 * halfX, 2 * halfY}, satTex, 1.0f, uvC, uvH);
     } else {
         // fallback: gray obstacle footprints, clipped to the panel
@@ -127,10 +128,10 @@ static void drawMapView(Renderer& r, const GameState& gs, int localID,
                  ? c
                  : clampInside({ c.x + me.pos.x * sx, c.y + me.pos.z * sy });
     float yawR = glm::radians(me.yaw);
-    glm::vec2 dir = { cosf(yawR), sinf(yawR) };
+    glm::vec2 dir = { -cosf(yawR), sinf(yawR) };
     float len = 0.05f;
     glm::vec2 mid = { mp.x + dir.x * (len * 0.5f) * ia, mp.y + dir.y * (len * 0.5f) };
-    r.drawRectRot(mid, {len, 0.012f}, {1.0f, 0.9f, 0.3f}, 0.95f, yawR);
+    r.drawRectRot(mid, {len, 0.012f}, {1.0f, 0.9f, 0.3f}, 0.95f, 3.14159265f - yawR);
     r.drawRect(mp, {dot * 1.2f * ia, dot * 1.2f}, {1.0f, 0.9f, 0.3f}, 1.0f);
 }
 

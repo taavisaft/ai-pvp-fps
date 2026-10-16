@@ -3,7 +3,10 @@
 #include "camera.h"
 #include <cstdint>
 
+struct Player;
+
 struct ViewModel {
+    UziEffects uzi;
     float adsT       = 0.0f;  // 0 = hipfire pose, 1 = aimed
     float flashTimer = 0.0f;  // muzzle flash seconds remaining
     float recoilT    = 0.0f;  // recoil kick, 1 on fire, decays to 0
@@ -12,4 +15,8 @@ struct ViewModel {
 void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm, uint8_t weaponId);
 void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, float pitch,
                         float lean, uint8_t weaponId, float crouch, float ads,
-                        float phase, float amp, const glm::vec3& bodyCol, bool lowDetail = false);
+                        float phase, float amp, const glm::vec3& bodyCol, bool lowDetail = false, float uziBolt = -.030f);
+
+// Shared camera mount keeps the animated gun and ejection origin aligned.
+glm::mat4 viewWeaponMount(const Camera& cam,const ViewModel& vm,uint8_t weaponId);
+void fireUziCosmetics(ViewModel& vm,const Camera& cam,const Player& player,bool thirdPerson);

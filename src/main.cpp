@@ -28,6 +28,7 @@
 #include "perf.h"
 #include "traversal_benchmark.h"
 #include "practice_runners.h"
+#include "offline_teleport.h"
 #include "settings_menu.h"
 #include "app_resources.h"
 
@@ -87,7 +88,7 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
                               const float* walkPhase, const float* walkAmp,
                               const float* crouchAnim, const float* adsAnim, bool showLocal,
                               const Ragdoll* ragdolls,
-                              const Frustum& fr, const glm::vec3& eye) {
+                              const Frustum& fr, const glm::vec3& eye, float localUziBolt) {
     if (gMapId == MAP_LOBBY) {
         // Flat pad + plain material boxes (target wall, test cover).
         r.drawTerrain(fr, eye);
@@ -129,7 +130,8 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
         const Player& pl = gs.players[i];
         drawPlayerSkeleton(r, pl.pos, pl.yaw, pl.pitch, pl.lean, pl.weaponId, crouchAnim[i],
                            adsAnim[i], walkPhase[i], walkAmp[i], COLOR_ENEMY,
-                           glm::dot(pl.pos - eye, pl.pos - eye) > 15.0f * 15.0f);
+                           glm::dot(pl.pos - eye, pl.pos - eye) > 15.0f * 15.0f,
+                           i==localID ? localUziBolt : -.030f);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
         const Bullet& b = gs.bullets[i];
@@ -161,7 +163,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     r.beginShadowPass(cam.eye);
     Frustum sunFr = Frustum::fromVP(r.lightSpace);
     drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, crouchAnim, adsAnim,
-                      thirdPerson, ragdolls, sunFr, cam.eye);
+                      thirdPerson, ragdolls, sunFr, cam.eye, vm.uzi.boltOffset());
     r.endShadowPass();
     gProfiler.endPass(PASS_SHADOW);
 
@@ -180,7 +182,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     gProfiler.beginPass(PASS_WORLD);
     Frustum camFr = Frustum::fromVP(cam.proj(r.aspect()) * cam.view());
     drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, crouchAnim, adsAnim,
-                      thirdPerson, ragdolls, camFr, cam.eye);
+                      thirdPerson, ragdolls, camFr, cam.eye, vm.uzi.boltOffset());
     gProfiler.endPass(PASS_WORLD);
     if (!diagOnce) printf("[diag] after world\n");
     if (!diagOnce) printf("[diag] A: water\n");
@@ -221,6 +223,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
         r.drawCube({b.pos.x, terrainHeight(b.pos.x, b.pos.z) + 0.01f, b.pos.z},
                    {0.22f, 0.001f, 0.22f}, COLOR_BLOB);
     }
+    if(useImportedUzi()) r.importedUzi.drawCasings(r,vm.uzi);
     if (!diagOnce) printf("[diag] E: viewmodel\n");
     // First-person gun is an overlay — don't world-shadow it (FPS convention).
     static const bool noViewModel = getenv("FPS_NOVIEWMODEL") != nullptr;
@@ -415,6 +418,8 @@ int main() {
     float       recoilHeat   = 0.0f;    // ramps recoil kick over a sustained spray
     float       sinceShot    = 1e9f;    // seconds since last shot (recovery gating)
 
+    uint32_t teleportRandom = uint32_t(SDL_GetPerformanceCounter()) | 1u;
+    bool uziShotPending=false;
     bool wasOnline = false;
     ConnectPrompt connectPrompt;
     bool connectPromptActive = false;
@@ -500,6 +505,9 @@ int main() {
             giveWeapon(offline.players[0], gWeaponId);
         }
         input.state.weaponId = gWeaponId;
+        if(!net.connected && useImportedUzi() && getenv("FPS_UZI_DEMO")) {
+            input.state.shoot=true; input.state.shootHeld=true; fireMode=FIRE_AUTO;
+        }
         // Repeatable offline asset checks without injecting mouse/keyboard events.
         if (!net.connected) {
             if (getenv("FPS_ADS")) input.state.ads = true;
@@ -575,7 +583,19 @@ int main() {
         if (!online && wasOnline) setupOffline();  // back to the lobby test range
         if (!online) remoteShotsSeeded = false;
         wasOnline = online;
+        if(input.teleportRequested && teleportOfflinePlayer(offline,net.connected,teleportRandom)) {
+            predicted=offline.players[0]; posError=glm::vec3(0);
+            vm.uzi.clear(); uziShotPending=false;
+            footsteps={}; prevPosValid[0]=false; walkSpeed[0]=walkAmp[0]=0;
+            cam.eye=predicted.pos+glm::vec3(0,EYE_HEIGHT,0);
+            offlineShoot=false; burstRemaining=0;
+            printf("[teleport] x=%.1f z=%.1f elevation=%.1f\n",predicted.pos.x,predicted.pos.z,predicted.pos.y);
+        }
 
+
+        if(net.connected || gWeaponId!=WEP_UZI || !offline.players[0].alive) {
+            vm.uzi.clear(); uziShotPending=false;
+        }
         // --- fire control: pick shots this frame by fire mode, gate on ammo ---
         const WeaponDef& lw = weaponDef(gWeaponId);   // local (selected) weapon
         if (lw.semiOnly) fireMode = FIRE_SEMI;        // pistols: semi only
@@ -663,6 +683,7 @@ int main() {
 
         // fixed-step simulation
         accumulator += dt;
+        if(!net.connected && useImportedUzi()) vm.uzi.tick(dt);
         while (accumulator >= FIXED_DT) {
             if (online) {
                 if (prevOwnAlive) {
@@ -678,7 +699,8 @@ int main() {
                     float spread = aimSpread(self, input.state);
                     weaponShot(input.state.yaw, input.state.pitch, cam.eyePos(), input.state.ads,
                                spread, origin, dir);
-                    spawnBullet(offline, origin, dir, 0);
+                    if(spawnBullet(offline,origin,dir,0) && gWeaponId==WEP_UZI && useImportedUzi())
+                        uziShotPending=true;
                     offlineShoot = false;
                 }
                 glm::vec3 before = self.pos;
@@ -773,6 +795,10 @@ int main() {
         }
         float eyeH = glm::mix(EYE_HEIGHT, CROUCH_EYE, crouchAnim[localID]);
         cam.eye = shown->players[localID].pos + glm::vec3(0, eyeH, 0);
+        if(uziShotPending) {
+            fireUziCosmetics(vm,cam,offline.players[0],thirdPerson);
+            uziShotPending=false;
+        }
 
         const Player& own = shown->players[localID];
         if (own.hp < prevOwnHP && own.alive) hud.flashTimer = 0.4f;  // got hit
