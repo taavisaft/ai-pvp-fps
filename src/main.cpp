@@ -85,7 +85,7 @@ static void drawDecal(Renderer& r, const Decal& d) {
 // so it must contain only real world geometry (no HUD, viewmodel, mirror, or the
 // cosmetic ground blobs / aim cross, which are added in the main pass only).
 static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
-                              const float* walkPhase, const float* walkAmp,
+                              const PlayerAnimState* anims,
                               const float* crouchAnim, const float* adsAnim, bool showLocal,
                               const Ragdoll* ragdolls,
                               const Frustum& fr, const glm::vec3& eye, float localUziBolt) {
@@ -120,8 +120,9 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
         }
     }
     r.drawVegetation(fr, eye);   // taiga forest (miniature spruce ring on the lobby)
+    static const bool hideOwnBody = getenv("FPS_NOVIEWMODEL") != nullptr;
     for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (i == localID && !showLocal) continue;   // draw self in third-person test view
+        if (i == localID && !showLocal && hideOwnBody) continue;
         if (!(gs.usedMask & (1u << i))) continue;
         if (!gs.players[i].alive) {
             if (ragdolls && ragdolls[i].active) ragdolls[i].draw(r);  // cosmetic corpse
@@ -129,9 +130,10 @@ static void drawWorldGeometry(Renderer& r, const GameState& gs, int localID,
         }
         const Player& pl = gs.players[i];
         drawPlayerSkeleton(r, pl.pos, pl.yaw, pl.pitch, pl.lean, pl.weaponId, crouchAnim[i],
-                           adsAnim[i], walkPhase[i], walkAmp[i], COLOR_ENEMY,
+                           adsAnim[i], anims[i].pose, COLOR_ENEMY,
                            glm::dot(pl.pos - eye, pl.pos - eye) > 15.0f * 15.0f,
-                           i==localID ? localUziBolt : -.030f);
+                           i==localID ? localUziBolt : -.030f,
+                           i == localID && !showLocal);
     }
     for (int i = 0; i < MAX_BULLETS; i++) {
         const Bullet& b = gs.bullets[i];
@@ -146,7 +148,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
                         const ViewModel& vm,
                         const Decal* decals, int decalCount,
                         const ConnectPrompt& connectPrompt, const Lobby& lobby, const SettingsMenu& settings,
-                        const float* walkPhase, const float* walkAmp,
+                        const PlayerAnimState* anims,
                         const float* crouchAnim, const float* adsAnim,
                         bool showHitboxes, bool fullMap, bool showHud,
                         bool thirdPerson, const Ragdoll* ragdolls) {
@@ -162,7 +164,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     gProfiler.beginPass(PASS_SHADOW);
     r.beginShadowPass(cam.eye);
     Frustum sunFr = Frustum::fromVP(r.lightSpace);
-    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, crouchAnim, adsAnim,
+    drawWorldGeometry(r, gs, localID, anims, crouchAnim, adsAnim,
                       thirdPerson, ragdolls, sunFr, cam.eye, vm.uzi.boltOffset());
     r.endShadowPass();
     gProfiler.endPass(PASS_SHADOW);
@@ -181,7 +183,7 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
     if (!diagOnce) printf("[diag] pass 3: world\n");
     gProfiler.beginPass(PASS_WORLD);
     Frustum camFr = Frustum::fromVP(cam.proj(r.aspect()) * cam.view());
-    drawWorldGeometry(r, gs, localID, walkPhase, walkAmp, crouchAnim, adsAnim,
+    drawWorldGeometry(r, gs, localID, anims, crouchAnim, adsAnim,
                       thirdPerson, ragdolls, camFr, cam.eye, vm.uzi.boltOffset());
     gProfiler.endPass(PASS_WORLD);
     if (!diagOnce) printf("[diag] after world\n");
@@ -224,16 +226,10 @@ static void renderScene(Renderer& r, const Camera& cam, const GameState& gs, int
                    {0.22f, 0.001f, 0.22f}, COLOR_BLOB);
     }
     if(useImportedUzi()) r.importedUzi.drawCasings(r,vm.uzi);
-    if (!diagOnce) printf("[diag] E: viewmodel\n");
-    // First-person gun is an overlay — don't world-shadow it (FPS convention).
-    static const bool noViewModel = getenv("FPS_NOVIEWMODEL") != nullptr;
-    if (gs.players[localID].alive && !connectPrompt.open && !thirdPerson && !noViewModel) {
-        r.shader.setInt(r.shader.locUseShadow, 0);
-        drawViewModel(r, cam, vm, gWeaponId);
-        r.shader.setInt(r.shader.locUseShadow, 1);
-        if (gWeaponId == WEP_KAR98 && vm.adsT > 0.85f)
-            r.drawScope(glm::clamp((vm.adsT - 0.85f) / 0.15f, 0.0f, 1.0f));
-    }
+    if (!diagOnce) printf("[diag] E: scope\n");
+    if (gs.players[localID].alive && !connectPrompt.open && !thirdPerson &&
+        gWeaponId == WEP_KAR98 && vm.adsT > 0.85f)
+        r.drawScope(glm::clamp((vm.adsT - 0.85f) / 0.15f, 0.0f, 1.0f));
     if (!diagOnce) printf("[diag] F: hud\n");
     if (showHud) {
         gProfiler.beginPass(PASS_HUD);
@@ -354,7 +350,7 @@ int main() {
         predicted.pos = spawn0;
         if(runners.enabled() && !runners.start(offline,spawn0)) runners.stop(offline,dummyPos);
         cam.yaw = gMapId==MAP_LOBBY ? 90.0f : glm::degrees(atan2f(dummyPos.z-spawn0.z,dummyPos.x-spawn0.x));
-        if(gMapId==MAP_LOBBY) { cam.pitch=-8; renderer.setAtmosphere(Renderer::ATMO_GOLDEN); }
+        if(gMapId==MAP_LOBBY) { cam.pitch=-8; renderer.setAtmosphere(Renderer::ATMO_CLOUDY_EVENING); }
     };
     setupOffline();
     if (const char* w = getenv("FPS_WEAPON")) {
@@ -427,13 +423,9 @@ int main() {
 
     // Per-remote-player walk animation state (client-side, cosmetic). Phase advances
     // with horizontal speed derived from the interpolated render positions.
-    float     walkPhase[MAX_PLAYERS] = {0};
-    float     walkAmp[MAX_PLAYERS]   = {0};   // smoothed 0..1 move amount
+    PlayerAnimState anims[MAX_PLAYERS];
     float     crouchAnim[MAX_PLAYERS] = {0};  // smoothed 0..1 visible stance
     float     adsAnim[MAX_PLAYERS]   = {0};   // smoothed 0..1 aim-down-sights pose
-    float     walkSpeed[MAX_PLAYERS] = {0};   // smoothed horizontal speed (m/s)
-    glm::vec3 prevPlayerPos[MAX_PLAYERS];
-    bool      prevPosValid[MAX_PLAYERS] = {false};
     Ragdoll   ragdolls[MAX_PLAYERS];          // cosmetic death-flop, seeded on alive→dead
     bool      prevAlive[MAX_PLAYERS];         // last frame's alive flag, for the edge
     for (int i = 0; i < MAX_PLAYERS; i++) prevAlive[i] = true;
@@ -442,11 +434,12 @@ int main() {
     bool      showHud      = getenv("FPS_NOHUD") == nullptr;            // J: hide whole HUD for immersion
     bool      thirdPerson  = getenv("FPS_TPP") != nullptr;  // V: orbit self-view (see your own body)
 
-    // Debug: FPS_ATMO=clear|overcast|golden picks the starting atmosphere preset
+    // Debug: FPS_ATMO=clear|overcast|golden|cloudy picks the starting preset.
     // (K cycles at runtime; cosmetic and client-only, so nothing to sync).
     if (const char* at = getenv("FPS_ATMO")) {
         if      (strcmp(at, "overcast") == 0) renderer.setAtmosphere(Renderer::ATMO_OVERCAST);
         else if (strcmp(at, "golden")   == 0) renderer.setAtmosphere(Renderer::ATMO_GOLDEN);
+        else if (strcmp(at, "cloudy")   == 0) renderer.setAtmosphere(Renderer::ATMO_CLOUDY_EVENING);
         else                                  renderer.setAtmosphere(Renderer::ATMO_CLEAR);
     }
 
@@ -479,7 +472,11 @@ int main() {
         if (dt > 0.05f) dt = 0.05f;   // cap to avoid spiral
 
         pollInput(input, cam, &connectPrompt, &settings);
-        if(traversal.enabled()) { bool quit=input.quit; input=FrameInput{}; input.quit=quit; }
+        static const bool scripted = traversal.enabled() || getenv("FPS_SHOT") || getenv("FPS_BENCH");
+        if(scripted) {
+            bool quit=input.quit; input=FrameInput{}; input.quit=quit;
+            input.state.yaw=cam.aimYaw(); input.state.pitch=cam.aimPitch();
+        }
         if (input.fullscreenToggle) renderer.toggleFullscreen();
         renderer.refreshWindowSize();
         if (input.quit) running = false;
@@ -512,6 +509,12 @@ int main() {
         if (!net.connected) {
             if (getenv("FPS_ADS")) input.state.ads = true;
             if (getenv("FPS_CROUCH")) input.state.crouch = true;
+            if (const char* move = getenv("FPS_MOVE")) {
+                input.state.w      = strchr(move, 'w') != nullptr;
+                input.state.sprint = strchr(move, 's') != nullptr;
+                input.state.jump   = strchr(move, 'j') != nullptr && int(gameTime * 1.5f) % 2 == 0;
+                input.state.crouch |= strchr(move, 'c') != nullptr;
+            }
         }
 
         // Lean (Q/E): smooth toward the held direction; the result drives the camera
@@ -586,7 +589,7 @@ int main() {
         if(input.teleportRequested && teleportOfflinePlayer(offline,net.connected,teleportRandom)) {
             predicted=offline.players[0]; posError=glm::vec3(0);
             vm.uzi.clear(); uziShotPending=false;
-            footsteps={}; prevPosValid[0]=false; walkSpeed[0]=walkAmp[0]=0;
+            footsteps={}; anims[0].reset();
             cam.eye=predicted.pos+glm::vec3(0,EYE_HEIGHT,0);
             offlineShoot=false; burstRemaining=0;
             printf("[teleport] x=%.1f z=%.1f elevation=%.1f\n",predicted.pos.x,predicted.pos.z,predicted.pos.y);
@@ -793,10 +796,17 @@ int main() {
             float target = shown->players[i].crouched ? 1.0f : 0.0f;
             crouchAnim[i] += (target - crouchAnim[i]) * crouchK;
         }
-        float eyeH = glm::mix(EYE_HEIGHT, CROUCH_EYE, crouchAnim[localID]);
-        cam.eye = shown->players[localID].pos + glm::vec3(0, eyeH, 0);
+        anims[localID].pose.recoil = vm.recoilT;
+        anims[localID].pose.flash  = vm.flashTimer;
+        {
+            float eyeH = glm::mix(EYE_HEIGHT, CROUCH_EYE, crouchAnim[localID]);
+            AnimLayer own = evalAnim(anims[localID].pose, crouchAnim[localID]);
+            float headBob = own.pelvis.y * 0.4f * (1.0f - vm.adsT);
+            cam.eye = shown->players[localID].pos + glm::vec3(0, eyeH + headBob, 0)
+                    + cam.rightFlat() * EYE_RIGHT;
+        }
         if(uziShotPending) {
-            fireUziCosmetics(vm,cam,offline.players[0],thirdPerson);
+            fireUziCosmetics(vm,offline.players[0],crouchAnim[localID],anims[localID].pose);
             uziShotPending=false;
         }
 
@@ -880,14 +890,12 @@ int main() {
 
         // Cosmetic ragdolls: seed on the alive→dead edge (carrying the corpse's last
         // velocity so a runner tumbles), clear on respawn/leave, and step every frame.
-        // prevPlayerPos still holds last frame here (the walk loop below refreshes it).
+        // The animation state still holds last frame here (the walk loop below refreshes it).
         for (int i = 0; i < MAX_PLAYERS; i++) {
             bool used  = shown->usedMask & (1u << i);
             bool alive = used && shown->players[i].alive;
             if (used && prevAlive[i] && !alive) {
-                glm::vec3 vel(0.0f);
-                if (prevPosValid[i])
-                    vel = (shown->players[i].pos - prevPlayerPos[i]) / (dt > 1e-4f ? dt : 1e-4f);
+                glm::vec3 vel = anims[i].velocity(shown->players[i].pos, dt);
                 ragdolls[i].seed(shown->players[i].pos, shown->players[i].yaw, COLOR_ENEMY, vel);
             }
             if (alive || !used) ragdolls[i].active = false;
@@ -900,26 +908,21 @@ int main() {
         // mirror's self-reflection animates while you walk.
         for (int i = 0; i < MAX_PLAYERS; i++) {
             bool show = (shown->usedMask & (1u << i)) && shown->players[i].alive;
-            if (!show) { walkAmp[i] = 0.0f; adsAnim[i] = 0.0f; prevPosValid[i] = false; continue; }
+            if (!show) { anims[i].reset(); adsAnim[i] = 0.0f; continue; }
             // Smooth the authoritative 0/1 ADS toward the held pose at the same rate as
             // the first-person ADS transition, so the raised gun eases in/out.
             float adsK = dt * ADS_LERP_SPEED; if (adsK > 1.0f) adsK = 1.0f;
             adsAnim[i] += ((shown->players[i].ads ? 1.0f : 0.0f) - adsAnim[i]) * adsK;
-            glm::vec3 pp = shown->players[i].pos;
-            float sp = 0.0f;
-            if (prevPosValid[i]) {
-                glm::vec3 d = pp - prevPlayerPos[i]; d.y = 0.0f;
-                sp = glm::length(d) / (dt > 1e-4f ? dt : 1e-4f);
-            }
-            prevPlayerPos[i] = pp; prevPosValid[i] = true;
-            walkSpeed[i] += (sp - walkSpeed[i]) * 0.30f;            // smooth the jitter
-            float amp = walkSpeed[i] / MOVE_SPEED;
-            walkAmp[i] = amp > 1.0f ? 1.0f : amp;
-            walkPhase[i] += walkSpeed[i] * 1.8f * dt;               // stride tied to speed
+            const Player& pl = shown->players[i];
+            bool airborne = pl.pos.y > terrainHeight(pl.pos.x, pl.pos.z) + 0.05f;
+            anims[i].update(pl.pos, airborne, pl.velY, dt);
         }
         // The pinned lobby dummy never moves, so hand it your stride instead —
         // it walks on the spot whenever you walk.
-        if (!online && !runners.enabled()) { walkAmp[1] = walkAmp[0]; walkPhase[1] = walkPhase[0]; }
+        if (!online && !runners.enabled()) {
+            anims[1].pose = anims[0].pose;
+            anims[1].pose.recoil = anims[1].pose.flash = 0.0f;
+        }
 
         gameTime += dt;
         renderer.setTime(gameTime);
@@ -959,7 +962,7 @@ int main() {
         traversal.beforeRender(renderer,cam,vm,hud);
         Uint64 renderStart = SDL_GetPerformanceCounter();
         renderScene(renderer, cam, *shown, localID, hud, input.scoreboardHeld, online, vm,
-                    decals, decalCount, connectPrompt, lobby, settings, walkPhase, walkAmp,
+                    decals, decalCount, connectPrompt, lobby, settings, anims,
                     crouchAnim, adsAnim, showHitboxes, fullMap, showHud, thirdPerson, ragdolls);
         float renderMs = (float)(SDL_GetPerformanceCounter() - renderStart) * 1000.0f /
                          (float)SDL_GetPerformanceFrequency();

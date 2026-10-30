@@ -79,7 +79,7 @@ vec3 grade(vec3 c) {
 // Approximate canopy occlusion in undeformed tree space. Stable through wind,
 // instance scaling and impostor baking; no extra shadow pass or texture lookup.
 float canopyAccess() {
-    if(trainingTree==1) {
+    if(trainingTree==1 || trainingTree==5 || trainingTree==6) {
         float radius=max(.025,.25*pow(max(0.0,1.0-treeUnit.y),.8));
         return mix(.30,1.0,smoothstep(.12,1.0,length(treeUnit.xz)/radius));
     }
@@ -107,7 +107,7 @@ void main() {
     }
     if (vUV.x >= 0.0) {
         vec4 t = texture(branchTex, vUV);
-        float cut = trainingTree==1 ? 0.22 : trainingTree>0 ? 0.30 : 0.42;
+        float cut = trainingTree==1 || trainingTree==5 ? 0.22 : trainingTree>0 ? 0.30 : 0.42;
         coverage = clamp((t.a - cut) / max(fwidth(t.a), 0.0001) + 0.5, 0.0, 1.0);
         if (coverage < 0.5) discard;
         albedo *= t.rgb;
@@ -134,10 +134,10 @@ void main() {
     bool crown=trainingTree>0 && vUV.x>=0.0;
     if(crown) {
         access=canopyAccess();
-        albedo*=trainingTree>1 ? vec3(.74,.93,.66) : vec3(.96);
+        albedo*=trainingTree>1 && trainingTree<5 ? vec3(.90,1.0,.83) : vec3(.96);
     }
     if (bake == 1) {   // Retain canopy depth in the distant albedo capture.
-        fragColor = vec4(albedo*(crown ? mix(.36,.87,access) : 1.0), 1.0);
+        fragColor = vec4(albedo*(crown ? mix(.52,.98,access) : 1.0), 1.0);
         return;
     }
 
@@ -169,7 +169,7 @@ void main() {
     }
     if (stableBroadleaf == 1 && crown) {
         // Match the access retained by bake=1, without a separate distance palette.
-        lit3 = albedo * mix(.36, .87, access) * broadleafLight(cloud);
+        lit3 = albedo * mix(.52, .98, access) * broadleafLight(cloud);
     }
     float dens = 1.0 + fogHeightAmt * exp(-max(worldPos.y, 0.0) / 12.0);
     float fog  = clamp(length(worldPos - eyePos) * dens / fogDist, 0.0, 1.0);

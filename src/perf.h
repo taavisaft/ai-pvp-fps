@@ -90,6 +90,7 @@ struct RefCameraPreset {
     float       pitch;
     int         atmo;   // Renderer::Atmo preset index
     bool        training = false;
+    float       elevation = 0.0f;
 };
 
 int                    refCameraCount();

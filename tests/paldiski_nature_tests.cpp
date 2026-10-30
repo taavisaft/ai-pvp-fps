@@ -25,7 +25,8 @@ int main() {
         ++species[taigaTreeType(t.x,t.z,pineForestBiome(t.x,t.z))];
         ++quadrants[(t.x>0 ? 1 : 0)+(t.z>0 ? 2 : 0)];
     }
-    for(int count:species) CHECK(count>0);
+    for(int type=0;type<TRAINING_TREE_TYPES;++type)
+        CHECK(type>=7 ? species[type]==0 : species[type]>0);
     for(int count:quadrants) CHECK(count>100);
     for(int i=0;i<gMapSpawnCount;++i) {
         const auto& p=gMapSpawns[i];

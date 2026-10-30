@@ -1,8 +1,9 @@
 // Habitat boundaries mirror trainingForest() and forestFloorCover() on the CPU.
 float trainingWoodland(vec2 p) {
-    float patch=terrVNoise(p*vec2(.015,.013)+vec2(19,-7));
-    float density=max(smoothstep(290.0,520.0,p.y)*.95,
-                      smoothstep(90.0,230.0,abs(p.x))*.85)*smoothstep(.38,.52,patch);
+    float warp=terrVNoise(p*.009+vec2(31,-17))-.5;
+    float patch=terrVNoise(p*.0035+vec2(19,-7)+warp*vec2(.35,.25));
+    float edge=terrVNoise(p*.018+vec2(5,23))-.5;
+    float density=.92*smoothstep(.47,.62,patch+edge*.15);
     vec2 pond=p/vec2(44,30)-vec2(0,184.0/30.0);
     float r=length(pond)*(1.0+.06*sin(p.x*.12+p.y*.09));
     float ring=(1.0-smoothstep(1.5,2.4,r))*smoothstep(.95,1.3,r);

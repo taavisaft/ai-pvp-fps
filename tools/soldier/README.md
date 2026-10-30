@@ -31,7 +31,7 @@ Runtime format is ten floats per vertex: position, normal, linear RGB, specular.
 | Uzi | 11,932 | 2,944 |
 | Soldier + Uzi | 38,488 | 9,508 |
 
-Both world and shadow passes choose detail from camera distance. First-person geometry always uses full detail. Hitboxes, weapon statistics, protocol, and shared gameplay pose remain unchanged; equipment is cosmetic and does not add armor protection. The model uses segmented posing, not a deforming skinned rig. Continuous shoulders/elbows, articulated fingers, a support hand in first person, reload/magazine animation, and higher-quality surface maps remain further art/animation work.
+Both world and shadow passes choose detail from camera distance. First person renders the same posed body with the camera at the right eye (head, neck and nose boxes skipped); there is no separate view model. Hitboxes, weapon statistics and protocol remain unchanged; equipment is cosmetic and does not add armor protection. The model uses segmented posing, not a deforming skinned rig. Continuous shoulders/elbows, articulated fingers, reload/magazine animation, and higher-quality surface maps remain further art/animation work.
 
 Useful offline checks (variables are opt-in; omit them for normal controls):
 

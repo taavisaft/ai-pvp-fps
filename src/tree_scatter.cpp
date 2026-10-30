@@ -30,14 +30,17 @@ static void scatterTrees(std::vector<TreeInstance>& out) {
             out.push_back(t);
         }
         auto open=[](float x,float z) {
+            float dx=x-TRAINING_OVERLOOK_X,dz=z-TRAINING_OVERLOOK_Z;
+            if(dx*dx+dz*dz<8*8) return false;
             if(fabsf(x)>1016 || fabsf(z)>1016 || naturePreviewArea(x,z)) return false;
             if(x*x+z*z<75*75 || trainingPondRadius(x,z)<1.15f) return false;
             return !(fabsf(x)<30 && z>95 && z<166);
         };
-        const int side=340;
+        const int side=372;
+        const float step=2040.0f/side;
         for(int iz=0;iz<side;++iz) for(int ix=0;ix<side;++ix) {
-            float x=-1020+(ix+.5f)*6+(mapRand(ix,iz,301)-.5f)*5;
-            float z=-1020+(iz+.5f)*6+(mapRand(ix,iz,302)-.5f)*5;
+            float x=-1020+(ix+.5f)*step+(mapRand(ix,iz,301)-.5f)*step*.83f;
+            float z=-1020+(iz+.5f)*step+(mapRand(ix,iz,302)-.5f)*step*.83f;
             if(!open(x,z)) continue;
             float forest=trainingForest(x,z);
             if(mapRand(ix,iz,303)>forest*.92f) {
@@ -52,9 +55,9 @@ static void scatterTrees(std::vector<TreeInstance>& out) {
             out.push_back({x,terrainHeight(x,z)-.15f,z,scale,
                            mapRand(ix,iz,305)*6.2831853f,.78f+mapRand(ix,iz,306)*.30f});
         }
-        for(int cz=-3;cz<5;++cz) for(int cx=-4;cx<4;++cx) {
-            if(mapRand(cx,cz,321)>.60f) continue;
-            float centerX=(cx+.2f+.6f*mapRand(cx,cz,322))*120, centerZ=(cz+.2f+.6f*mapRand(cx,cz,323))*120;
+        for(int cz=-6;cz<6;++cz) for(int cx=-6;cx<6;++cx) {
+            if(mapRand(cx,cz,321)>.45f) continue;
+            float centerX=(cx+.2f+.6f*mapRand(cx,cz,322))*160, centerZ=(cz+.2f+.6f*mapRand(cx,cz,323))*160;
             if(centerX*centerX+centerZ*centerZ<150*150 || trainingPondRadius(centerX,centerZ)<2.4f) continue;
             if(fabsf(centerX)<45 && centerZ>80 && centerZ<185) continue;
             if(trainingForest(centerX,centerZ)>.10f) continue;

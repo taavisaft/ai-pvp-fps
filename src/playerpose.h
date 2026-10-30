@@ -1,11 +1,13 @@
 #pragma once
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <cmath>
 #include "skeleton.h"
 #include "weapon_visual.h"
 #include "game.h"
 #include "terrain.h"
+#include "player_anim.h"
 
 // Shared pose frames and coarse hit volumes: FK spine, IK arms onto weapon grips,
 // weapon proxies, and IK legs. The client attaches detailed cosmetic meshes to these
@@ -70,25 +72,33 @@ inline void poseSegment(glm::vec3 A, glm::vec3 B, float w, uint8_t part,
 
 inline int buildPlayerPose(const glm::vec3& pos, float yaw, float pitch, float lean,
                            uint8_t weaponId, float crouch, float ads,
-                           float phase, float amp, PoseBox out[MAX_POSE_BOXES]) {
+                           float phase, float amp, PoseBox out[MAX_POSE_BOXES],
+                           const PoseAnim* anim = nullptr) {
     static Skeleton skel = makeBoxMan();
     int n = 0;
+    float crouchT = glm::clamp(crouch, 0.0f, 1.0f);
+    AnimLayer L;
+    if (anim) { L = evalAnim(*anim, crouchT); phase = anim->phase; amp = anim->amp; }
+    else { L.stride = glm::mix(0.38f, 0.18f, crouchT) * amp; L.lift = glm::mix(0.16f, 0.07f, crouchT) * amp; }
 
     // Spine pose: lean roll on the torso, a little aim tilt on the neck. Limb-bone
     // localRots stay at rest — the limbs are IK'd below; we only read their joint
     // positions as anchors.
-    float la = lean * glm::radians(LEAN_ANGLE_DEG);
-    skel.bones[BONE_TORSO].localRot = glm::angleAxis(la, glm::vec3(0, 0, 1));
-    skel.bones[BONE_NECK].localRot  = glm::angleAxis(glm::radians(-pitch) * 0.5f, glm::vec3(1, 0, 0));
+    float la = lean * glm::radians(LEAN_ANGLE_DEG) + L.torsoRoll;
+    skel.bones[BONE_TORSO].localRot = glm::angleAxis(L.torsoYaw, glm::vec3(0, 1, 0))
+                                    * glm::angleAxis(la, glm::vec3(0, 0, 1))
+                                    * glm::angleAxis(L.torsoPitch, glm::vec3(1, 0, 0));
+    skel.bones[BONE_NECK].localRot  = glm::angleAxis(L.headYaw - L.torsoYaw * 0.6f, glm::vec3(0, 1, 0))
+                                    * glm::angleAxis(glm::radians(-pitch) * 0.5f + L.headPitch - L.torsoPitch * 0.7f, glm::vec3(1, 0, 0))
+                                    * glm::angleAxis(glm::radians(-12.0f) * glm::clamp(ads, 0.0f, 1.0f), glm::vec3(0, 0, 1));
 
-    float crouchT = glm::clamp(crouch, 0.0f, 1.0f);
     // Keep every body part at its real size. Crouching lowers the pelvis by the
     // stance-height difference; the leg IK below keeps both feet planted and folds
     // the knees naturally instead of vertically shrinking the whole skeleton.
     float pelvisY = 0.95f - (STAND_HEIGHT - CROUCH_HEIGHT) * crouchT;
     glm::mat4 root = glm::translate(glm::mat4(1.0f), pos)
                    * glm::rotate(glm::mat4(1.0f), 1.5707963f - glm::radians(yaw), glm::vec3(0, 1, 0))
-                   * glm::translate(glm::mat4(1.0f), glm::vec3(0, pelvisY, 0));
+                   * glm::translate(glm::mat4(1.0f), glm::vec3(0, pelvisY, 0) + L.pelvis);
     skel.computeWorld(root);
 
     // Spine + head + nose from FK (the 8 limb bones are IK'd instead).
@@ -104,11 +114,27 @@ inline int buildPlayerPose(const glm::vec3& pos, float yaw, float pitch, float l
     // and crouches with the body; both hands IK'd onto its grips. The walk bob fades
     // as you aim so the raised gun reads as steady. ---
     const float upArm = 0.30f, foreArm = 0.30f;
-    float bob = sinf(phase) * amp * 0.03f * (1.0f - ads);
-    glm::vec3 hipT = GUN_HOLD_HIP + glm::vec3(0.0f, bob, 0.0f);
-    glm::mat4 hold = skel.world[BONE_TORSO]
-        * glm::translate(glm::mat4(1.0f), glm::mix(hipT, GUN_HOLD_ADS, ads))
+    const WeaponVisual& wv = weaponVisual(weaponId);
+    float adsT = glm::clamp(ads, 0.0f, 1.0f);
+    glm::vec3 bob = anim ? L.gun : glm::vec3(0.0f, sinf(phase) * amp * 0.03f, 0.0f);
+    glm::mat4 hipHold = skel.world[BONE_TORSO]
+        * glm::translate(glm::mat4(1.0f), GUN_HOLD_HIP + bob)
+        * glm::rotate(glm::mat4(1.0f), glm::radians(9.0f), glm::vec3(0, 1, 0))
         * glm::rotate(glm::mat4(1.0f), -glm::radians(pitch), glm::vec3(1, 0, 0));
+    const float yr0 = glm::radians(yaw), pr0 = glm::radians(pitch);
+    glm::vec3 front(cosf(yr0) * cosf(pr0), sinf(pr0), sinf(yr0) * cosf(pr0));
+    glm::vec3 rightFlat(-sinf(yr0), 0.0f, cosf(yr0));
+    glm::vec3 up = glm::normalize(glm::cross(rightFlat, front));
+    up = glm::vec3(glm::rotate(glm::mat4(1.0f), lean * glm::radians(LEAN_ANGLE_DEG), front) * glm::vec4(up, 0.0f));
+    glm::vec3 right = glm::normalize(glm::cross(front, up));
+    glm::vec3 eye = playerEye(pos, yaw, lean, crouchT);
+    glm::mat4 adsHold(glm::vec4(-right, 0), glm::vec4(up, 0), glm::vec4(front, 0),
+                      glm::vec4(eye + right * wv.adsHold.x + up * wv.adsHold.y + front * wv.adsHold.z, 1));
+    glm::quat holdRot = glm::slerp(glm::quat_cast(glm::mat3(hipHold)), glm::quat_cast(glm::mat3(adsHold)), adsT);
+    glm::vec3 holdPos = glm::mix(glm::vec3(hipHold[3]), glm::vec3(adsHold[3]), adsT);
+    float recoil = anim ? anim->recoil : 0.0f;
+    glm::mat4 hold = glm::translate(glm::mat4(1.0f), holdPos) * glm::mat4_cast(holdRot)
+                   * glm::translate(glm::mat4(1.0f), bob * (0.3f * adsT) + glm::vec3(0, 0, -0.08f * recoil));
     auto gun = [&](glm::vec3 lp, glm::vec3 sz, uint8_t part) {
         out[n++] = {hold * glm::translate(glm::mat4(1.0f), lp), sz * 0.5f, part};
     };
@@ -124,18 +150,18 @@ inline int buildPlayerPose(const glm::vec3& pos, float yaw, float pitch, float l
     }
     // Hand targets from the shared anchor table (weapon_visual.h): the support hand
     // reaches further on a longer gun, so each weapon's grips live in one place.
-    const WeaponVisual& wv = weaponVisual(weaponId);
-    auto holdArm = [&](int shoulderBone, glm::vec3 gripLocal) {
+    const glm::vec3 bodyLeft = glm::normalize(glm::vec3(skel.world[BONE_TORSO][0]));
+    auto holdArm = [&](int shoulderBone, glm::vec3 gripLocal, glm::vec3 elbowHint) {
         glm::vec3 S = glm::vec3(skel.world[shoulderBone][3]);          // shoulder joint
         glm::vec3 T = glm::vec3(hold * glm::vec4(gripLocal, 1.0f));
-        glm::vec3 E = ikJoint(S, T, upArm, foreArm, glm::vec3(0, -1, 0));
+        glm::vec3 E = ikJoint(S, T, upArm, foreArm, elbowHint);
         poseSegment(S, E, 0.12f, POSE_ARM, out, n);                    // upper arm
         poseSegment(E, T, 0.11f, POSE_ARM, out, n);                    // forearm
-        out[n++] = {glm::translate(glm::mat4(1.0f), T),
-                    {0.065f, 0.06f, 0.065f}, POSE_HAND};               // fist on the grip
+        out[n++] = {hold * glm::translate(glm::mat4(1.0f), gripLocal),
+                    {0.045f, 0.055f, 0.05f}, POSE_HAND};               // fist on the grip
     };
-    holdArm(BONE_UPPERARM_L, wv.tpFireGrip);                           // firing arm
-    holdArm(BONE_UPPERARM_R, wv.tpSupportGrip);                        // support arm
+    holdArm(BONE_UPPERARM_R, wv.tpFireGrip, glm::vec3(0, -1, 0) - bodyLeft * 0.45f);   // right hand: trigger
+    holdArm(BONE_UPPERARM_L, wv.tpSupportGrip, glm::vec3(0, -1, 0) + bodyLeft * 0.2f); // left hand: handguard
 
     // --- Legs: feet planted on the terrain, stepping over the stride and lifting in
     // an arc; knees bend toward facing. Hip anchors come from the thigh-bone joints.
@@ -146,13 +172,15 @@ inline int buildPlayerPose(const glm::vec3& pos, float yaw, float pitch, float l
     const float yr  = glm::radians(yaw);
     const glm::vec3 fwd = {cosf(yr), 0.0f, sinf(yr)};
     bool  airborne = pos.y > terrainHeight(pos.x, pos.z) + 0.05f;
-    float stride = glm::mix(0.38f, 0.18f, crouchT) * amp;
-    float lift   = glm::mix(0.16f, 0.07f, crouchT) * amp;
-    auto leg = [&](int hipBone, float ph) {
+    float stride = L.stride, lift = L.lift;
+    auto leg = [&](int hipBone, float ph, float lead) {
         glm::vec3 hip = glm::vec3(skel.world[hipBone][3]);
         glm::vec3 foot;
         if (airborne) {
-            foot = hip + fwd * (sinf(ph) * 0.10f) - glm::vec3(0, 0.55f, 0);
+            float tuck = anim ? L.legTuck : 0.0f;
+            foot = hip + fwd * (sinf(ph) * 0.10f + lead * tuck * 0.30f)
+                 - glm::vec3(0, 0.55f + 0.25f * (1.0f - tuck) + lead * tuck * 0.10f, 0)
+                 - glm::vec3(0, fmaxf(0.0f, -lead) * tuck * 0.15f, 0);
         } else {
             glm::vec3 fxz = hip + fwd * (sinf(ph) * stride);
             float up = fmaxf(0.0f, sinf(ph + 1.5708f)) * lift;
@@ -163,7 +191,7 @@ inline int buildPlayerPose(const glm::vec3& pos, float yaw, float pitch, float l
         poseSegment(knee, foot, 0.18f, POSE_LEG, out, n);              // shin
         poseSegment(foot, foot + fwd * 0.16f, 0.12f, POSE_FOOT, out, n);  // foot
     };
-    leg(BONE_THIGH_L, phase);
-    leg(BONE_THIGH_R, phase + 3.14159f);
+    leg(BONE_THIGH_L, phase, 1.0f);
+    leg(BONE_THIGH_R, phase + 3.14159f, -1.0f);
     return n;
 }

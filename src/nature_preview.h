@@ -2,10 +2,9 @@
 #include <cmath>
 
 // Offline nature catalogue, east of the (0,136) spawn. One size per asset.
-struct NatureTreeSample { float x, z; };
+struct NatureTreeSample { float x, z; int type; };
 inline constexpr NatureTreeSample NATURE_TREES[] = {
-    {18,114}, {32,114}, {46,114}, {60,114}, // four spruce forms
-    {18,136}, {32,136}, {46,136}           // ash, birch, oak
+    {18,125,8}, {32,125,9} // imported Norway spruces: 1843, 243
 };
 inline constexpr float NATURE_TREE_HEIGHT = 10.0f;
 inline constexpr float NATURE_BUSH_X = 10, NATURE_BUSH_Z = 126;
@@ -14,8 +13,8 @@ inline bool naturePreviewArea(float x,float z) {
     return x>6 && x<70 && z>92 && z<148;
 }
 inline int naturePreviewTreeType(float x,float z) {
-    for(int i=0;i<7;++i)
-        if(x==NATURE_TREES[i].x && z==NATURE_TREES[i].z) return i;
+    for(int i=0;i<int(sizeof(NATURE_TREES)/sizeof(NATURE_TREES[0]));++i)
+        if(x==NATURE_TREES[i].x && z==NATURE_TREES[i].z) return NATURE_TREES[i].type;
     return -1;
 }
 // Four 6 m surface patches: meadow, dirt, rock, forest floor.

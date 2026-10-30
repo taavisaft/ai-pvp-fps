@@ -39,3 +39,9 @@ Use dated reports for measurements and inspections; [TODO.md](TODO.md) owns curr
 - [Training landscape: meadow, pond, wooded hills](docs/training-landscape-2026-09-17.md) — 2026-09-17.
 
 - [Vegetation, ground and haze ported to Paldiski](docs/training-landscape-2026-09-17.md#paldiski-port-same-day-world-revision-0x20260918) — 2026-09-17. World revision 0x20260918.
+
+- 2026-10-17: player animation clips — idle (breathing, weight shift), walk, run (lean, knee lift, longer cycle), crouch-walk, jump/land, blended by measured speed in `src/player_anim.h`; server hit pose unchanged; `FPS_MOVE` scripted-input capture aid; `player_anim` test.
+
+- 2026-10-17: third-person weapon hold made right-handed — trigger hand is now the right arm, gun sits off the right shoulder (`GUN_HOLD_HIP/ADS` in game.h), toed in 9°/3°, head rolls onto the stock when aiming, fists 10 cm. Hit regions for arms/hands/gun move with it (shared pose); server and client rebuild together.
+
+- 2026-10-17: one body for both views — the separate first-person view model is gone; first person draws the shared posed body from the right eye (`EYE_RIGHT`), aiming anchors the gun to the eye line in every view (`WeaponVisual::adsHold`, test `player_anim` checks the sight sits on the view line), recoil and muzzle flash ride the pose. Capture runs (`FPS_SHOT`/`FPS_BENCH`) now ignore live input; earlier odd captures were keypresses from the desk.

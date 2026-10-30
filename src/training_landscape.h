@@ -9,16 +9,19 @@ inline float trainingPondRadius(float x,float z) {
     float dx=x/TRAINING_POND_RADIUS_X,dz=(z-TRAINING_POND_Z)/TRAINING_POND_RADIUS_Z;
     return sqrtf(dx*dx+dz*dz)*(1.0f+.06f*sinf(x*.12f+z*.09f));
 }
+constexpr float TRAINING_OVERLOOK_X=-220.0f, TRAINING_OVERLOOK_Z=460.0f;
+inline float trainingHill(float x,float z,float cx,float cz,float radius) {
+    float dx=x-cx,dz=z-cz;
+    return 1-lobbySmooth(0,radius,sqrtf(dx*dx+dz*dz));
+}
 inline float trainingLandscapeHeight(float x,float z) {
-    float h=12.0f+14.0f*terrValueNoise(x*.008f+7,z*.008f-2);
-    h+=9.0f*sinf(x*.011f+z*.006f)*sinf(z*.012f+.4f);
-    // Open valley framed by overlapping, wooded ridges. The broad extra rise
-    // starts beyond the pond/range so their established ground stays intact.
-    float ridge=lobbySmooth(260,650,z);
-    h+=ridge*(34+52*terrValueNoise(x*.0035f+41,z*.004f+13));
-    h+=lobbySmooth(110,410,fabsf(x))*(18+24*terrValueNoise(x*.005f,z*.006f));
-    h+=140.0f*lobbySmooth(260,850,z);
-    h+=85.0f*lobbySmooth(180,750,fabsf(x));
+    // Separate rounded hills leave broad valleys and long sightlines.
+    float h=8.0f+4.0f*terrValueNoise(x*.0035f+7,z*.0035f-2);
+    h+=1.2f*sinf(x*.005f+z*.003f)*sinf(z*.006f+.4f);
+    h+=50*trainingHill(x,z,TRAINING_OVERLOOK_X,TRAINING_OVERLOOK_Z,300);
+    h+=48*trainingHill(x,z,500,300,380);
+    h+=46*trainingHill(x,z,-550,-460,420);
+    h+=50*trainingHill(x,z,100,870,340);
     float r=trainingPondRadius(x,z);
     float basin=1-lobbySmooth(1.5f,5.5f,r);
     h=h*(1-basin)+(6.3f+2.2f*(r-1.0f)+.12f*(h-12.0f))*basin;
@@ -33,10 +36,10 @@ inline float trainingReeds(float x,float z) {
     return shore*farSide;
 }
 inline float trainingForest(float x,float z) {
-    float patch=terrValueNoise(x*.015f+19,z*.013f-7);
-    float far=lobbySmooth(290,520,z);
-    float flank=lobbySmooth(90,230,fabsf(x));
-    float density=fmaxf(far*.95f,flank*.85f)*lobbySmooth(.38f,.52f,patch);
+    float warp=terrValueNoise(x*.009f+31,z*.009f-17)-.5f;
+    float patch=terrValueNoise(x*.0035f+19+warp*.35f,z*.0035f-7+warp*.25f);
+    float edge=terrValueNoise(x*.018f+5,z*.018f+23)-.5f;
+    float density=.92f*lobbySmooth(.47f,.62f,patch+edge*.15f);
     float pondRing=(1-lobbySmooth(1.5f,2.4f,trainingPondRadius(x,z)))*lobbySmooth(.95f,1.3f,trainingPondRadius(x,z));
     float clump=lobbySmooth(.50f,.64f,terrValueNoise(x*.045f+3,z*.045f+11));
     density=fmaxf(density,pondRing*.55f*clump*lobbySmooth(173,202,z));

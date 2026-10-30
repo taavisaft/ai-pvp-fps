@@ -140,7 +140,7 @@ static void naturePreview() {
         for(int frame=0;frame<60;++frame) movePlayer(p,in,1.0f/60);
         CHECK(p.pos.x<tree.x);
     }
-    for(int count:found) CHECK(count==1);
+    for(int type=0;type<TRAINING_TREE_TYPES;++type) CHECK(found[type]==(type>=8 ? 1 : 0));
     const auto& rail=gNatureLogs[1];
     glm::vec3 direction=glm::normalize(glm::cross(rail.axis,glm::vec3(0,1,0)));
     GameState gs{}; gs.usedMask=1;

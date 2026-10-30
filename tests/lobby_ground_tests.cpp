@@ -63,9 +63,35 @@ int main() {
     CHECK(spawn.x*spawn.x+spawn.z*spawn.z > 120*120);
     float spawnEye = terrainHeight(spawn.x,spawn.z)+1.7f;
     CHECK(terrainHeight(0,195) < TRAINING_POND_Y);
-    // Lobby overlooks give a substantial climb, with continuous walkable grades.
-    CHECK(terrainHeight(0,850)-terrainHeight(0,260) > 140.0f);
-    CHECK(terrainHeight(750,0)-terrainHeight(180,0) > 85.0f);
+    // Broad walkable hills retain low fields and the pond basin.
+    float fieldMin=100, fieldMax=-100, fieldGrade=0;
+    for(int z=-1024;z<=1024;z+=16) for(int x=-1024;x<=1024;x+=16) {
+        if(x*x+z*z<220*220) continue;
+        float h=terrainHeight((float)x,(float)z);
+        CHECK(std::isfinite(h));
+        fieldMin=fminf(fieldMin,h); fieldMax=fmaxf(fieldMax,h);
+        float gx=terrainHeight(x+1.0f,(float)z)-h;
+        float gz=terrainHeight((float)x,z+1.0f)-h;
+        fieldGrade=fmaxf(fieldGrade,sqrtf(gx*gx+gz*gz));
+    }
+    CHECK(fieldMax-fieldMin>45 && fieldMax-fieldMin<60);
+    CHECK(fieldGrade<.40f);
+    std::printf("training relief %.2f m, max sampled grade %.3f\n",fieldMax-fieldMin,fieldGrade);
+    CHECK(terrainHeight(TRAINING_OVERLOOK_X,TRAINING_OVERLOOK_Z)-terrainHeight(0,300)>45);
+    CHECK(terrainHeight(0,850)-terrainHeight(0,260)>10);
+    CHECK(terrainHeight(500,300)-terrainHeight(500,-100)>40);
+    int openFields=0, woodland=0, clearBlocks=0, fieldSamples=0;
+    for(int z=-900;z<=900;z+=50) for(int x=-900;x<=900;x+=50) {
+        float forest=trainingForest((float)x,(float)z);
+        CHECK(forest>=0 && forest<=1);
+        openFields+=forest<.03f; woodland+=forest>.75f; ++fieldSamples;
+        if(forest<.03f && trainingForest(x+100.0f,(float)z)<.03f &&
+           trainingForest((float)x,z+100.0f)<.03f && trainingForest(x+100.0f,z+100.0f)<.03f)
+            ++clearBlocks;
+    }
+    CHECK(openFields*4>fieldSamples && openFields*5<fieldSamples*4);
+    CHECK(woodland*5>fieldSamples && woodland*5<fieldSamples*3);
+    CHECK(clearBlocks>50);
     for (int z=260; z<850; ++z) {
         float h=terrainHeight(0,(float)z);
         CHECK(std::isfinite(h));

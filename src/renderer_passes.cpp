@@ -12,6 +12,15 @@ void Renderer::setAtmosphere(int preset) {
     atmoPreset = ((preset % ATMO_COUNT) + ATMO_COUNT) % ATMO_COUNT;
     hazeCool = atmoPreset == ATMO_OVERCAST ? 0.0f : 1.0f;
     switch (atmoPreset) {
+    case ATMO_CLOUDY_EVENING:
+        sunDir        = glm::normalize(glm::vec3(.76f,.18f,-.50f));
+        sunColor      = {.52f,.47f,.42f};
+        skyZenith     = {.39f,.46f,.58f};
+        skyHorizon    = {.76f,.72f,.70f};
+        groundAmbient = {.28f,.30f,.28f};
+        fogDist = 2400.0f; fogHeightAmt = .45f; cloudAmount = .68f;
+        exposure = .94f; saturation = .88f;
+        break;
     case ATMO_OVERCAST:   // DayZ gloom: weak grey sun, flat light, close haze
         sunDir        = glm::normalize(glm::vec3(0.35f, 0.75f, 0.30f));
         sunColor      = {0.38f, 0.40f, 0.43f};
@@ -120,8 +129,11 @@ void Renderer::drawSky(const glm::mat4& view, const glm::mat4& proj, const glm::
     skyShader.setFloat(skyShader.locHazeCool, hazeCool);
     skyShader.setFloat(skyPanoramaTurnLoc, 0.06f - atan2f(sunDir.z, sunDir.x) / 6.2831853f);
     skyShader.setInt(skyPanoramaLoc,7);
-    skyShader.setInt(skyUsePanoramaLoc,meadowSky && atmoPreset!=ATMO_OVERCAST);
-    glActiveTexture(GL_TEXTURE7); glBindTexture(GL_TEXTURE_2D,meadowSky);
+    skyShader.setInt(skyUsePanoramaLoc,meadowSky && atmoPreset!=ATMO_OVERCAST
+                    ? (atmoPreset==ATMO_CLOUDY_EVENING ? 2
+                       : gMapId==MAP_LOBBY && atmoPreset==ATMO_CLEAR ? 3 : 1) : 0);
+    glActiveTexture(GL_TEXTURE7);
+    glBindTexture(GL_TEXTURE_2D,gMapId==MAP_LOBBY && atmoPreset==ATMO_CLEAR ? daySky : meadowSky);
     glActiveTexture(GL_TEXTURE0);
     quad2d.draw();
     glEnable(GL_DEPTH_TEST);

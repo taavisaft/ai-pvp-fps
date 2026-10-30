@@ -104,7 +104,7 @@ struct Vegetation {
     GLuint  streamBush = 0, streamBushShadow = 0;
     GLuint  vaoImp = 0;
     GLuint  vaoBush = 0, vaoBushShadow = 0;
-    GLuint trainingBranchTex=0,trainingBroadleafTex=0;
+    GLuint trainingBranchTex=0,trainingBroadleafTex=0,importedSpruceTex[2]{};
     struct SpruceMesh {
         GLuint vbo=0,ebo=0,lowVbo=0,lowEbo=0,vao[4]{},impostor=0,lobbyImpostor=0;
         GLsizei count=0,lowCount=0;

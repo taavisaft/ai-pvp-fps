@@ -228,18 +228,21 @@ uniform float distantGrassMute;
 #include "forest_floor.glsl"
 uniform sampler2D meadowMap;
 vec3 meadowLayer(vec3 p) {
+    float distance=length(p.xz-eyePos.xz);
+    vec3 farSurface=fieldColor(p.xz,.72)*.98;
+    farSurface*=.90+.22*textureLod(meadowMap,p.xz/23.0,3.0).g;
+    if(distance>=240.0) return farSurface;
     float growth=lobbyGrowth(p.xz);
     vec3 litter=mix(texture(meadowMap,p.xz/1.35).rgb,
                     texture(meadowMap,vec2(p.x*.799-p.z*.602,p.x*.602+p.z*.799)/6.25).rgb,.34);
     if(gFar>0.0) litter=mix(litter,textureLod(meadowMap,p.xz/31.0,4.0).rgb,gFar);
     float fibre=dot(litter,vec3(.299,.587,.114));
-    vec3 dryGround=litter*vec3(.83,.82,.66);
-    float distance=length(p.xz-eyePos.xz);
+    vec3 dryGround=litter*vec3(.60,.70,.36);
     // As grass cards thin from 30-50 m, move the field toward a muted green
     // while retaining local growth variation; avoid straw-colored hill bands.
     float farField=smoothstep(30.0,90.0,distance);
-    vec3 lush=growthColorOf(growth);
-    lush=mix(lush,vec3(.15,.23,.065),farField*.9);
+    vec3 lush=fieldColor(p.xz,growth);
+    lush=mix(lush,fieldColor(p.xz,.72),farField*.85);
     vec3 deepGround=lush*(.65+fibre*1.15);
     vec3 meadow=mix(dryGround,deepGround,growth*.85);
     float macro=growthNoise(p.xz*.018+vec2(4,9));
@@ -259,6 +262,7 @@ vec3 meadowLayer(vec3 p) {
     // tip tint made the bare hillside look like broad tan contour bands.
     float tipMix=grazing*.24*(1.0-farField);
     float detail=.64+.08*macro+.20*patches+.48*grain;
+    detail=mix(detail,1.0,farField*.75);
     {
         // A larger, warped sample of the scanned meadow supplies irregular
         // mid-distance structure instead of more smooth value-noise bands.
@@ -271,10 +275,10 @@ vec3 meadowLayer(vec3 p) {
     if(splat==2 && distantGrassMute>0.0) {
         float mute=smoothstep(50.0,160.0,distance)*distantGrassMute;
         float luminance=dot(result,vec3(.299,.587,.114));
-        vec3 olive=mix(vec3(luminance),result,.55)*vec3(.94,.88,.92);
+        vec3 olive=mix(vec3(luminance),result,.82)*vec3(.98,.97,.98);
         result=mix(result,olive,mute);
     }
-    return result;
+    return mix(result,farSurface,smoothstep(120.0,240.0,distance));
 }
 // Blend grass/dirt/rock across the heightfield by surface slope (steep -> rock),
 // with a height bias (peaks rockier) and fbm-jittered band edges so the material

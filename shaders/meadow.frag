@@ -48,7 +48,7 @@ void main() {
         float detail = clamp(dot(plant.rgb, vec3(.299, .587, .114)), .15, .65);
         vec3 photograph = vColor * (.90 + .3 * detail);
         if (trainingMeadow > 0.5)
-            photograph = mix(photograph * vec3(1.25, 1.08, .85), photograph, meadowField.a);
+            photograph = mix(photograph * vec3(1.08, 1.05, .94), photograph, meadowField.a);
         albedo = mix(photograph, meadowField.rgb, smoothstep(18.0, 48.0, eyeDistance) * .92);
     }
 

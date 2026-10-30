@@ -16,6 +16,12 @@ bool Renderer::initLandscape(const char* base) {
     if(!meadowSky) return false;
     glBindTexture(GL_TEXTURE_2D,meadowSky);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+    snprintf(p,sizeof(p),"%stextures/estonian_day_sky.png",base);
+    daySky=loadTexture(p);
+    if(!daySky) daySky=loadTexture("textures/estonian_day_sky.png");
+    if(!daySky) return false;
+    glBindTexture(GL_TEXTURE_2D,daySky);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
     landscapeMapLoc=glGetUniformLocation(shader.program,"landscapeMap");
     shader.use();
     shader.setInt(landscapeMapLoc,8);
@@ -107,8 +113,9 @@ void Renderer::destroyLandscape() {
     pondCache.invalidate();
     pondShader.destroy();
     if(meadowSky) glDeleteTextures(1,&meadowSky);
+    if(daySky) glDeleteTextures(1,&daySky);
     if(pondTexture) glDeleteTextures(1,&pondTexture);
     if(pondDepth) glDeleteTextures(1,&pondDepth);
     if(pondFBO) glDeleteFramebuffers(1,&pondFBO);
-    meadowSky=pondTexture=pondDepth=pondFBO=0;
+    meadowSky=daySky=pondTexture=pondDepth=pondFBO=0;
 }

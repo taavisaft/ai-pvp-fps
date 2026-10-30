@@ -143,6 +143,9 @@ static const RefCameraPreset kRefCameras[] = {
     {"flowers", {2.0f, 0.0f, 136.0f},      0.0f, -20.0f, Renderer::ATMO_CLEAR, true},
     {"nature",  {0.0f, 0.0f, 136.0f},      0.0f,  8.0f,  Renderer::ATMO_GOLDEN, true},
     {"building", {68.0f, 0.0f, -133.0f}, 146.0f, 8.0f, Renderer::ATMO_CLEAR, true},
+    {"countryside", {-450.0f,0.0f,-450.0f}, 45.0f,-12.0f, Renderer::ATMO_CLOUDY_EVENING, true,38.0f},
+    {"woodland", {-450.0f,0.0f,-450.0f}, 45.0f,2.0f, Renderer::ATMO_CLEAR, true},
+    {"overlook", {TRAINING_OVERLOOK_X,0.0f,TRAINING_OVERLOOK_Z}, -56.0f,-6.0f, Renderer::ATMO_CLEAR, true},
 };
 
 int refCameraCount() { return (int)(sizeof(kRefCameras) / sizeof(kRefCameras[0])); }
@@ -175,5 +178,5 @@ void applyRefCamera(Camera& cam, const RefCameraPreset& ref) {
     cam.fov   = HIP_FOV;
     cam.recoilYaw = cam.recoilPitch = 0.0f;
     cam.lean  = 0.0f;
-    cam.eye   = {ref.feet.x, gy + EYE_HEIGHT, ref.feet.z};
+    cam.eye   = {ref.feet.x, gy + EYE_HEIGHT + ref.elevation, ref.feet.z};
 }

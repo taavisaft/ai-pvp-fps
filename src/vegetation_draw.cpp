@@ -1,6 +1,7 @@
 #include "vegetation.h"
 #include "renderer.h"
 #include "map.h"
+#include "game.h"
 #include "perf.h"
 static void pushTree(std::vector<float>& b, const Vegetation::Tree& t) {
     b.insert(b.end(), {t.pos.x, t.pos.y, t.pos.z, t.scale,
@@ -23,11 +24,13 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     if (!placed) { buildTrees(); buildBushes(); }
 
     if (landscapeSun != r.sunDir) bakeLandscape(r.sunDir);
-    const float fade1=treeFade1_;
-    const float end1=treeL1End_;
+    const float zoom=r.reflectionPass ? 1.0f : fmaxf(1.0f,fminf(8.0f,
+        r.curProj[1][1]*tanf(glm::radians(HIP_FOV)*.5f)));
+    const float end0=treeL0End_*zoom;
+    // Imported crowns retain all needle cards; hand off earlier to bound overdraw.
+    const float end1=(gMapId==MAP_LOBBY ? fminf(treeL1End_,70.0f) : treeL1End_)*zoom;
     gVegStats.reset();
-    // Bucket visible trees by distance. Buckets OVERLAP across the fade bands —
-    // both LODs of a transitioning tree draw, split per-pixel by the dither.
+    // Exclusive tree LODs avoid checkerboard holes in differing silhouettes.
     bufBush.clear();
     for(auto& buf:natureLit) buf.clear();
     for (SpeciesStaging* staging : {&speciesL0, &speciesL1, &speciesImp, &speciesShrub})
@@ -39,9 +42,9 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
         float dist = sqrtf(glm::dot(d, d));
         const bool shrub = t.scale < SHRUB_SCALE;
         if (shrub && dist < end1) { pushTree(speciesShrub[t.type], t); gVegStats.treesL1++; }
-        if (!shrub && dist < treeL0End_ && !r.reflectionPass) { pushTree(speciesL0[t.type], t); gVegStats.treesL0++; }
-        if (!shrub && (dist > treeFade0_ || r.reflectionPass) && dist < end1) { pushTree(speciesL1[t.type], t); gVegStats.treesL1++; }
-        if (dist > fade1 && dist < reach) { pushTree(speciesImp[t.type], t); gVegStats.treesImp++; }
+        if (!shrub && dist < end0 && !r.reflectionPass) { pushTree(speciesL0[t.type], t); gVegStats.treesL0++; }
+        if (!shrub && (dist >= end0 || r.reflectionPass) && dist < end1) { pushTree(speciesL1[t.type], t); gVegStats.treesL1++; }
+        if (dist >= end1 && dist < reach) { pushTree(speciesImp[t.type], t); gVegStats.treesImp++; }
     });
     bushGrid.forEachVisible(fr, [&](int i) {
         const Tree& t = bushes[i];
@@ -80,15 +83,14 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     vegSh.setFloat(locWind, 0.05f);
     vegSh.setFloat(locRange, 0.0f);
     glUniform2f(locFadeIn, 0.0f, 0.0f);
-    glUniform2f(locFadeOut, treeFade0_, treeL0End_);
+    glUniform2f(locFadeOut, 0.0f, 0.0f);
     drawTrainingTreeStream(speciesL0,TRAINING_L0);
     // Tree LOD1: dithers in against LOD0, out against the impostors.
     glUniform2f(locFadeIn, 0.0f, 0.0f);
-    glUniform2f(locFadeOut, fade1, end1);
+    glUniform2f(locFadeOut, 0.0f, 0.0f);
     drawTrainingTreeStream(speciesShrub,TRAINING_L1);
-    if (r.reflectionPass) glUniform2f(locFadeIn, 0.0f, 0.0f);
-    else glUniform2f(locFadeIn, treeFade0_, treeL0End_);
-    glUniform2f(locFadeOut, fade1, end1);
+    glUniform2f(locFadeIn, 0.0f, 0.0f);
+    glUniform2f(locFadeOut, 0.0f, 0.0f);
     drawTrainingTreeStream(speciesL1,TRAINING_L1);
 
     vegSh.setInt(locTrainingTree,0);
@@ -129,8 +131,8 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
         impSh.setFloat(impSh.locExposure, r.exposure);
         impSh.setFloat(impSh.locSaturation, r.saturation);
         impSh.setFloat(impSh.locHazeCool, r.hazeCool);
-                glUniform2f(locImpFadeIn, fade1, end1);
-        glUniform2f(locImpFadeOut, treeImpFade_, treeImpEnd_);
+        glUniform2f(locImpFadeIn, 0.0f, 0.0f);
+        glUniform2f(locImpFadeOut, 0.0f, 0.0f);
         drawTrainingTreeStream(speciesImp,TRAINING_IMPOSTOR);
     }
 }

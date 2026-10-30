@@ -24,6 +24,7 @@ inline constexpr TrainingSpruceProfile TRAINING_SPRUCE_PROFILES[] = {
     {"narrow",18,4,3,.19f,.145f,.95f,.65f,1.03f},
     {"broad-drooping",14,6,5,.23f,.265f,.68f,1.6f,.94f},
     {"high-crown",11,4,2,.43f,.175f,.80f,1.1f,.90f},
+    {"pine",8,6,3,.53f,.245f,.30f,-.35f,1.04f}, // separate species, shared builder
 };
 
 void vegBuildTrainingSpruce(std::vector<float>& v,std::vector<unsigned>& idx,int type,bool low=false);

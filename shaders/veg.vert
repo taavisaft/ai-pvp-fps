@@ -126,8 +126,8 @@ void main() {
         if(trainingMeadow>0.5) {
             float straw=aColor.z==2.0 || aColor.z==3.0 ? 1.0 : 0.0;
             float tip=pow(aUV.y,1.5);
-            blade=mix(vec3(.085,.155,.045),vec3(.47,.47,.17),tip);
-            blade=mix(blade,mix(vec3(.14,.17,.06),vec3(.74,.60,.30),tip),straw);
+            blade=mix(vec3(.10,.17,.055),vec3(.40,.46,.19),tip);
+            blade=mix(blade,mix(vec3(.16,.19,.075),vec3(.65,.58,.32),tip),straw);
             if(aColor.z==4.0) blade*=vec3(.75,.94,.75);
         }
         vColor=blade*(.82+.3*aColor.y)*iB.z;

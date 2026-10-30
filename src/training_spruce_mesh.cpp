@@ -19,7 +19,7 @@ void vegBuildTrainingSpruce(std::vector<float>& v, std::vector<unsigned>& idx,in
         for(int j=0;j<sides;++j) {
             float a=j*6.2831853f/sides;
             glm::vec3 n=side*cosf(a)+other*sinf(a);
-            glm::vec3 color(.255f,.225f,.18f);
+            glm::vec3 color=type==4 ? glm::vec3(.36f,.235f,.145f) : glm::vec3(.255f,.225f,.18f);
             base[j]=vertex(root+n*r0,n,color,0,{-1,trunk ? -1 : .1f});
             end[j]=vertex(tip+n*r1,n,color,trunk ? 0 : .025f,{-1,trunk ? -1 : .1f});
         }

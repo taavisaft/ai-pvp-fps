@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmake --build build)",
+      "Bash(FPS_SHOT=/tmp/vm.ppm timeout 8 ./build/game)",
+      "Bash(echo \"exit=$?\")",
+      "Read(//tmp/**)",
+      "Bash(FPS_SHOT=/private/tmp/claude-501/-Users-taavisaft-Development-FPS/6840425d-d4da-4964-8a50-1507f65039e5/scratchpad/shot.ppm timeout 15 ./build/game)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(sips -s format png /tmp/shot.ppm --out /tmp/shot.png)",
+      "Bash(python3 -c \"from PIL import Image; Image.open\\('/tmp/shot.ppm'\\).save\\('/tmp/shot.png'\\)\")",
+      "Bash(cmake -B build)"
+    ]
+  }
+}

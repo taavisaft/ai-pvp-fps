@@ -23,8 +23,11 @@ cmake --build build --config Release
 ```
 
 The game always starts in the offline test lobby: a 2×2 km training landscape
-with a shooting range, meadow, pond and wooded hills. All new practice features
+with a shooting range, flat fields, pond and mixed woodland. All new practice features
 are available here without launch flags.
+
+Preview: `FPS_REF=countryside FPS_ATMO=clear ./build/game` (`cloudy` for evening).
+Hilltop start: `FPS_REF=overlook ./build/game`.
 
 The training map also has a five-storey, 113.6 m Khrushchevka exterior at
 `(0, -110)`, south of the range. Eight entrances open into an empty shell;
@@ -66,7 +69,7 @@ being shot. Use **T** to explore their areas and **M** to find them on the map.
 | C | Find and join a server |
 | M / J | Toggle map / HUD |
 | Option+Return | Toggle fullscreen |
-| K | Cycle weather: Clear Day / Overcast / Golden Hour (current name shown on HUD) |
+| K | Cycle weather: Clear Day / Overcast / Golden Hour / Cloudy Evening |
 | V | Toggle third-person view |
 | G | Clear bullet marks (offline) |
 | T | Teleport to a random safe map location (offline only) |

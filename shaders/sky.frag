@@ -67,7 +67,7 @@ void main() {
     vec4 farP  = invViewProj * vec4(vNdc,  1.0, 1.0);
     vec3 dir   = normalize(farP.xyz / farP.w - nearP.xyz / nearP.w);
 
-    if(usePanorama==1) {
+    if(usePanorama>0) {
         vec2 uv=vec2(atan(dir.z,dir.x)/6.2831853+panoramaTurn,
                      .5+asin(clamp(dir.y,-1.0,1.0))/3.14159265);
         float turn=fract(uv.x);
@@ -77,7 +77,15 @@ void main() {
         photograph=mix(mix(photograph,mirrored,.5),photograph,smoothstep(0.0,.035,seam));
         // The panorama is display encoded; avoid applying the filmic curve twice.
         float luminance=dot(photograph,vec3(.299,.587,.114));
-        photograph=mix(vec3(luminance),photograph,.78)*mix(vec3(1.0),sunColor/max(sunColor.g,.001),.13);
+        photograph=mix(vec3(luminance),photograph,usePanorama==3 ? .95 : .78)
+                    *mix(vec3(1.0),sunColor/max(sunColor.g,.001),usePanorama==3 ? 0.0 : .13);
+        if(usePanorama==2) {
+            vec3 grey=vec3(luminance)*vec3(.94,.97,1.04);
+            photograph=mix(photograph,grey,.68)*.92;
+            float opening=smoothstep(.55,.80,luminance);
+            photograph=mix(photograph,vec3(.68,.71,.78),opening*.30);
+            photograph+=vec3(.075,.025,.025)*(1.0-smoothstep(.02,.35,dir.y));
+        }
         vec3 horizon=grade(fogColor(dir));
         photograph=mix(horizon,photograph,smoothstep(-.02,.24,dir.y)*.92+.08*step(.0,dir.y));
         fragColor=vec4(photograph,1); return;
@@ -99,7 +107,7 @@ void main() {
         float wisps = vnoise(xz * 0.055 + time * 0.008);
         dens *= 0.82 + 0.18 * smoothstep(0.25, 0.75, wisps);
         // Fade clouds near the horizon line so they don't stack on the fog seam.
-        float skyGate = smoothstep(-0.02, 0.12, dir.y) * smoothstep(1.0, 0.55, up);
+        float skyGate = smoothstep(-0.02, 0.12, dir.y) * (1.0-smoothstep(.80,1.0,up));
         float cover = cloudAmount * dens * skyGate;
         vec3 cloudLit = mix(vec3(0.92, 0.94, 0.98), sunColor * 0.55 + vec3(0.45),
                             clamp(dot(normalize(sunDir), vec3(0, 1, 0)) * 0.5 + 0.5, 0.0, 1.0));

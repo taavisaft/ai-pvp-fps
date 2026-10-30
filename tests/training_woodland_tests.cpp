@@ -57,17 +57,14 @@ int main() {
     for(int x=-900;x<=900;x+=7) for(int z=-900;z<=900;z+=7) {
         int type=trainingTreeType(float(x),float(z));
         CHECK(type>=0 && type<TRAINING_TREE_TYPES);
-        CHECK(type!=5); // white-trunk birch is excluded from the lobby
         if(type>=0 && type<TRAINING_TREE_TYPES) ++counts[type];
         sameNeighbour+=type==trainingTreeType(x+5.0f,z+3.0f); ++samples;
-        if(abs(z)>600) { farSpruce+=type<4; ++farSamples; }
+        if(abs(z)>600) { farSpruce+=trainingConifer(type); ++farSamples; }
     }
     for(int type=0;type<TRAINING_TREE_TYPES;++type)
-        CHECK(type==5 ? counts[type]==0 : counts[type]>1000);
+        CHECK(type>=8 ? counts[type]>samples/3 : counts[type]==0);
     CHECK(sameNeighbour*2>samples);
-    CHECK(farSpruce*10>farSamples*7);
-    for(int z=80;z<200;z+=5) CHECK(trainingTreeType(-50,float(z))==0);
-    for(int z=80;z<300;z+=5) CHECK(trainingTreeType(40,float(z))>=4);
+    CHECK(farSpruce==farSamples);
     int taiga[TRAINING_TREE_TYPES]{}, denseSpruce=0, denseSamples=0, edgeBirch=0, edgeLeaf=0;
     for(int x=-900;x<=900;x+=7) for(int z=-900;z<=900;z+=7) {
         int dense=taigaTreeType(float(x),float(z),1.0f), edge=taigaTreeType(float(x),float(z),0.0f);
@@ -75,8 +72,23 @@ int main() {
         ++taiga[edge]; denseSpruce+=dense<4; ++denseSamples;
         if(edge>=4) { ++edgeLeaf; edgeBirch+=edge==5; }
     }
-    for(int n:taiga) CHECK(n>200);
+    for(int type=0;type<TRAINING_TREE_TYPES;++type)
+        CHECK(type>=7 ? taiga[type]==0 : taiga[type]>200);
     CHECK(denseSpruce*100>denseSamples*90);
     CHECK(edgeBirch*2>edgeLeaf);
+    std::vector<float> pine, pineLow; std::vector<unsigned> pineIdx, pineLowIdx;
+    vegBuildTrainingSpruce(pine,pineIdx,4);
+    vegBuildTrainingSpruce(pineLow,pineLowIdx,4,true);
+    CHECK(checkTreeAttachments(pine,pineIdx,-1)==0);
+    CHECK(checkTreeAttachments(pineLow,pineLowIdx,-1)==0);
+    CHECK(!pineIdx.empty() && pineLowIdx.size()<pineIdx.size());
+    for(size_t i=0;i<pine.size();i+=12) {
+        for(int j=0;j<12;++j) CHECK(std::isfinite(pine[i+j]));
+        float r=sqrtf(pine[i]*pine[i]+pine[i+2]*pine[i+2]);
+        CHECK(r*1.095f<trainingTreeWidth(7)*.5f);
+        if(pine[i+10]>=0) CHECK(pine[i+1]>.40f);
+        if(i<(TREE_TRUNK_SIDES*2+2)*12)
+            for(int j=0;j<6;++j) CHECK(pine[i+j]==spruce[i+j]);
+    }
     return failures ? 1 : 0;
 }

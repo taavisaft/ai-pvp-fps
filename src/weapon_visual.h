@@ -17,6 +17,7 @@ struct WeaponVisual {
     glm::vec3 tpSupportGrip;  // 3rd-person off-hand fore-grip; +Z grows with length
     glm::vec3 fpFireGrip;     // 1st-person fist center on the grip
     glm::vec3 fpMuzzle;       // 1st-person muzzle (flash / future tracer); +Z = length
+    glm::vec3 adsHold;        // aimed hold origin from the eye: (right, up, forward) metres
 };
 
 // Uzi — boxy SMG, long barrel: off hand reaches well forward, muzzle far out.
@@ -25,6 +26,7 @@ inline constexpr WeaponVisual UZI_VIS = {
     /*tpSupportGrip*/ {0.0f,  0.00f, 0.26f},
     /*fpFireGrip*/    {0.012f, -0.09f, -0.02f},
     /*fpMuzzle*/      {0.0f,  0.02f, 0.36f},
+    /*adsHold*/       {0.0f, -0.110f, 0.26f},
 };
 
 // Glock 19 — compact pistol: off hand close in, short muzzle.
@@ -33,11 +35,13 @@ inline constexpr WeaponVisual GLOCK19_VIS = {
     /*tpSupportGrip*/ {0.0f,  0.00f, 0.13f},
     /*fpFireGrip*/    {0.012f, -0.10f, -0.05f},
     /*fpMuzzle*/      {0.0f,  0.02f, 0.26f},
+    /*adsHold*/       {0.0f, -0.030f, 0.26f},
 };
 
 inline constexpr WeaponVisual KAR98_VIS = {
     {0.0f, -0.07f, -0.08f}, {0.0f, -0.09f, 0.31f},
     {0.012f, -0.10f, -0.12f}, {0.0f, -0.02f, 0.80f},
+    {0.0f, -0.050f, 0.30f},
 };
 
 inline const WeaponVisual WEAPON_VIS[WEP_COUNT] = { UZI_VIS, GLOCK19_VIS, KAR98_VIS };

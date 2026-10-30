@@ -49,6 +49,10 @@ FPS_REF=forest FPS_QUALITY=medium FPS_BENCH=1 ./build/game
 
 # Capture the bog view at frame 60 and exit (use an absolute output path)
 FPS_REF=bog FPS_PERF=1 FPS_SHOT=/tmp/fps-bog.ppm ./build/game
+
+# Scripted self capture: letters w=forward s=sprint c=crouch j=jump (offline). FPS_SHOT/FPS_BENCH runs ignore live input.
+# Drop FPS_TPP for the first-person body view; FPS_NOVIEWMODEL=1 hides your own body.
+FPS_TPP=1 FPS_MOVE=ws FPS_YAW=270 FPS_NOHUD=1 FPS_SHOT=/tmp/run.ppm FPS_SHOT_FRAME=260 ./build/game
 ```
 
 `FPS_REF` presets: `shore`, `bog`, `forest`, `ridge`, `golden`. A reference preset

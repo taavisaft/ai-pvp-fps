@@ -47,12 +47,21 @@ inline LeanShift leanShift(float lean) {
     return { LEAN_PIVOT * std::sin(a), LEAN_PIVOT * (1.0f - std::cos(a)) };
 }
 
-// Third-person gun mount, relative to the torso joint frame (+Z = facing): chest-height
-// hipfire hold vs raised ADS hold. The client hangs the weapon + IK hands here
-// (drawPlayerSkeleton); the server anchors the arms/hands hit region to the same mount
-// so the box always wraps the visible gun. Keep the two in sync via these constants.
-constexpr glm::vec3 GUN_HOLD_HIP = {0.05f, 0.41f, 0.20f};
-constexpr glm::vec3 GUN_HOLD_ADS = {0.00f, 0.54f, 0.21f};
+constexpr float EYE_RIGHT = 0.032f;
+inline glm::vec3 playerEye(const glm::vec3& pos, float yaw, float lean, float crouch) {
+    float yr = glm::radians(yaw);
+    glm::vec3 rightFlat(-std::sin(yr), 0.0f, std::cos(yr));
+    LeanShift s = leanShift(lean);
+    float eyeH = EYE_HEIGHT + (CROUCH_EYE - EYE_HEIGHT) * crouch;
+    return pos + glm::vec3(0.0f, eyeH - s.drop, 0.0f) + rightFlat * (s.lateral + EYE_RIGHT);
+}
+
+// Hip-fire gun mount, relative to the torso joint frame (+Z = facing, +X = the body's
+// left): off the right shoulder at chest height. Aiming blends toward an eye-anchored
+// hold (WeaponVisual::adsHold) so the sights sit on the view line in every view. The
+// client hangs the weapon + IK hands here; the server anchors the arms/hands hit
+// regions to the same mount so the boxes always wrap the visible gun.
+constexpr glm::vec3 GUN_HOLD_HIP = {-0.14f, 0.31f, 0.21f};
 
 // Weapon: aim-down-sights vs hipfire (PUBG-style)
 constexpr float HIP_FOV        = 75.0f;  // degrees

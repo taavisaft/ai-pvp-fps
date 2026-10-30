@@ -1,4 +1,5 @@
 #pragma once
+#include "player_anim.h"
 #include "renderer.h"
 #include "camera.h"
 #include <cstdint>
@@ -12,11 +13,10 @@ struct ViewModel {
     float recoilT    = 0.0f;  // recoil kick, 1 on fire, decays to 0
 };
 
-void drawViewModel(Renderer& r, const Camera& cam, const ViewModel& vm, uint8_t weaponId);
 void drawPlayerSkeleton(Renderer& r, const glm::vec3& pos, float yaw, float pitch,
                         float lean, uint8_t weaponId, float crouch, float ads,
-                        float phase, float amp, const glm::vec3& bodyCol, bool lowDetail = false, float uziBolt = -.030f);
+                        const PoseAnim& anim, const glm::vec3& bodyCol, bool lowDetail = false, float uziBolt = -.030f,
+                        bool firstPerson = false);
+glm::mat4 playerWeaponHold(const Player& player, float crouch, float ads, const PoseAnim& anim);
 
-// Shared camera mount keeps the animated gun and ejection origin aligned.
-glm::mat4 viewWeaponMount(const Camera& cam,const ViewModel& vm,uint8_t weaponId);
-void fireUziCosmetics(ViewModel& vm,const Camera& cam,const Player& player,bool thirdPerson);
+void fireUziCosmetics(ViewModel& vm,const Player& player,float crouch,const PoseAnim& anim);
