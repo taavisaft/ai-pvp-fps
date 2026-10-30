@@ -5,7 +5,7 @@
 #include <array>
 #include <cstdio>
 
-static bool importedSpruce(const char* base,int type,int lod,std::vector<float>& v,std::vector<unsigned>& idx) {
+static bool importedTree(const char* base,int type,int lod,std::vector<float>& v,std::vector<unsigned>& idx) {
     const char* dir=trainingImportedPath(type);
     char path[1024]; snprintf(path,sizeof(path),"%stextures/%s/lod%d.bin",base,dir,lod);
     FILE* f=fopen(path,"rb");
@@ -21,16 +21,16 @@ static bool importedSpruce(const char* base,int type,int lod,std::vector<float>&
 }
 
 bool Vegetation::initTrainingTrees(const char* base) {
-    for(int i=0;i<2;++i) {
-        char atlas[1024]; const char* dir=trainingImportedPath(8+i);
+    for(int i=0;i<3;++i) {
+        char atlas[1024]; const char* dir=i==2 ? "elm" : trainingImportedPath(8+i);
         snprintf(atlas,sizeof(atlas),"%stextures/%s/atlas.png",base,dir);
-        importedSpruceTex[i]=loadTextureRGBA(atlas);
-        if(!importedSpruceTex[i]) {
+        importedTreeTex[i]=loadTextureRGBA(atlas);
+        if(!importedTreeTex[i]) {
             snprintf(atlas,sizeof(atlas),"models/textures/%s/atlas.png",dir);
-            importedSpruceTex[i]=loadTextureRGBA(atlas);
+            importedTreeTex[i]=loadTextureRGBA(atlas);
         }
-        if(!importedSpruceTex[i]) return false;
-        glBindTexture(GL_TEXTURE_2D,importedSpruceTex[i]);
+        if(!importedTreeTex[i]) return false;
+        glBindTexture(GL_TEXTURE_2D,importedTreeTex[i]);
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAX_LEVEL,2);
     }
     locTrainingTree=glGetUniformLocation(vegSh.program,"trainingTree");
@@ -58,7 +58,7 @@ bool Vegetation::initTrainingTrees(const char* base) {
         auto& mesh=trainingSpruce[type];
         for(int low=0;low<2;++low) {
             std::vector<float> v; std::vector<unsigned> idx;
-            if(type>=8) { if(!importedSpruce(base,type,low,v,idx)) return false; }
+            if(type>=8) { if(!importedTree(base,type,low,v,idx)) return false; }
             else if(trainingConifer(type)) vegBuildTrainingSpruce(v,idx,type==7 ? 4 : type,low);
             else vegBuildBroadleaf(v,idx,type-4,low);
             if(low) { upload(mesh.lowVbo,mesh.lowEbo,v,idx); mesh.lowCount=(GLsizei)idx.size(); }
@@ -106,7 +106,7 @@ void Vegetation::drawTrainingTreeStream(const SpeciesStaging& staging,TrainingPa
         }
         glUniform1i(shadow ? locTrainingTreeD : locTrainingTree,trainingTreeShader(type));
         glActiveTexture(GL_TEXTURE6);
-        glBindTexture(GL_TEXTURE_2D,type>=8 ? importedSpruceTex[type-8] : trainingConifer(type) ? trainingBranchTex : trainingBroadleafTex);
+        glBindTexture(GL_TEXTURE_2D,type>=8 ? importedTreeTex[trainingImportedTextureSlot(type)] : trainingConifer(type) ? trainingBranchTex : trainingBroadleafTex);
         glActiveTexture(GL_TEXTURE0);
         glBindVertexArray(mesh.vao[pass]);
         glDrawElementsInstanced(GL_TRIANGLES,low ? mesh.lowCount : mesh.count,GL_UNSIGNED_INT,nullptr,count);
@@ -131,7 +131,7 @@ void Vegetation::destroyTrainingTrees() {
         mesh=SpruceMesh{};
     }
     if(trainingBranchTex) glDeleteTextures(1,&trainingBranchTex);
-    for(auto& texture:importedSpruceTex) { if(texture) glDeleteTextures(1,&texture); texture=0; }
+    for(auto& texture:importedTreeTex) { if(texture) glDeleteTextures(1,&texture); texture=0; }
     if(trainingBroadleafTex) glDeleteTextures(1,&trainingBroadleafTex);
     trainingBranchTex=trainingBroadleafTex=0;
 }

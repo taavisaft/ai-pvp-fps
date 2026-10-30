@@ -12,6 +12,15 @@ void Renderer::setAtmosphere(int preset) {
     atmoPreset = ((preset % ATMO_COUNT) + ATMO_COUNT) % ATMO_COUNT;
     hazeCool = atmoPreset == ATMO_OVERCAST ? 0.0f : 1.0f;
     switch (atmoPreset) {
+    case ATMO_SUNSET:
+        sunDir        = glm::normalize(glm::vec3(.86f,.035f,-.50f));
+        sunColor      = {.85f,.40f,.18f};
+        skyZenith     = {.12f,.15f,.23f};
+        skyHorizon    = {.28f,.13f,.12f};
+        groundAmbient = {.12f,.135f,.18f};
+        fogDist = 2200.0f; fogHeightAmt = .65f; cloudAmount = .22f;
+        exposure = .82f; saturation = .90f;
+        break;
     case ATMO_CLOUDY_EVENING:
         sunDir        = glm::normalize(glm::vec3(.76f,.18f,-.50f));
         sunColor      = {.52f,.47f,.42f};
@@ -130,7 +139,7 @@ void Renderer::drawSky(const glm::mat4& view, const glm::mat4& proj, const glm::
     skyShader.setFloat(skyPanoramaTurnLoc, 0.06f - atan2f(sunDir.z, sunDir.x) / 6.2831853f);
     skyShader.setInt(skyPanoramaLoc,7);
     skyShader.setInt(skyUsePanoramaLoc,meadowSky && atmoPreset!=ATMO_OVERCAST
-                    ? (atmoPreset==ATMO_CLOUDY_EVENING ? 2
+                    ? (atmoPreset==ATMO_SUNSET ? 4 : atmoPreset==ATMO_CLOUDY_EVENING ? 2
                        : gMapId==MAP_LOBBY && atmoPreset==ATMO_CLEAR ? 3 : 1) : 0);
     glActiveTexture(GL_TEXTURE7);
     glBindTexture(GL_TEXTURE_2D,gMapId==MAP_LOBBY && atmoPreset==ATMO_CLEAR ? daySky : meadowSky);

@@ -78,12 +78,13 @@ struct Renderer {
     int   atmoPreset   = 0;       // ATMO_* currently applied
 
     // Atmosphere presets: DayZ overcast gloom / PUBG warm clear / golden-hour dusk.
-    enum Atmo { ATMO_CLEAR = 0, ATMO_OVERCAST, ATMO_GOLDEN, ATMO_CLOUDY_EVENING, ATMO_COUNT };
+    enum Atmo { ATMO_CLEAR = 0, ATMO_OVERCAST, ATMO_GOLDEN, ATMO_CLOUDY_EVENING, ATMO_SUNSET, ATMO_COUNT };
     const char* atmosphereName() const {
         switch(atmoPreset) {
         case ATMO_OVERCAST: return "OVERCAST";
         case ATMO_GOLDEN: return "GOLDEN HOUR";
         case ATMO_CLOUDY_EVENING: return "CLOUDY EVENING";
+        case ATMO_SUNSET: return "DARK SUNSET";
         default: return "CLEAR DAY";
         }
     }

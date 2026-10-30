@@ -434,12 +434,13 @@ int main() {
     bool      showHud      = getenv("FPS_NOHUD") == nullptr;            // J: hide whole HUD for immersion
     bool      thirdPerson  = getenv("FPS_TPP") != nullptr;  // V: orbit self-view (see your own body)
 
-    // Debug: FPS_ATMO=clear|overcast|golden|cloudy picks the starting preset.
+    // Debug: FPS_ATMO=clear|overcast|golden|cloudy|sunset picks the starting preset.
     // (K cycles at runtime; cosmetic and client-only, so nothing to sync).
     if (const char* at = getenv("FPS_ATMO")) {
         if      (strcmp(at, "overcast") == 0) renderer.setAtmosphere(Renderer::ATMO_OVERCAST);
         else if (strcmp(at, "golden")   == 0) renderer.setAtmosphere(Renderer::ATMO_GOLDEN);
         else if (strcmp(at, "cloudy")   == 0) renderer.setAtmosphere(Renderer::ATMO_CLOUDY_EVENING);
+        else if (strcmp(at, "sunset")   == 0) renderer.setAtmosphere(Renderer::ATMO_SUNSET);
         else                                  renderer.setAtmosphere(Renderer::ATMO_CLEAR);
     }
 

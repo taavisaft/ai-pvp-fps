@@ -4,7 +4,9 @@
 // Offline nature catalogue, east of the (0,136) spawn. One size per asset.
 struct NatureTreeSample { float x, z; int type; };
 inline constexpr NatureTreeSample NATURE_TREES[] = {
-    {18,125,8}, {32,125,9} // imported Norway spruces: 1843, 243
+    {18,125,8}, {32,125,9}, // spruces: 1843, 243
+    {46,125,10}, {60,125,11}, {18,145,12}, {32,145,13},
+    {46,145,14}, {60,145,15}, {60,110,16} // elm collection
 };
 inline constexpr float NATURE_TREE_HEIGHT = 10.0f;
 inline constexpr float NATURE_BUSH_X = 10, NATURE_BUSH_Z = 126;

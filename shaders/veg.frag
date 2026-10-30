@@ -107,7 +107,7 @@ void main() {
     }
     if (vUV.x >= 0.0) {
         vec4 t = texture(branchTex, vUV);
-        float cut = trainingTree==1 || trainingTree==5 ? 0.22 : trainingTree>0 ? 0.30 : 0.42;
+        float cut = trainingTree==7 ? .074 : trainingTree==1 || trainingTree==5 ? 0.22 : trainingTree>0 ? 0.30 : 0.42;
         coverage = clamp((t.a - cut) / max(fwidth(t.a), 0.0001) + 0.5, 0.0, 1.0);
         if (coverage < 0.5) discard;
         albedo *= t.rgb;

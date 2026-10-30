@@ -173,7 +173,7 @@ bool vegBakeImpostor(Vegetation& veg, int texW, int texH, int trainingType, bool
         veg.vegSh.setFloat(veg.vegSh.locTime, 0.0f);
         veg.vegSh.setVec3(veg.vegSh.locEye, glm::vec3(100.0f));
         glActiveTexture(GL_TEXTURE6);
-        glBindTexture(GL_TEXTURE_2D, trainingType>=8 ? veg.importedSpruceTex[trainingType-8] : trainingConifer(trainingType) ? veg.trainingBranchTex : veg.trainingBroadleafTex);
+        glBindTexture(GL_TEXTURE_2D, trainingType>=8 ? veg.importedTreeTex[trainingImportedTextureSlot(trainingType)] : trainingConifer(trainingType) ? veg.trainingBranchTex : veg.trainingBroadleafTex);
         if (veg.shadowTex) {
             glActiveTexture(GL_TEXTURE1);
             glBindTexture(GL_TEXTURE_2D, veg.shadowTex);

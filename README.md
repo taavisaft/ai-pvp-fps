@@ -28,6 +28,7 @@ are available here without launch flags.
 
 Preview: `FPS_REF=countryside FPS_ATMO=clear ./build/game` (`cloudy` for evening).
 Hilltop start: `FPS_REF=overlook ./build/game`.
+Elm collection: [Jagobo, CC BY 4.0](models/textures/elm/ATTRIBUTION.md).
 
 The training map also has a five-storey, 113.6 m Khrushchevka exterior at
 `(0, -110)`, south of the range. Eight entrances open into an empty shell;
@@ -69,7 +70,7 @@ being shot. Use **T** to explore their areas and **M** to find them on the map.
 | C | Find and join a server |
 | M / J | Toggle map / HUD |
 | Option+Return | Toggle fullscreen |
-| K | Cycle weather: Clear Day / Overcast / Golden Hour / Cloudy Evening |
+| K | Cycle weather: Clear Day / Overcast / Golden Hour / Cloudy Evening / Dark Sunset |
 | V | Toggle third-person view |
 | G | Clear bullet marks (offline) |
 | T | Teleport to a random safe map location (offline only) |

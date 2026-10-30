@@ -88,6 +88,15 @@ void main() {
         }
         vec3 horizon=grade(fogColor(dir));
         photograph=mix(horizon,photograph,smoothstep(-.02,.24,dir.y)*.92+.08*step(.0,dir.y));
+        if(usePanorama==4) {
+            float toward=max(dot(dir,normalize(sunDir)),0.0);
+            float band=1.0-smoothstep(.0,.32,abs(dir.y));
+            photograph=mix(photograph*vec3(.28,.26,.36),horizon,band*.65);
+            photograph+=vec3(.52,.17,.045)*pow(toward,12.0)*band;
+            float disk=smoothstep(cos(.014),cos(.012),toward);
+            vec3 sunDisk=mix(vec3(1.0,.62,.23),vec3(1.0,.88,.56),smoothstep(cos(.012),1.0,toward));
+            photograph=mix(photograph,sunDisk,disk*step(0.0,dir.y));
+        }
         fragColor=vec4(photograph,1); return;
     }
     float sunElev = clamp(normalize(sunDir).y, 0.0, 1.0);

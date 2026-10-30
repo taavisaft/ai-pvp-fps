@@ -5,5 +5,6 @@ in vec2 vUV;
 uniform sampler2D branchTex;
 uniform int trainingTree;
 void main() {
-    if (vUV.x >= 0.0 && texture(branchTex, vUV).a < (trainingTree==1 ? 0.22 : trainingTree>0 ? 0.30 : 0.42)) discard;
+    float cut=trainingTree==7 ? .074 : trainingTree==1 || trainingTree==5 ? .22 : trainingTree>0 ? .30 : .42;
+    if (vUV.x >= 0.0 && texture(branchTex, vUV).a < cut) discard;
 }

@@ -62,9 +62,9 @@ int main() {
         if(abs(z)>600) { farSpruce+=trainingConifer(type); ++farSamples; }
     }
     for(int type=0;type<TRAINING_TREE_TYPES;++type)
-        CHECK(type>=8 ? counts[type]>samples/3 : counts[type]==0);
+        CHECK(type>=8 ? counts[type]>samples/30 : counts[type]==0);
     CHECK(sameNeighbour*2>samples);
-    CHECK(farSpruce==farSamples);
+    CHECK(farSpruce*10>farSamples*3 && farSpruce*10<farSamples*7);
     int taiga[TRAINING_TREE_TYPES]{}, denseSpruce=0, denseSamples=0, edgeBirch=0, edgeLeaf=0;
     for(int x=-900;x<=900;x+=7) for(int z=-900;z<=900;z+=7) {
         int dense=taigaTreeType(float(x),float(z),1.0f), edge=taigaTreeType(float(x),float(z),0.0f);
