@@ -80,7 +80,7 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     glActiveTexture(GL_TEXTURE0);
 
     // Tree LOD0: full mesh, dithers out across the first band.
-    vegSh.setFloat(locWind, 0.05f);
+    vegSh.setFloat(locWind, gMapId==MAP_LOBBY ? 0.0f : 0.05f);
     vegSh.setFloat(locRange, 0.0f);
     glUniform2f(locFadeIn, 0.0f, 0.0f);
     glUniform2f(locFadeOut, 0.0f, 0.0f);
@@ -99,7 +99,7 @@ void Vegetation::drawLit(const Renderer& r, const Frustum& fr, const glm::vec3& 
     glActiveTexture(GL_TEXTURE6);
     glBindTexture(GL_TEXTURE_2D, bushTex);
     glActiveTexture(GL_TEXTURE0);
-    vegSh.setFloat(locWind, 0.06f);
+    vegSh.setFloat(locWind, gMapId==MAP_LOBBY ? 0.0f : 0.06f);
     glUniform2f(locFadeIn, 0.0f, 0.0f);
     glUniform2f(locFadeOut, bushFade_, bushEnd_);
     drawStream(vaoBush, streamBush, bushIdx, bufBush);
@@ -166,7 +166,7 @@ void Vegetation::drawShadow(const Frustum& sunFr, const glm::vec3& focus, float 
     vegDepthSh.use();
     vegDepthSh.setMat4(vegDepthSh.locLightSpace, lightSpace);
     vegDepthSh.setFloat(vegDepthSh.locTime, time);
-    glUniform1f(locWindD, 0.05f);
+    glUniform1f(locWindD, gMapId==MAP_LOBBY ? 0.0f : 0.05f);
     vegDepthSh.setFloat(locMeadowRange,0);
     glActiveTexture(GL_TEXTURE6);
     glBindTexture(GL_TEXTURE_2D, trainingBranchTex);

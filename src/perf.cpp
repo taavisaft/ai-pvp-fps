@@ -145,7 +145,7 @@ static const RefCameraPreset kRefCameras[] = {
     {"building", {68.0f, 0.0f, -133.0f}, 146.0f, 8.0f, Renderer::ATMO_CLEAR, true},
     {"countryside", {-450.0f,0.0f,-450.0f}, 45.0f,-12.0f, Renderer::ATMO_CLOUDY_EVENING, true,38.0f},
     {"woodland", {-450.0f,0.0f,-450.0f}, 45.0f,2.0f, Renderer::ATMO_CLEAR, true},
-    {"overlook", {TRAINING_OVERLOOK_X,0.0f,TRAINING_OVERLOOK_Z}, -56.0f,-6.0f, Renderer::ATMO_CLEAR, true},
+    {"overlook", {TRAINING_OVERLOOK_X,0.0f,TRAINING_OVERLOOK_Z}, -26.0f,-8.0f, Renderer::ATMO_CLEAR, true},
 };
 
 int refCameraCount() { return (int)(sizeof(kRefCameras) / sizeof(kRefCameras[0])); }

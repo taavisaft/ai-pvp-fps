@@ -72,7 +72,7 @@ void Vegetation::drawMeadow(const Renderer& r, const Frustum& fr, const glm::vec
     meadowSh.setFloat(meadowSh.locExposure, r.exposure);
     meadowSh.setFloat(meadowSh.locSaturation, r.saturation);
     meadowSh.setFloat(meadowSh.locHazeCool, r.hazeCool);
-    meadowSh.setFloat(locGrassWind,.045f);
+    meadowSh.setFloat(locGrassWind,gMapId==MAP_LOBBY ? 0.0f : .045f);
     meadowSh.setFloat(locGrassRange,gMapId==MAP_LOBBY ? 105.0f : 65.0f);
     glActiveTexture(GL_TEXTURE6); glBindTexture(GL_TEXTURE_2D,meadowAtlas);
     glActiveTexture(GL_TEXTURE0);

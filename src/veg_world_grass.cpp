@@ -60,7 +60,7 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
         float packedNormal=(float)(nx+256*nz);
         float scale=(.70f+.45f*growth)*(.8f+.4f*mapRand(key,tz,214));
         scale*=1-.65f*woodland;  // Occasional short tufts, not meadow-height blades.
-        if(gMapId==MAP_LOBBY) scale*=1+.9f*trainingReeds(x,z);
+        if(gMapId==MAP_LOBBY) scale*=.5f*(1+.9f*trainingReeds(x,z));
         plants[count++]={x,h-.025f,z,scale,
                          mapRand(key,tz,215)*6.2831853f,mapRand(key,tz,216),
                          .85f+.25f*mapRand(key,tz,217),packedNormal};
@@ -70,7 +70,7 @@ void Vegetation::buildWorldGrassTile(int slot, int tx, int tz) {
     if(gMapId==MAP_LOBBY && tx==int(NATURE_MEADOW_X/5) && tz==int(NATURE_MEADOW_Z/5)) {
         float h=terrainHeight(NATURE_MEADOW_X,NATURE_MEADOW_Z);
         if(count==MEADOW_CAPACITY) --count;
-        plants[count++]={NATURE_MEADOW_X,h-.025f,NATURE_MEADOW_Z,1.0f,0,13.0f/13.37f,1,32896};
+        plants[count++]={NATURE_MEADOW_X,h-.025f,NATURE_MEADOW_Z,.5f,0,13.0f/13.37f,1,32896};
         tile.minY=fminf(tile.minY,h); tile.maxY=fmaxf(tile.maxY,h);
     }
     std::sort(plants.begin(),plants.begin()+count,[](const auto& a,const auto& b) {

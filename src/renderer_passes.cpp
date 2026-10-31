@@ -67,8 +67,8 @@ void Renderer::setAtmosphere(int preset) {
         if (gMapId == MAP_LOBBY) {
             // Clear weather still has distance haze across the training valley.
             // Existing squared fog falloff keeps the range/nearby forest crisp.
-            fogDist = 1900.0f;
-            fogHeightAmt = 0.65f;
+            fogDist = 3400.0f;
+            fogHeightAmt = 0.35f;
         }
         break;
     }

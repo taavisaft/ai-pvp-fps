@@ -49,7 +49,7 @@ void main() {
     }
     float flex=trainingWindFlex(aPos,aUV,aFlex);
     float w = 0.0;
-    if (flex > 0.0 && densityGrow > 0.0) w = sin(time * 1.9 + iB.y * 6.2831 + dot(iA.xz, vec2(0.13, 0.09)))
+    if (windAmp > 0.0 && flex > 0.0 && densityGrow > 0.0) w = sin(time * 1.9 + iB.y * 6.2831 + dot(iA.xz, vec2(0.13, 0.09)))
             + 0.5 * sin(time * 3.7 + iB.y * 9.0);
     vec3 wp = iA.xyz + p;
     wp.xz += w * windAmp * flex * iA.w * densityGrow;

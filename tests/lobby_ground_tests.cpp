@@ -74,12 +74,23 @@ int main() {
         float gz=terrainHeight((float)x,z+1.0f)-h;
         fieldGrade=fmaxf(fieldGrade,sqrtf(gx*gx+gz*gz));
     }
-    CHECK(fieldMax-fieldMin>45 && fieldMax-fieldMin<60);
-    CHECK(fieldGrade<.40f);
+    CHECK(fieldMax-fieldMin>150 && fieldMax-fieldMin<180);
+    CHECK(fieldGrade<.45f);
     std::printf("training relief %.2f m, max sampled grade %.3f\n",fieldMax-fieldMin,fieldGrade);
-    CHECK(terrainHeight(TRAINING_OVERLOOK_X,TRAINING_OVERLOOK_Z)-terrainHeight(0,300)>45);
-    CHECK(terrainHeight(0,850)-terrainHeight(0,260)>10);
-    CHECK(terrainHeight(500,300)-terrainHeight(500,-100)>40);
+    CHECK(terrainHeight(TRAINING_OVERLOOK_X,TRAINING_OVERLOOK_Z)-terrainHeight(0,300)>90);
+    CHECK(terrainHeight(-780,-220)>140);
+    CHECK(terrainHeight(-780,580)>140);
+    CHECK(terrainHeight(850,-450)>125);
+    CHECK(terrainHeight(0,-450)<20);
+    // Ground-level view across 1.46 km of valley remains unobstructed by terrain.
+    float overlookEye=terrainHeight(TRAINING_OVERLOOK_X,TRAINING_OVERLOOK_Z)+1.7f;
+    float farEye=terrainHeight(700,-100)+1.7f;
+    for(int i=1;i<100;++i) {
+        float t=i*.01f;
+        float x=TRAINING_OVERLOOK_X+(700-TRAINING_OVERLOOK_X)*t;
+        float z=TRAINING_OVERLOOK_Z+(-100-TRAINING_OVERLOOK_Z)*t;
+        CHECK(overlookEye+(farEye-overlookEye)*t>terrainHeight(x,z)+1.0f);
+    }
     int openFields=0, woodland=0, clearBlocks=0, fieldSamples=0;
     for(int z=-900;z<=900;z+=50) for(int x=-900;x<=900;x+=50) {
         float forest=trainingForest((float)x,(float)z);

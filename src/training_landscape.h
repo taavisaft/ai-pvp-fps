@@ -9,21 +9,19 @@ inline float trainingPondRadius(float x,float z) {
     float dx=x/TRAINING_POND_RADIUS_X,dz=(z-TRAINING_POND_Z)/TRAINING_POND_RADIUS_Z;
     return sqrtf(dx*dx+dz*dz)*(1.0f+.06f*sinf(x*.12f+z*.09f));
 }
-constexpr float TRAINING_OVERLOOK_X=-220.0f, TRAINING_OVERLOOK_Z=460.0f;
-inline float trainingHill(float x,float z,float cx,float cz,float radius) {
-    float dx=x-cx,dz=z-cz;
-    return 1-lobbySmooth(0,radius,sqrtf(dx*dx+dz*dz));
+constexpr float TRAINING_OVERLOOK_X=-650.0f, TRAINING_OVERLOOK_Z=460.0f;
+inline float trainingRidge(float x,float z,float cx,float cz,float rx,float rz) {
+    float dx=(x-cx)/rx,dz=(z-cz)/rz;
+    return 1-lobbySmooth(0,1,sqrtf(dx*dx+dz*dz));
 }
 inline float trainingLandscapeHeight(float x,float z) {
-    // Separate rounded hills leave broad valleys and long sightlines.
+    // Two kilometre-scale ridges frame the open central valley.
     float h=8.0f+4.0f*terrValueNoise(x*.0035f+7,z*.0035f-2);
     h+=1.2f*sinf(x*.005f+z*.003f)*sinf(z*.006f+.4f);
-    h+=50*trainingHill(x,z,TRAINING_OVERLOOK_X,TRAINING_OVERLOOK_Z,300);
-    h+=48*trainingHill(x,z,500,300,380);
-    h+=46*trainingHill(x,z,-550,-460,420);
-    h+=50*trainingHill(x,z,100,870,340);
+    h+=170*trainingRidge(x,z,-780,180,750,1500);
+    h+=125*trainingRidge(x,z,850,-450,700,1100);
     float r=trainingPondRadius(x,z);
-    float basin=1-lobbySmooth(1.5f,5.5f,r);
+    float basin=1-lobbySmooth(1.5f,3.5f,r);
     h=h*(1-basin)+(6.3f+2.2f*(r-1.0f)+.12f*(h-12.0f))*basin;
     float bowl=1-lobbySmooth(.45f,1.05f,r);
     h=h*(1-bowl)+3.8f*bowl;
